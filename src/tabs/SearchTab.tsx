@@ -64,10 +64,10 @@ export function SearchTab() {
         {filteredVenues.map((venue) => (
           <div
             key={venue.id}
-            className="bg-white dark:bg-gray-800 rounded-2xl overflow-hidden border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md transition-shadow"
+            className="bg-white dark:bg-gray-800 rounded-2xl overflow-y-auto border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md transition-shadow"
           >
             {venue.image_url && (
-              <div className="h-48 overflow-hidden relative">
+              <div className="h-48 overflow-y-auto relative">
                 <img
                   src={venue.image_url}
                   alt={venue.name}

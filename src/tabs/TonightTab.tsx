@@ -42,7 +42,7 @@ export default function TonightTab() {
             {venues.map((venue) => (
               <div
                 key={venue.id}
-                className="relative rounded-2xl overflow-hidden border border-wa-lightBorder dark:border-wa-darkBorder animate-slide-up"
+                className="relative rounded-2xl overflow-y-auto border border-wa-lightBorder dark:border-wa-darkBorder animate-slide-up"
               >
                 <div className="relative h-52 md:h-56 lg:h-64">
                   {venue.image_url && (

@@ -206,7 +206,7 @@ export function CommunityTab() {
             <p className="text-gray-200 text-sm leading-relaxed">{post.content}</p>
 
             {post.mediaUrl && (
-              <div className="rounded-xl overflow-hidden border border-white/10 max-h-80 bg-black flex items-center justify-center">
+              <div className="rounded-xl overflow-y-auto border border-white/10 max-h-80 bg-black flex items-center justify-center">
                 <img src={post.mediaUrl} alt="Community upload" className="w-full h-full object-cover" />
               </div>
             )}

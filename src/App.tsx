@@ -52,7 +52,7 @@ function App() {
 
   return (
     <ThemeProvider>
-      <div className="h-screen w-full overflow-hidden bg-wa-light dark:bg-wa-dark flex flex-col md:flex-row transition-colors duration-300">
+      <div className="min-min-h-screen w-full overflow-y-auto bg-wa-light dark:bg-wa-dark flex flex-col md:flex-row transition-colors duration-300">
         {/* Desktop sidebar */}
         <aside className="hidden md:flex w-72 lg:w-80 flex-col bg-wa-lightPanel dark:bg-wa-darkPanel border-r border-wa-lightBorder dark:border-wa-darkBorder flex-shrink-0">
           <SidebarBranding />

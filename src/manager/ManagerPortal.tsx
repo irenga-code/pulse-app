@@ -8,7 +8,7 @@ type AssignedVenue = Pick<Venue, 'id' | 'name' | 'location' | 'status'>;
 
 function Shell({ children, onSignOut }: { children: React.ReactNode; onSignOut?: () => void }) {
   return (
-    <div className="min-h-screen w-full bg-wa-light dark:bg-wa-dark">
+    <div className="min-min-h-screen w-full bg-wa-light dark:bg-wa-dark">
       <header className="bg-wa-lightHeader dark:bg-wa-darkPanel border-b border-wa-lightBorder dark:border-wa-darkBorder">
         <div className="max-w-3xl mx-auto flex items-center justify-between px-4 py-3">
           <div className="flex items-center gap-1.5">

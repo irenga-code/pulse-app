@@ -40,9 +40,9 @@ export default function VenueCard({ venue }: Props) {
   const isLive = venue.status === 'live';
 
   return (
-    <div className="bg-wa-lightPanel dark:bg-wa-darkSecondary rounded-2xl overflow-hidden border border-wa-lightBorder dark:border-wa-darkBorder transition-all duration-300 hover:shadow-lg animate-slide-up">
+    <div className="bg-wa-lightPanel dark:bg-wa-darkSecondary rounded-2xl overflow-y-auto border border-wa-lightBorder dark:border-wa-darkBorder transition-all duration-300 hover:shadow-lg animate-slide-up">
       {/* Image */}
-      <div className="relative h-40 overflow-hidden">
+      <div className="relative h-40 overflow-y-auto">
         {venue.image_url ? (
           <img
             src={venue.image_url}
