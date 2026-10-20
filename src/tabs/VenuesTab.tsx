@@ -1,3 +1,18 @@
+import { useState } from 'react';
+import { AlertCircle, Flame, Ticket } from 'lucide-react';
+import { useVenues } from '@/hooks/useVenues';
+import { isVenueLive } from '@/lib/venues';
+import VenueCard from '@/components/VenueCard';
+import { VenueGridSkeleton } from '@/components/Skeleton';
+
+type FilterId = 'all' | 'live' | 'sold_out';
+
+const filters: { id: FilterId; label: string }[] = [
+  { id: 'all', label: 'All' },
+  { id: 'live', label: 'Live now' },
+  { id: 'sold_out', label: 'Sold out' },
+];
+
 export default function VenuesTab() {
   const { venues, loading, error } = useVenues({ orderBy: 'created_at' });
   const [filter, setFilter] = useState<FilterId>('all');
@@ -11,11 +26,10 @@ export default function VenuesTab() {
   const liveCount = venues.filter(isVenueLive).length;
 
   return (
-    /* Added fixed mobile height constraint to prevent layout lock */
-    <div className="flex flex-col h-[calc(100vh-4rem)] md:h-full overflow-hidden">
+    <div className="flex flex-col flex-1">
       {/* Hero summary */}
-      <div className="px-4 md:px-8 pt-4 pb-3 bg-wa-light dark:bg-wa-dark flex-shrink-0">
-        <h1 className="text-2xl font-bold text-wa-lightText dark:text-wa-darkText">Venues</h1>
+      <div className="px-4 md:px-8 pt-4 pb-3 bg-wa-light dark:bg-wa-dark">
+        <h1 className="text-2xl font-bold text-wa-lightText dark:text-wa-darkText">Venue</h1>
         <p className="text-sm text-wa-lightTextSecondary dark:text-wa-darkTextSecondary mt-0.5">
           {venues.length} venues in Kampala
           {liveCount > 0 && (
@@ -24,8 +38,8 @@ export default function VenuesTab() {
         </p>
       </div>
 
-      {/* Filter pills */}
-      <div className="sticky top-0 z-10 flex gap-2 px-4 md:px-8 py-2 bg-wa-light dark:bg-wa-dark overflow-x-auto scrollbar-hide whitespace-nowrap w-full touch-pan-x flex-shrink-0">
+      {/* Filter pills: scroll sideways; stick just below the mobile header (61px) while the page scrolls */}
+      <div className="sticky top-[61px] md:top-0 z-10 flex gap-2 px-4 md:px-8 py-2 bg-wa-light dark:bg-wa-dark overflow-x-auto scrollbar-hide whitespace-nowrap">
         {filters.map((f) => (
           <button
             key={f.id}
@@ -38,14 +52,13 @@ export default function VenuesTab() {
           >
             {f.id === 'live' && <Flame className="w-3.5 h-3.5" />}
             {f.id === 'sold_out' && <Ticket className="w-3.5 h-3.5" />}
-            {f.id === 'not_active' && <Moon className="w-3.5 h-3.5" />}
             {f.label}
           </button>
         ))}
       </div>
 
-      {/* Content - Added min-h-0 so overflow-y-auto actually triggers inside flex */}
-      <div className="flex-1 overflow-y-auto min-h-0 px-4 md:px-8 pb-6 bg-wa-light dark:bg-wa-dark">
+      {/* Content */}
+      <div className="flex-1 px-4 md:px-8 pb-6 bg-wa-light dark:bg-wa-dark">
         {loading ? (
           <VenueGridSkeleton />
         ) : error ? (
