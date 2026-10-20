@@ -1,19 +1,3 @@
-import { useState } from 'react';
-import { AlertCircle, Flame, Ticket, Moon, Loader2 } from 'lucide-react';
-import { useVenues } from '@/hooks/useVenues';
-import { isVenueLive } from '@/lib/venues';
-import VenueCard from '@/components/VenueCard';
-import { VenueGridSkeleton } from '@/components/Skeleton';
-
-type FilterId = 'all' | 'live' | 'sold_out' | 'not_active';
-
-const filters: { id: FilterId; label: string }[] = [
-  { id: 'all', label: 'All' },
-  { id: 'live', label: 'Live now' },
-  { id: 'sold_out', label: 'Sold Out' },
-  { id: 'not_active', label: 'Not Active' },
-];
-
 export default function VenuesTab() {
   const { venues, loading, error } = useVenues({ orderBy: 'created_at' });
   const [filter, setFilter] = useState<FilterId>('all');
@@ -27,9 +11,10 @@ export default function VenuesTab() {
   const liveCount = venues.filter(isVenueLive).length;
 
   return (
-    <div className="flex flex-col h-full">
+    /* Added fixed mobile height constraint to prevent layout lock */
+    <div className="flex flex-col h-[calc(100vh-4rem)] md:h-full overflow-hidden">
       {/* Hero summary */}
-      <div className="px-4 md:px-8 pt-4 pb-3 bg-wa-light dark:bg-wa-dark">
+      <div className="px-4 md:px-8 pt-4 pb-3 bg-wa-light dark:bg-wa-dark flex-shrink-0">
         <h1 className="text-2xl font-bold text-wa-lightText dark:text-wa-darkText">Venues</h1>
         <p className="text-sm text-wa-lightTextSecondary dark:text-wa-darkTextSecondary mt-0.5">
           {venues.length} venues in Kampala
@@ -39,8 +24,8 @@ export default function VenuesTab() {
         </p>
       </div>
 
-      {/* Filter pills - Optimized with whitespace-nowrap, w-full, and touch-pan-x for mobile scrolling */}
-      <div className="sticky top-0 z-10 flex gap-2 px-4 md:px-8 py-2 bg-wa-light dark:bg-wa-dark overflow-x-auto scrollbar-hide whitespace-nowrap w-full touch-pan-x">
+      {/* Filter pills */}
+      <div className="sticky top-0 z-10 flex gap-2 px-4 md:px-8 py-2 bg-wa-light dark:bg-wa-dark overflow-x-auto scrollbar-hide whitespace-nowrap w-full touch-pan-x flex-shrink-0">
         {filters.map((f) => (
           <button
             key={f.id}
@@ -59,8 +44,8 @@ export default function VenuesTab() {
         ))}
       </div>
 
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto px-4 md:px-8 pb-6 bg-wa-light dark:bg-wa-dark">
+      {/* Content - Added min-h-0 so overflow-y-auto actually triggers inside flex */}
+      <div className="flex-1 overflow-y-auto min-h-0 px-4 md:px-8 pb-6 bg-wa-light dark:bg-wa-dark">
         {loading ? (
           <VenueGridSkeleton />
         ) : error ? (
