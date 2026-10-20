@@ -1,0 +1,218 @@
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import type { Session, User } from '@supabase/supabase-js';
+import { supabase } from '@/lib/supabase';
+import { api } from '@/lib/apiClient';
+import { clearUserCache, readCache, userKey, writeCache } from '@/lib/cache';
+import type { Profile } from '@/lib/types';
+
+export type AuthMode = 'signin' | 'signup' | 'forgot';
+
+type AuthUi = { open: boolean; mode: AuthMode; reason: string | null };
+
+type AuthContextValue = {
+  session: Session | null;
+  user: User | null;
+  profile: Profile | null;
+  isAdmin: boolean;
+  /** True until the first session lookup finishes. */
+  loading: boolean;
+  /** Session AND profile/admin lookups have finished (safe to decide access). */
+  ready: boolean;
+  /** Signed in AND the account is allowed to write (not suspended / banned). */
+  canWrite: boolean;
+  authUi: AuthUi;
+  openAuth: (mode?: AuthMode, reason?: string) => void;
+  closeAuth: () => void;
+  /** Returns true when signed in; otherwise opens the sign-in modal and returns false. */
+  requireAuth: (reason?: string) => boolean;
+  recovery: boolean;
+  clearRecovery: () => void;
+  signIn: (email: string, password: string) => Promise<void>;
+  signUp: (email: string, password: string, displayName: string) => Promise<{ needsConfirmation: boolean }>;
+  signOut: () => Promise<void>;
+  sendPasswordReset: (email: string) => Promise<void>;
+  setNewPassword: (password: string) => Promise<void>;
+  changeEmail: (email: string) => Promise<void>;
+  deleteAccount: () => Promise<void>;
+  refreshProfile: () => Promise<void>;
+};
+
+const AuthContext = createContext<AuthContextValue | undefined>(undefined);
+
+type CachedAccount = { profile: Profile | null; isAdmin: boolean };
+const accountKey = (id: string) => userKey(id, 'account');
+
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [session, setSession] = useState<Session | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+  /** Which user id the profile/admin lookup last finished for (never a stale id). */
+  const [loadedFor, setLoadedFor] = useState<string | null>(null);
+  const [authUi, setAuthUi] = useState<AuthUi>({ open: false, mode: 'signin', reason: null });
+  const [recovery, setRecovery] = useState(false);
+
+  const user = session?.user ?? null;
+  const userId = user?.id ?? null;
+
+  useEffect(() => {
+    let active = true;
+    supabase.auth.getSession().then(({ data }) => {
+      if (!active) return;
+      setSession(data.session);
+      setLoading(false);
+    });
+    // Keep this callback synchronous: awaiting Supabase calls inside it can deadlock the client.
+    const { data: sub } = supabase.auth.onAuthStateChange((event, next) => {
+      setSession(next);
+      if (event === 'PASSWORD_RECOVERY') setRecovery(true);
+      if (event === 'SIGNED_OUT') setRecovery(false);
+    });
+    return () => {
+      active = false;
+      sub.subscription.unsubscribe();
+    };
+  }, []);
+
+  const loadProfile = useCallback(async (id: string) => {
+    const [p, admin] = await Promise.all([api.getProfile(id), api.isAdmin(id).catch(() => false)]);
+    setProfile(p);
+    setIsAdmin(admin);
+    writeCache(accountKey(id), { profile: p, isAdmin: admin } satisfies CachedAccount);
+  }, []);
+
+  // whoever was signed in before keeps nothing on this device once they sign out or switch accounts
+  const previousUser = useRef<string | null>(null);
+  useEffect(() => {
+    const prev = previousUser.current;
+    if (prev && prev !== userId) clearUserCache(prev);
+    previousUser.current = userId;
+  }, [userId]);
+
+  useEffect(() => {
+    if (!userId) {
+      setProfile(null);
+      setIsAdmin(false);
+      setLoadedFor(null);
+      return;
+    }
+    let active = true;
+    // the last known profile / admin flag shows at once (the database still checks every admin action)
+    const cached = readCache<CachedAccount>(accountKey(userId));
+    if (cached) {
+      setProfile(cached.profile);
+      setIsAdmin(cached.isAdmin);
+      setLoadedFor(userId);
+    }
+    loadProfile(userId)
+      .catch(() => {
+        if (active && !cached) setProfile(null);
+      })
+      .finally(() => {
+        if (active) setLoadedFor(userId);
+      });
+    return () => {
+      active = false;
+    };
+  }, [userId, loadProfile]);
+
+  const refreshProfile = useCallback(async () => {
+    if (userId) await loadProfile(userId).catch(() => undefined);
+  }, [userId, loadProfile]);
+
+  const openAuth = useCallback((mode: AuthMode = 'signin', reason?: string) => {
+    setAuthUi({ open: true, mode, reason: reason ?? null });
+  }, []);
+  const closeAuth = useCallback(() => setAuthUi((u) => ({ ...u, open: false })), []);
+
+  const requireAuth = useCallback(
+    (reason?: string) => {
+      if (session) return true;
+      openAuth('signin', reason);
+      return false;
+    },
+    [session, openAuth]
+  );
+
+  const signIn = useCallback(async (email: string, password: string) => {
+    const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+    if (error) throw error;
+  }, []);
+
+  const signUp = useCallback(async (email: string, password: string, displayName: string) => {
+    if (await api.isDisplayNameTaken(displayName)) throw new Error('That display name is already taken. Please pick another.');
+    const { data, error } = await supabase.auth.signUp({
+      email: email.trim(),
+      password,
+      options: { data: { display_name: displayName.trim() }, emailRedirectTo: window.location.origin },
+    });
+    if (error) throw error;
+    // With email confirmation on, an existing address comes back as a user with no identities.
+    if (data.user && data.user.identities && data.user.identities.length === 0) {
+      throw new Error('An account with this email already exists.');
+    }
+    return { needsConfirmation: !data.session };
+  }, []);
+
+  const signOut = useCallback(async () => {
+    const { error } = await supabase.auth.signOut();
+    if (error) throw error;
+  }, []);
+
+  const sendPasswordReset = useCallback(async (email: string) => {
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo: window.location.origin });
+    if (error) throw error;
+  }, []);
+
+  const setNewPassword = useCallback(async (password: string) => {
+    const { error } = await supabase.auth.updateUser({ password });
+    if (error) throw error;
+  }, []);
+
+  const changeEmail = useCallback(async (email: string) => {
+    const { error } = await supabase.auth.updateUser({ email: email.trim() }, { emailRedirectTo: window.location.origin });
+    if (error) throw error;
+  }, []);
+
+  const deleteAccount = useCallback(async () => {
+    await api.deleteMyAccount();
+    await supabase.auth.signOut({ scope: 'local' });
+  }, []);
+
+  const value = useMemo<AuthContextValue>(
+    () => ({
+      session,
+      user,
+      profile,
+      isAdmin,
+      loading,
+      ready: !loading && (userId === null || loadedFor === userId),
+      canWrite: !!session && (profile ? profile.status === 'active' : true),
+      authUi,
+      openAuth,
+      closeAuth,
+      requireAuth,
+      recovery,
+      clearRecovery: () => setRecovery(false),
+      signIn,
+      signUp,
+      signOut,
+      sendPasswordReset,
+      setNewPassword,
+      changeEmail,
+      deleteAccount,
+      refreshProfile,
+    }),
+    [session, user, userId, profile, isAdmin, loading, loadedFor, authUi, openAuth, closeAuth, requireAuth, recovery,
+      signIn, signUp, signOut, sendPasswordReset, setNewPassword, changeEmail, deleteAccount, refreshProfile]
+  );
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
+
+// eslint-disable-next-line react-refresh/only-export-components
+export function useAuth() {
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error('useAuth must be used within AuthProvider');
+  return ctx;
+}

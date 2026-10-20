@@ -1,0 +1,38 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer utilities {
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* Floating emoji for live reactions */
+@keyframes float-up {
+  0%   { opacity: 0; transform: translate3d(0, 0, 0) scale(0.6); }
+  15%  { opacity: 1; transform: translate3d(0, -18px, 0) scale(1.15); }
+  100% { opacity: 0; transform: translate3d(var(--drift, 0px), -150px, 0) scale(1); }
+}
+.reaction-float { animation: float-up 1.6s ease-out forwards; will-change: transform, opacity; }
+@media (prefers-reduced-motion: reduce) {
+  .reaction-float { animation: none; opacity: 0; }
+}
+
+/* Double-tap-to-like heart */
+@keyframes heart-pop {
+  0%   { opacity: 0; transform: scale(0.2) rotate(var(--tilt, 0deg)); }
+  25%  { opacity: 1; transform: scale(1.25) rotate(var(--tilt, 0deg)); }
+  45%  { transform: scale(0.95) rotate(var(--tilt, 0deg)); }
+  70%  { opacity: 1; transform: scale(1.05) rotate(var(--tilt, 0deg)); }
+  100% { opacity: 0; transform: scale(1.5) translateY(-30px) rotate(var(--tilt, 0deg)); }
+}
+.heart-pop { animation: heart-pop 0.85s cubic-bezier(0.2, 0.9, 0.3, 1) forwards; will-change: transform, opacity; }
+@media (prefers-reduced-motion: reduce) {
+  .heart-pop { animation: heart-fade 0.85s ease-out forwards; }
+  @keyframes heart-fade { 0% { opacity: 1; } 100% { opacity: 0; } }
+}

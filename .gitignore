@@ -1,0 +1,17 @@
+node_modules
+dist
+dist-ssr
+*.local
+.vercel
+
+# secrets: only .env.example (empty placeholders) is committed
+.env
+.env.*
+!.env.example
+
+# logs / editor / OS
+*.log
+.DS_Store
+.vscode/*
+!.vscode/extensions.json
+.idea
