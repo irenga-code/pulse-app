@@ -11,6 +11,7 @@
     display: none;
   }
 }
+<<<<<<< HEAD
 
 /* Floating emoji for live reactions */
 @keyframes float-up {
@@ -36,3 +37,5 @@
   .heart-pop { animation: heart-fade 0.85s ease-out forwards; }
   @keyframes heart-fade { 0% { opacity: 1; } 100% { opacity: 0; } }
 }
+=======
+>>>>>>> e14542724eaa5b9d785ae538c31a2e121d3a7fd9

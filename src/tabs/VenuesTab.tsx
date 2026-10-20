@@ -1,4 +1,5 @@
 import { useState } from 'react';
+<<<<<<< HEAD
 import { AlertCircle, Flame, Ticket } from 'lucide-react';
 import { useVenues } from '@/hooks/useVenues';
 import { isVenueLive } from '@/lib/venues';
@@ -6,11 +7,23 @@ import VenueCard from '@/components/VenueCard';
 import { VenueGridSkeleton } from '@/components/Skeleton';
 
 type FilterId = 'all' | 'live' | 'sold_out';
+=======
+import { Loader2, AlertCircle, Flame, Ticket, Moon } from 'lucide-react';
+import { useVenues } from '@/hooks/useVenues';
+import VenueCard from '@/components/VenueCard';
+
+type FilterId = 'all' | 'live' | 'sold_out' | 'not_active';
+>>>>>>> e14542724eaa5b9d785ae538c31a2e121d3a7fd9
 
 const filters: { id: FilterId; label: string }[] = [
   { id: 'all', label: 'All' },
   { id: 'live', label: 'Live now' },
+<<<<<<< HEAD
   { id: 'sold_out', label: 'Sold out' },
+=======
+  { id: 'sold_out', label: 'Sold Out' },
+  { id: 'not_active', label: 'Not Active' },
+>>>>>>> e14542724eaa5b9d785ae538c31a2e121d3a7fd9
 ];
 
 export default function VenuesTab() {
@@ -19,11 +32,17 @@ export default function VenuesTab() {
 
   const filtered = filter === 'all'
     ? venues
+<<<<<<< HEAD
     : filter === 'live'
       ? venues.filter(isVenueLive)
       : venues.filter((v) => v.status === filter);
 
   const liveCount = venues.filter(isVenueLive).length;
+=======
+    : venues.filter((v) => v.status === filter);
+
+  const liveCount = venues.filter((v) => v.status === 'live').length;
+>>>>>>> e14542724eaa5b9d785ae538c31a2e121d3a7fd9
 
   return (
     <div className="flex flex-col h-full">
@@ -39,7 +58,11 @@ export default function VenuesTab() {
       </div>
 
       {/* Filter pills */}
+<<<<<<< HEAD
       <div className="sticky top-0 z-10 flex gap-2 px-4 md:px-8 py-2 bg-wa-light dark:bg-wa-dark overflow-x-auto scrollbar-hide">
+=======
+      <div className="sticky top-0 z-10 flex gap-2 px-4 md:px-8 py-2 bg-wa-light dark:bg-wa-dark overflow-hidden scrollbar-hide">
+>>>>>>> e14542724eaa5b9d785ae538c31a2e121d3a7fd9
         {filters.map((f) => (
           <button
             key={f.id}
@@ -52,6 +75,10 @@ export default function VenuesTab() {
           >
             {f.id === 'live' && <Flame className="w-3.5 h-3.5" />}
             {f.id === 'sold_out' && <Ticket className="w-3.5 h-3.5" />}
+<<<<<<< HEAD
+=======
+            {f.id === 'not_active' && <Moon className="w-3.5 h-3.5" />}
+>>>>>>> e14542724eaa5b9d785ae538c31a2e121d3a7fd9
             {f.label}
           </button>
         ))}
@@ -60,7 +87,16 @@ export default function VenuesTab() {
       {/* Content */}
       <div className="flex-1 overflow-y-auto px-4 md:px-8 pb-6 bg-wa-light dark:bg-wa-dark">
         {loading ? (
+<<<<<<< HEAD
           <VenueGridSkeleton />
+=======
+          <div className="flex flex-col items-center justify-center py-20">
+            <Loader2 className="w-8 h-8 text-wa-green animate-spin" />
+            <p className="text-sm text-wa-lightTextSecondary dark:text-wa-darkTextSecondary mt-3">
+              Loading venues...
+            </p>
+          </div>
+>>>>>>> e14542724eaa5b9d785ae538c31a2e121d3a7fd9
         ) : error ? (
           <div className="flex flex-col items-center justify-center py-20">
             <AlertCircle className="w-10 h-10 text-wa-live" />

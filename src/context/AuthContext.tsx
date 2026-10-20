@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
@@ -35,10 +36,22 @@ type AuthContextValue = {
   changeEmail: (email: string) => Promise<void>;
   deleteAccount: () => Promise<void>;
   refreshProfile: () => Promise<void>;
+=======
+import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import type { Session, User } from '@supabase/supabase-js';
+import { supabase } from '@/lib/supabase';
+
+type AuthContextValue = {
+  user: User | null;
+  loading: boolean;
+  signIn: (email: string, password: string) => Promise<string | null>;
+  signOut: () => Promise<void>;
+>>>>>>> e14542724eaa5b9d785ae538c31a2e121d3a7fd9
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
+<<<<<<< HEAD
 type CachedAccount = { profile: Profile | null; isAdmin: boolean };
 const accountKey = (id: string) => userKey(id, 'account');
 
@@ -54,6 +67,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const user = session?.user ?? null;
   const userId = user?.id ?? null;
+=======
+/**
+ * Supabase Auth session for venue managers/hosts.
+ * Regular visitors never need to sign in; only the manager portal uses this.
+ */
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [session, setSession] = useState<Session | null>(null);
+  const [loading, setLoading] = useState(true);
+>>>>>>> e14542724eaa5b9d785ae538c31a2e121d3a7fd9
 
   useEffect(() => {
     let active = true;
@@ -62,11 +84,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(data.session);
       setLoading(false);
     });
+<<<<<<< HEAD
     // Keep this callback synchronous: awaiting Supabase calls inside it can deadlock the client.
     const { data: sub } = supabase.auth.onAuthStateChange((event, next) => {
       setSession(next);
       if (event === 'PASSWORD_RECOVERY') setRecovery(true);
       if (event === 'SIGNED_OUT') setRecovery(false);
+=======
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, next) => {
+      setSession(next);
+>>>>>>> e14542724eaa5b9d785ae538c31a2e121d3a7fd9
     });
     return () => {
       active = false;
@@ -74,6 +101,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+<<<<<<< HEAD
   const loadProfile = useCallback(async (id: string) => {
     const [p, admin] = await Promise.all([api.getProfile(id), api.isAdmin(id).catch(() => false)]);
     setProfile(p);
@@ -208,6 +236,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+=======
+  const signIn = async (email: string, password: string) => {
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    return error ? error.message : null;
+  };
+
+  const signOut = async () => {
+    await supabase.auth.signOut();
+  };
+
+  return (
+    <AuthContext.Provider value={{ user: session?.user ?? null, loading, signIn, signOut }}>
+      {children}
+    </AuthContext.Provider>
+  );
+>>>>>>> e14542724eaa5b9d785ae538c31a2e121d3a7fd9
 }
 
 // eslint-disable-next-line react-refresh/only-export-components

@@ -1,8 +1,13 @@
+<<<<<<< HEAD
 import { defineConfig, loadEnv, type PluginOption } from 'vite';
+=======
+import { defineConfig } from 'vite';
+>>>>>>> e14542724eaa5b9d785ae538c31a2e121d3a7fd9
 import react from '@vitejs/plugin-react';
 import { fileURLToPath, URL } from 'node:url';
 
 // https://vitejs.dev/config/
+<<<<<<< HEAD
 export default defineConfig(async ({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
 
@@ -40,4 +45,16 @@ export default defineConfig(async ({ mode }) => {
     // NOTE: lucide-react must NOT be excluded from pre-bundling. It re-exports ~3,500 icon modules;
     // excluded, the dev server makes thousands of requests on every page load (slow / EMFILE on WSL).
   };
+=======
+export default defineConfig({
+  plugins: [react()],
+  resolve: {
+    alias: {
+      '@': fileURLToPath(new URL('./src', import.meta.url)),
+    },
+  },
+  optimizeDeps: {
+    exclude: ['lucide-react'],
+  },
+>>>>>>> e14542724eaa5b9d785ae538c31a2e121d3a7fd9
 });
