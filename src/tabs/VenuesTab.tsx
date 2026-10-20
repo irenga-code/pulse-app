@@ -39,8 +39,8 @@ export default function VenuesTab() {
         </p>
       </div>
 
-      {/* Filter pills - Fixed with overflow-x-auto for smooth mobile sideways scrolling */}
-      <div className="sticky top-0 z-10 flex gap-2 px-4 md:px-8 py-2 bg-wa-light dark:bg-wa-dark overflow-x-auto scrollbar-hide">
+      {/* Filter pills - Optimized with whitespace-nowrap, w-full, and touch-pan-x for mobile scrolling */}
+      <div className="sticky top-0 z-10 flex gap-2 px-4 md:px-8 py-2 bg-wa-light dark:bg-wa-dark overflow-x-auto scrollbar-hide whitespace-nowrap w-full touch-pan-x">
         {filters.map((f) => (
           <button
             key={f.id}
