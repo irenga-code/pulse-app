@@ -57,8 +57,8 @@ BEGIN
   SELECT id INTO other FROM public.venues WHERE id <> nomad LIMIT 1;
   INSERT INTO public.venue_managers (venue_id, user_id, role) VALUES (nomad, mgr, 'manager');
 
-  PERFORM pulse_test.ok((SELECT attname FROM pg_attribute WHERE attrelid = 'public.venues_public'::regclass AND attnum > 0
-                         ORDER BY attnum DESC LIMIT 1) = 'logo_url', 'venues_public exposes logo_url as its last column');
+  PERFORM pulse_test.ok(EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = 'public.venues_public'::regclass AND attname = 'logo_url'
+                         AND NOT attisdropped), 'venues_public exposes logo_url');
 
   PERFORM pulse_test.act_as(mgr);
   PERFORM pulse_test.ok(pulse_test.rows(format($q$UPDATE public.venues SET logo_url = 'https://cdn.example.com/logo.png' WHERE id = %L$q$, nomad)) = 1,

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Search, Loader2 } from 'lucide-react';
+import { Search, Loader2, BadgeCheck } from 'lucide-react';
 import Avatar from '@/components/Avatar';
 import RoleBadge from '@/components/RoleBadge';
 import { Spinner, ErrorNote, inputClass, primaryBtn, ghostBtn, dangerBtn, mutedText, bodyText } from '@/components/ui';
@@ -10,7 +10,7 @@ import { friendlyError } from '@/lib/api';
 import { useAsync } from '@/hooks/useAsync';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/context/ToastContext';
-import type { AccountStatus, Profile } from '@/lib/types';
+import type { AccountStatus, AccountType, Profile } from '@/lib/types';
 import { memUserKey } from '@/lib/cache';
 
 function UserRow({ profile, isSelf, onChanged }: { profile: Profile; isSelf: boolean; onChanged: () => void }) {
@@ -19,6 +19,23 @@ function UserRow({ profile, isSelf, onChanged }: { profile: Profile; isSelf: boo
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [roleOpen, setRoleOpen] = useState(false);
+  const [role, setRole] = useState<AccountType>(profile.account_type);
+  const [verified, setVerified] = useState(profile.is_verified);
+
+  const saveRole = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.adminSetUserRole(profile.id, role, verified);
+      show(`${profile.display_name}'s role updated`);
+      setRoleOpen(false);
+      onChanged();
+    } catch (e) {
+      setError(friendlyError(e));
+    }
+    setBusy(false);
+  };
 
   const apply = async () => {
     if (!target) return;
@@ -55,10 +72,16 @@ function UserRow({ profile, isSelf, onChanged }: { profile: Profile; isSelf: boo
           </div>
           <p className={`text-[11px] mt-0.5 ${mutedText}`}>Joined {formatDateTime(profile.created_at)} · {profile.id.slice(0, 8)}</p>
         </div>
+        {!target && !roleOpen && (
+          <button onClick={() => { setRoleOpen(true); setRole(profile.account_type); setVerified(profile.is_verified); setError(null); }}
+            className="text-xs font-semibold rounded-lg px-2.5 py-1.5 border border-wa-lightBorder dark:border-wa-darkBorder text-wa-lightText dark:text-wa-darkText">
+            Role
+          </button>
+        )}
         {isSelf ? (
           <span className={`text-xs ${mutedText}`}>You</span>
         ) : (
-          !target && (
+          !target && !roleOpen && (
             <div className="flex gap-1.5">
               {actions.map((a) => (
                 <button key={a.status} onClick={() => setTarget(a.status)} className={`text-xs font-semibold rounded-lg px-2.5 py-1.5 border ${a.danger ? 'border-wa-live/50 text-wa-live' : 'border-wa-lightBorder dark:border-wa-darkBorder text-wa-lightText dark:text-wa-darkText'}`}>
@@ -69,6 +92,32 @@ function UserRow({ profile, isSelf, onChanged }: { profile: Profile; isSelf: boo
           )
         )}
       </div>
+      {roleOpen && (
+        <div className="mt-3 pt-3 border-t border-wa-lightBorder dark:border-wa-darkBorder space-y-2.5">
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="flex items-center gap-2 text-xs">
+              <span className={mutedText}>Role</span>
+              <select value={role} onChange={(e) => setRole(e.target.value as AccountType)} aria-label={`Role of ${profile.display_name}`} className={`${inputClass} !w-auto !py-1.5`}>
+                <option value="user">User</option>
+                <option value="host">Performer / Staff (Host)</option>
+                <option value="venue">Venue account</option>
+              </select>
+            </label>
+            <label className={`flex items-center gap-2 text-xs ${bodyText}`}>
+              <input type="checkbox" checked={verified} onChange={(e) => setVerified(e.target.checked)} className="accent-wa-green" />
+              <BadgeCheck className="w-3.5 h-3.5 text-wa-green" />Verified badge
+            </label>
+          </div>
+          <p className={`text-[11px] ${mutedText}`}>Venue links (manager / host of a club) are managed in the Venue staff tab.</p>
+          {error && <ErrorNote message={error} />}
+          <div className="flex gap-2">
+            <button onClick={saveRole} disabled={busy} className={primaryBtn}>
+              {busy && <Loader2 className="w-4 h-4 animate-spin" />}Save role
+            </button>
+            <button onClick={() => { setRoleOpen(false); setError(null); }} disabled={busy} className={ghostBtn}>Cancel</button>
+          </div>
+        </div>
+      )}
       {target && (
         <div className="mt-3 pt-3 border-t border-wa-lightBorder dark:border-wa-darkBorder space-y-2.5">
           <p className={`text-xs ${bodyText}`}>

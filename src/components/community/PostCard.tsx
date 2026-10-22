@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { Flag, Trash2, ShieldX, MapPin } from 'lucide-react';
+import { Flag, Trash2, ShieldX, MapPin, Pencil, Loader2 } from 'lucide-react';
 import Avatar from '@/components/Avatar';
 import RoleBadge from '@/components/RoleBadge';
 import ReactionBar from '@/components/reactions/ReactionBar';
@@ -10,7 +10,8 @@ import CommentsThread from '@/components/community/CommentsThread';
 import ReportModal from '@/components/community/ReportModal';
 import PostActions from '@/components/community/PostActions';
 import { EmojiText } from '@/components/emoji/EmojiImg';
-import { mutedText, bodyText } from '@/components/ui';
+import { ErrorNote, inputClass, mutedText, bodyText } from '@/components/ui';
+import { friendlyError } from '@/lib/api';
 import { timeAgo } from '@/lib/time';
 import { useAuth } from '@/context/AuthContext';
 import { useSocial } from '@/context/SocialContext';
@@ -35,6 +36,8 @@ type Props = {
   mine: ReactionKind | null;
   onReact: (kind: ReactionKind) => void;
   onDelete: () => void;
+  /** Authors edit their post's text; rejects to keep the editor open. */
+  onEdit?: (content: string) => Promise<void>;
   onAdminRemove: () => void;
   bursts: Burst[];
   onBurstDone: (id: number) => void;
@@ -42,7 +45,7 @@ type Props = {
   engagement?: PostEngagement;
 };
 
-export default function PostCard({ post, author, counts, mine, onReact, onDelete, onAdminRemove, bursts, onBurstDone, onCommentCount, engagement }: Props) {
+export default function PostCard({ post, author, counts, mine, onReact, onDelete, onEdit, onAdminRemove, bursts, onBurstDone, onCommentCount, engagement }: Props) {
   const { user, isAdmin, requireAuth } = useAuth();
   const { openProfile } = useSocial();
   const { show } = useToast();
@@ -51,10 +54,29 @@ export default function PostCard({ post, author, counts, mine, onReact, onDelete
   const [showComments, setShowComments] = useState(false);
   const [reporting, setReporting] = useState(false);
   const [confirming, setConfirming] = useState(false);
+  const [draft, setDraft] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
   const own = !!user && post.user_id === user.id;
   // a post made as a venue speaks for the venue, so it does not link to (or badge) the person who wrote it
   const profileId = post.as_venue ? null : post.user_id;
   const liked = mine === 'heart';
+
+  const saveEdit = async () => {
+    if (draft === null || !onEdit) return;
+    const text = draft.trim();
+    if (text.length < 1 || text.length > 1000) return setEditError('Posts need 1-1000 characters.');
+    setSaving(true);
+    setEditError(null);
+    try {
+      await onEdit(text);
+      setDraft(null);
+      show('Post updated');
+    } catch (e) {
+      setEditError(friendlyError(e));
+    }
+    setSaving(false);
+  };
 
   const share = async () => {
     const result = await shareLink({ url: postLink(post.id), title: `${post.user_name} on Pulse`, text: post.content.slice(0, 120) });
@@ -80,7 +102,21 @@ export default function PostCard({ post, author, counts, mine, onReact, onDelete
               {post.venue_name}
             </span>
           )}
-          {post.content && <p className={`text-sm mt-1.5 leading-relaxed whitespace-pre-wrap break-words ${bodyText}`}><EmojiText text={post.content} /></p>}
+          {draft !== null ? (
+            <div className="mt-1.5 space-y-2">
+              <textarea value={draft} onChange={(e) => setDraft(e.target.value.slice(0, 1000))} rows={3} aria-label="Post text" className={`${inputClass} resize-none`} autoFocus />
+              {editError && <ErrorNote message={editError} />}
+              <div className="flex items-center gap-2">
+                <button onClick={saveEdit} disabled={saving} className="inline-flex items-center gap-1.5 text-xs font-semibold text-white bg-wa-green rounded-lg px-3 py-1.5 disabled:opacity-50">
+                  {saving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}Save
+                </button>
+                <button onClick={() => { setDraft(null); setEditError(null); }} disabled={saving} className={`text-xs px-2 py-1.5 ${mutedText}`}>Cancel</button>
+                <span className={`text-[11px] ml-auto ${mutedText}`}>{draft.length}/1000</span>
+              </div>
+            </div>
+          ) : (
+            post.content && <p className={`text-sm mt-1.5 leading-relaxed whitespace-pre-wrap break-words ${bodyText}`}><EmojiText text={post.content} /></p>
+          )}
           {post.media_url && <PostMedia post={post} className="mt-2.5" onDoubleTap={() => { if (!liked) onReact('heart'); }} />}
 
           <div className="flex items-center gap-2 mt-3 flex-wrap">
@@ -95,6 +131,11 @@ export default function PostCard({ post, author, counts, mine, onReact, onDelete
                 </>
               ) : (
                 <>
+                  {own && onEdit && draft === null && (
+                    <button onClick={() => setDraft(post.content ?? '')} aria-label="Edit post" className={`p-1.5 hover:text-wa-green ${mutedText}`}>
+                      <Pencil className="w-4 h-4" />
+                    </button>
+                  )}
                   {own && (
                     <button onClick={() => setConfirming(true)} aria-label="Delete post" className={`p-1.5 hover:text-wa-live ${mutedText}`}>
                       <Trash2 className="w-4 h-4" />

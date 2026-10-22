@@ -9,7 +9,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type {
   Venue, VenueStatus, Post, Comment, ReactionKind, ReactionCounts, ReactionType, NewPostInput, Profile, PublicProfile, Preferences,
-  AppNotification, ReportTarget, ReportReason, ReportRow, VerificationRequest, ModerationLogRow, AccountStatus,
+  AppNotification, ReportTarget, ReportReason, ReportRow, VerificationRequest, ModerationLogRow, AccountStatus, AccountType,
   ProfileStats, Status, NewStatusInput, ChatMessage, ConversationSummary, MessageRef, VerificationRole, ManagedVenue, VenueProfilePatch, StaffCandidate, VenueStaffRow,
 } from './types';
 
@@ -112,8 +112,16 @@ export function createApi(c: SupabaseClient) {
       }
       throw new ApiError(lastError?.message ?? 'Upload failed');
     },
-    async deletePost(id: string) {
+    /** Deleting your own post also removes its photo / video from your post-media folder (best effort). */
+    async deletePost(id: string, mediaUrl?: string | null) {
       unwrap(await c.from('posts').delete().eq('id', id));
+      const path = mediaUrl?.split('/post-media/')[1]?.split('?')[0];
+      if (path) await c.storage.from('post-media').remove([decodeURIComponent(path)]).catch(() => undefined);
+    },
+    /** Authors edit the text of their own posts (media stays as posted). */
+    async updatePost(id: string, content: string) {
+      const rows = unwrap(await c.from('posts').update({ content: content.trim() }).eq('id', id).select('id')) as unknown[];
+      if (rows.length === 0) throw new ApiError('You can only edit your own posts.', '42501');
     },
 
     async profilesByIds(ids: string[]) {
@@ -212,6 +220,10 @@ export function createApi(c: SupabaseClient) {
     },
     async deleteComment(id: string) {
       unwrap(await c.from('comments').delete().eq('id', id));
+    },
+    async updateComment(id: string, body: string) {
+      const rows = unwrap(await c.from('comments').update({ body: body.trim() }).eq('id', id).select('id')) as unknown[];
+      if (rows.length === 0) throw new ApiError('You can only edit your own comments.', '42501');
     },
 
     // ----------------------------------------------------------- reports
@@ -325,6 +337,22 @@ export function createApi(c: SupabaseClient) {
         p_image_url: input.image_url ?? null, p_logo_url: input.logo_url ?? null,
       })) as Venue;
     },
+    // migration 13: self-service roles and venues
+    /** Drop your Performer / Staff or Venue account role and its badge. */
+    async relinquishMyRole() {
+      return unwrap(await c.rpc('relinquish_my_role')) as Profile;
+    },
+    async leaveVenue(venueId: string) {
+      unwrap(await c.rpc('leave_venue', { p_venue_id: venueId }));
+    },
+    /** Only the person who registered the venue. */
+    async renameMyVenue(venueId: string, name: string, location: string) {
+      return unwrap(await c.rpc('rename_my_venue', { p_venue_id: venueId, p_name: name.trim(), p_location: location.trim() })) as Venue;
+    },
+    /** Only the person who registered the venue; permanent. */
+    async deleteMyVenue(venueId: string) {
+      unwrap(await c.rpc('delete_my_venue', { p_venue_id: venueId }));
+    },
     async setVenueStatus(venueId: string, status: VenueStatus, minutes = 360) {
       return unwrap(await c.rpc('set_venue_status', { p_venue_id: venueId, p_status: status, p_duration_minutes: minutes })) as Venue;
     },
@@ -431,6 +459,10 @@ export function createApi(c: SupabaseClient) {
     async deleteStatus(id: string) {
       unwrap(await c.from('statuses').delete().eq('id', id));
     },
+    /** Admins: remove someone's status; the author is told why (logged). */
+    async adminDeleteStatus(id: string, note?: string) {
+      unwrap(await c.rpc('admin_delete_status', { p_id: id, p_note: note?.trim() || null }));
+    },
     async myStatusViews(userId: string) {
       const rows = unwrapOr(await c.from('status_views').select('status_id').eq('viewer_id', userId), []) as { status_id: string }[];
       return rows.map((r) => r.status_id);
@@ -521,6 +553,14 @@ export function createApi(c: SupabaseClient) {
       return unwrap(
         await c.from('venues').select('id, created_by, created_at').not('created_by', 'is', null).order('created_at', { ascending: false }).limit(200)
       ) as { id: string; created_by: string; created_at: string }[];
+    },
+    /** Deletes any venue for good; everyone linked to it is told why (logged). */
+    async adminDeleteVenue(venueId: string, note?: string) {
+      unwrap(await c.rpc('admin_delete_venue', { p_venue_id: venueId, p_note: note?.trim() || null }));
+    },
+    /** Sets anyone's role and badge (logged). Venue links stay with adminAssignVenueStaff / adminUnassignVenueStaff. */
+    async adminSetUserRole(userId: string, accountType: AccountType, verified: boolean) {
+      return unwrap(await c.rpc('admin_set_user_role', { p_user_id: userId, p_account_type: accountType, p_verified: verified })) as Profile;
     },
     /** Grants or removes the Official badge (logged by admin_update_venue). */
     async adminSetVenueVerified(venueId: string, verified: boolean) {

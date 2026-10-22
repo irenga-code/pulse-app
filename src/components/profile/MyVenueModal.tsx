@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { Store } from 'lucide-react';
+import { Store, Trash2, Loader2, AlertTriangle } from 'lucide-react';
 import Modal from '@/components/Modal';
-import { Spinner, ErrorNote, mutedText, bodyText } from '@/components/ui';
+import { Spinner, ErrorNote, Field, inputClass, primaryBtn, ghostBtn, dangerBtn, mutedText, bodyText } from '@/components/ui';
 import { api } from '@/lib/apiClient';
 import { friendlyError } from '@/lib/api';
 import { useAsync } from '@/hooks/useAsync';
@@ -13,7 +13,7 @@ import { VenueStatusButtons, DurationSelect } from '@/components/VenueStatusCont
 import VenueProfileForm from '@/components/profile/VenueProfileForm';
 import VenuePostComposer from '@/components/profile/VenuePostComposer';
 import { statusLabel, timeLeft } from '@/lib/venues';
-import { userKey } from '@/lib/cache';
+import { revalidateAll, userKey } from '@/lib/cache';
 
 const roleLabel: Record<VenueRole, string> = { owner: 'Owner', manager: 'Manager', host: 'Host' };
 const section = 'pt-4 border-t border-wa-lightBorder dark:border-wa-darkBorder';
@@ -34,9 +34,14 @@ export default function MyVenueModal({ onClose, initialVenue }: { onClose: () =>
   const [busy, setBusy] = useState<string | null>(null);
   const [fresh, setFresh] = useState<Record<string, Venue>>(initialVenue ? { [initialVenue.id]: initialVenue } : {});
   const [error, setError] = useState<string | null>(null);
+  // venues deleted while this sheet is open (the lists refresh a moment later)
+  const [gone, setGone] = useState<Set<string>>(() => new Set());
+  const [deleting, setDeleting] = useState<Venue | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
-  const links = managed.data ?? [];
-  const mine = (initialVenue && !links.some((m) => m.venue_id === initialVenue.id)
+  const links = (managed.data ?? []).filter((m) => !gone.has(m.venue_id));
+  const mine = (initialVenue && !gone.has(initialVenue.id) && !links.some((m) => m.venue_id === initialVenue.id)
     ? [...links, { venue_id: initialVenue.id, role: 'manager' as VenueRole }]
     : links)
     .map((m) => ({ role: m.role, venue: fresh[m.venue_id] ?? venues.find((v) => v.id === m.venue_id) }))
@@ -57,6 +62,43 @@ export default function MyVenueModal({ onClose, initialVenue }: { onClose: () =>
     }
     setBusy(null);
   };
+
+  const removeVenue = async () => {
+    if (!deleting) return;
+    setDeleteBusy(true);
+    setDeleteError(null);
+    try {
+      await api.deleteMyVenue(deleting.id);
+      setGone((g) => new Set(g).add(deleting.id));
+      setSelectedId(null);
+      show(`${deleting.name} was deleted`);
+      setDeleting(null);
+      revalidateAll();
+    } catch (e) {
+      setDeleteError(friendlyError(e));
+    }
+    setDeleteBusy(false);
+  };
+
+  // the confirmation replaces this sheet rather than stacking on it, so Esc / Cancel come back here
+  if (deleting) {
+    return (
+      <Modal title="Delete venue?" icon={AlertTriangle} onClose={() => { setDeleting(null); setDeleteError(null); }}>
+        <p className={`text-sm font-semibold ${bodyText}`}>Are you sure you want to delete this venue?</p>
+        <p className={`text-sm mt-2 leading-relaxed ${mutedText}`}>
+          <span className={`font-semibold ${bodyText}`}>{deleting.name}</span> will be removed from Pulse for good, with its
+          events, reviews, followers and staff links. Posts that mention it stay, without the venue tag. This can not be undone.
+        </p>
+        {deleteError && <div className="mt-3"><ErrorNote message={deleteError} /></div>}
+        <div className="flex gap-2 mt-5">
+          <button onClick={removeVenue} disabled={deleteBusy} className={`${dangerBtn} flex-1`}>
+            {deleteBusy && <Loader2 className="w-4 h-4 animate-spin" />}Delete venue
+          </button>
+          <button onClick={() => { setDeleting(null); setDeleteError(null); }} disabled={deleteBusy} className={`${ghostBtn} flex-1`}>Cancel</button>
+        </div>
+      </Modal>
+    );
+  }
 
   return (
     <Modal title={mine.length > 1 ? 'My venues' : 'My venue'} icon={Store} onClose={onClose}>
@@ -115,11 +157,72 @@ export default function MyVenueModal({ onClose, initialVenue }: { onClose: () =>
             <VenueProfileForm key={current.venue.id} venue={current.venue} onSaved={(patch) => patchVenue(current.venue, patch)} />
           </div>
 
+          {current.venue.created_by === user?.id && (
+            <>
+              <div className={section}>
+                <h4 className={heading}>Name &amp; location</h4>
+                <RenameVenueForm key={current.venue.id} venue={current.venue} onSaved={(v) => patchVenue(current.venue, { name: v.name, location: v.location })} />
+              </div>
+              <div className={section}>
+                <h4 className={heading}>Delete venue</h4>
+                <p className={`text-xs mb-2 ${mutedText}`}>You registered {current.venue.name}, so you can remove it from Pulse.</p>
+                <button onClick={() => setDeleting(current.venue)} className={`${ghostBtn} !border-wa-live/50 !text-wa-live w-full`}>
+                  <Trash2 className="w-4 h-4" />Delete {current.venue.name}
+                </button>
+              </div>
+            </>
+          )}
+
           <p className={`text-[11px] leading-relaxed ${mutedText}`}>
             Followers get an alert when you go live. Posts made as a verified venue show the Official badge.
           </p>
         </div>
       )}
     </Modal>
+  );
+}
+
+/** Only the person who registered a venue can rename it (rename_my_venue, migration 13). */
+function RenameVenueForm({ venue, onSaved }: { venue: Venue; onSaved: (v: Venue) => void }) {
+  const { show } = useToast();
+  const [name, setName] = useState(venue.name);
+  const [location, setLocation] = useState(venue.location);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const changed = name.trim() !== venue.name || location.trim() !== venue.location;
+
+  const save = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const n = name.trim();
+    const l = location.trim();
+    if (n.length < 2 || n.length > 60) return setError('Name must be 2-60 characters.');
+    if (l.length < 2 || l.length > 60) return setError('City / area must be 2-60 characters.');
+    setBusy(true);
+    setError(null);
+    try {
+      const v = await api.renameMyVenue(venue.id, n, l);
+      onSaved(v);
+      show('Venue name updated');
+      revalidateAll();
+    } catch (err) {
+      const code = (err as { code?: string }).code;
+      setError(code === '23505' ? `There is already a ${n} in ${l}.` : friendlyError(err));
+    }
+    setBusy(false);
+  };
+
+  return (
+    <form onSubmit={save} className="space-y-3" noValidate>
+      <Field label="Name">
+        <input value={name} onChange={(e) => setName(e.target.value)} maxLength={60} className={inputClass} />
+      </Field>
+      <Field label="City / area">
+        <input value={location} onChange={(e) => setLocation(e.target.value)} maxLength={60} className={inputClass} />
+      </Field>
+      {error && <ErrorNote message={error} />}
+      <button type="submit" disabled={busy || !changed} className={`${primaryBtn} w-full`}>
+        {busy && <Loader2 className="w-4 h-4 animate-spin" />}Save name &amp; location
+      </button>
+    </form>
   );
 }

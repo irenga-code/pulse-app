@@ -228,14 +228,20 @@ export function useFeed() {
   const removeOwnPost = useCallback(
     async (postId: string) => {
       try {
-        await api.deletePost(postId);
+        await api.deletePost(postId, posts.find((x) => x.id === postId)?.media_url);
         setPosts((p) => p.filter((x) => x.id !== postId));
       } catch (e) {
         show(friendlyError(e), 'error');
       }
     },
-    [show]
+    [show, posts]
   );
+
+  /** Throws so the editor can stay open and show the error. */
+  const editOwnPost = useCallback(async (postId: string, content: string) => {
+    await api.updatePost(postId, content);
+    setPosts((p) => p.map((x) => (x.id === postId ? { ...x, content: content.trim() } : x)));
+  }, []);
 
   const adminRemovePost = useCallback(
     async (postId: string) => {
@@ -256,6 +262,6 @@ export function useFeed() {
 
   return {
     posts, authors, counts, mine, bursts, loading, error,
-    reload: load, react, publish, createPost, removeOwnPost, adminRemovePost, bumpComments, dismissBurst,
+    reload: load, react, publish, createPost, removeOwnPost, editOwnPost, adminRemovePost, bumpComments, dismissBurst,
   };
 }

@@ -38,7 +38,7 @@ type Props = {
  *  - typing a reply, opening the viewer list or a dialog also pauses
  */
 export default function StatusViewerModal({ groups, startGroup, authors, venueNames, onViewed, onChanged, onClose }: Props) {
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const { show } = useToast();
   const { openChat } = useSocial();
   const [gi, setGi] = useState(Math.min(Math.max(0, startGroup), Math.max(0, groups.length - 1)));
@@ -179,8 +179,10 @@ export default function StatusViewerModal({ groups, startGroup, authors, venueNa
   const remove = async () => {
     if (!status) return;
     try {
-      await api.deleteStatus(status.id);
-      show('Status deleted');
+      // admins remove other people's statuses through the logged RPC, which also tells the author
+      if (mine) await api.deleteStatus(status.id);
+      else await api.adminDeleteStatus(status.id, 'Removed by a moderator.');
+      show(mine ? 'Status deleted' : 'Status removed');
       onChanged();
       setPanel(null);
     } catch (err) {
@@ -237,9 +239,10 @@ export default function StatusViewerModal({ groups, startGroup, authors, venueNa
                 {timeAgo(status.created_at)}{timeLeft(status.expires_at) ? ` · ${timeLeft(status.expires_at)}` : ''}
               </p>
             </div>
-            {mine ? (
-              <button onClick={() => setPanel('delete')} aria-label="Delete status" className="pointer-events-auto p-2 rounded-full bg-black/40"><Trash2 className="w-5 h-5" /></button>
-            ) : (
+            {(mine || isAdmin) && (
+              <button onClick={() => setPanel('delete')} aria-label={mine ? 'Delete status' : 'Remove status (moderator)'} className="pointer-events-auto p-2 rounded-full bg-black/40"><Trash2 className="w-5 h-5" /></button>
+            )}
+            {!mine && (
               <button onClick={() => (user ? setPanel('report') : undefined)} aria-label="Report status" className="pointer-events-auto p-2 rounded-full bg-black/40"><Flag className="w-5 h-5" /></button>
             )}
             <button onClick={onClose} aria-label="Close status viewer" className="pointer-events-auto p-2 rounded-full bg-black/40"><X className="w-5 h-5" /></button>
@@ -295,7 +298,7 @@ export default function StatusViewerModal({ groups, startGroup, authors, venueNa
         {panel === 'delete' && (
           <div className="absolute inset-0 z-30 bg-black/70 flex items-center justify-center p-6" role="alertdialog" aria-label="Delete status?">
             <div className="rounded-2xl bg-zinc-900 p-5 w-full max-w-xs text-center">
-              <p className="text-sm font-semibold mb-4">Delete this status?</p>
+              <p className="text-sm font-semibold mb-4">{mine ? 'Delete this status?' : 'Remove this status? The author is told why.'}</p>
               <div className="flex gap-2">
                 <button onClick={remove} className="flex-1 rounded-xl py-2.5 text-sm font-semibold bg-wa-live">Delete</button>
                 <button onClick={() => setPanel(null)} className="flex-1 rounded-xl py-2.5 text-sm font-medium bg-white/10">Cancel</button>

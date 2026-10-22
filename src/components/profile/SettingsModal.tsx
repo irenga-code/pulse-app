@@ -1,6 +1,7 @@
 import { Settings as SettingsIcon, Moon, Flame, MessageCircle, Megaphone, RotateCcw, Volume2 } from 'lucide-react';
 import Modal from '@/components/Modal';
 import AccountSection from '@/components/profile/AccountSection';
+import MyRolesSection from '@/components/profile/MyRolesSection';
 import { mutedText, bodyText } from '@/components/ui';
 import { useTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
@@ -95,6 +96,7 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
         {user ? 'Saved to your account.' : 'Saved on this device. Sign in to keep them across devices.'}
       </p>
 
+      {user && <MyRolesSection />}
       {user && <AccountSection onClose={onClose} />}
     </Modal>
   );

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Send, Flag, Trash2, Loader2 } from 'lucide-react';
+import { Send, Flag, Trash2, Loader2, Pencil } from 'lucide-react';
 import Avatar from '@/components/Avatar';
 import RoleBadge from '@/components/RoleBadge';
 import ReportModal from '@/components/community/ReportModal';
@@ -33,6 +33,8 @@ export default function CommentsThread({ postId, onCountChange }: { postId: stri
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const [reporting, setReporting] = useState<string | null>(null);
+  const [editing, setEditing] = useState<{ id: string; text: string } | null>(null);
+  const [savingEdit, setSavingEdit] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
@@ -79,6 +81,21 @@ export default function CommentsThread({ postId, onCountChange }: { postId: stri
     setSending(false);
   };
 
+  const saveEdit = async () => {
+    if (!editing) return;
+    const body = editing.text.trim();
+    if (!body) return;
+    setSavingEdit(true);
+    try {
+      await api.updateComment(editing.id, body);
+      setComments((list) => list.map((x) => (x.id === editing.id ? { ...x, body } : x)));
+      setEditing(null);
+    } catch (err) {
+      show(friendlyError(err), 'error');
+    }
+    setSavingEdit(false);
+  };
+
   const remove = async (c: Comment) => {
     try {
       if (c.user_id === user?.id) await api.deleteComment(c.id);
@@ -114,9 +131,25 @@ export default function CommentsThread({ postId, onCountChange }: { postId: stri
                     <RoleBadge accountType={p?.account_type} verified={p?.is_verified} />
                     <span className={`text-[11px] ${mutedText}`}>· {timeAgo(c.created_at)}</span>
                   </div>
-                  <p className={`text-sm mt-0.5 leading-snug break-words ${bodyText}`}><EmojiText text={c.body} /></p>
+                  {editing?.id === c.id ? (
+                    <form onSubmit={(e) => { e.preventDefault(); saveEdit(); }} className="mt-1 flex items-center gap-1.5">
+                      <input value={editing.text} onChange={(e) => setEditing({ id: c.id, text: e.target.value.slice(0, 500) })} aria-label="Edit comment"
+                        autoFocus className={`${inputClass} !py-1.5 text-sm`} />
+                      <button type="submit" disabled={savingEdit || !editing.text.trim()} className="text-xs font-semibold text-wa-green px-1.5 disabled:opacity-50">
+                        {savingEdit ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Save'}
+                      </button>
+                      <button type="button" onClick={() => setEditing(null)} className={`text-xs px-1 ${mutedText}`}>Cancel</button>
+                    </form>
+                  ) : (
+                    <p className={`text-sm mt-0.5 leading-snug break-words ${bodyText}`}><EmojiText text={c.body} /></p>
+                  )}
                 </div>
                 <div className="flex items-start gap-1 flex-shrink-0">
+                  {own && editing?.id !== c.id && (
+                    <button onClick={() => setEditing({ id: c.id, text: c.body })} aria-label="Edit comment" className={`p-1 hover:text-wa-green ${mutedText}`}>
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                   {(own || isAdmin) && (
                     <button onClick={() => remove(c)} aria-label={own ? 'Delete comment' : 'Remove comment'} className={`p-1 hover:text-wa-live ${mutedText}`}>
                       <Trash2 className="w-3.5 h-3.5" />

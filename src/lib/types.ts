@@ -13,6 +13,8 @@ export type Venue = {
   image_url: string | null;
   /** Square logo / profile picture (migration 11; undefined before it is applied). */
   logo_url?: string | null;
+  /** Who registered it with Register a club (migration 12; on venues_public from migration 13). */
+  created_by?: string | null;
   is_verified?: boolean;
   /** Profile fields linked hosts/managers can edit (My venues). */
   description?: string | null;

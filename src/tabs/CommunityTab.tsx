@@ -102,6 +102,7 @@ export default function CommunityTab() {
                 mine={feed.mine[post.id] ?? null}
                 onReact={(kind) => feed.react(post.id, kind)}
                 onDelete={() => feed.removeOwnPost(post.id)}
+                onEdit={(content) => feed.editOwnPost(post.id, content)}
                 onAdminRemove={() => feed.adminRemovePost(post.id)}
                 bursts={feed.bursts[post.id] ?? []}
                 onBurstDone={(id) => feed.dismissBurst(post.id, id)}

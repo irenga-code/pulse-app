@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { BadgeCheck, Pencil, Store } from 'lucide-react';
-import { Spinner, ErrorNote, inputClass, ghostBtn, mutedText, bodyText } from '@/components/ui';
+import { BadgeCheck, Loader2, Pencil, Store, Trash2 } from 'lucide-react';
+import { Spinner, ErrorNote, inputClass, ghostBtn, dangerBtn, mutedText, bodyText } from '@/components/ui';
 import VenueProfileModal from '@/components/profile/VenueProfileModal';
 import { Chip, FilterToggle, panelCard } from '@/admin/shared';
 import { VenueStatusButtons, DurationSelect } from '@/components/VenueStatusControls';
@@ -26,6 +26,8 @@ export default function VenuesPanel() {
   const [busy, setBusy] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [editing, setEditing] = useState<Venue | null>(null);
+  const [removing, setRemoving] = useState<string | null>(null);
+  const [removeNote, setRemoveNote] = useState('');
   // who registered which venue (Register a club, migration 12)
   const registrations = useAsync(async () => {
     try {
@@ -43,6 +45,22 @@ export default function VenuesPanel() {
     : venues;
   const shown = q ? pool.filter((v) => `${v.name} ${v.location}`.toLowerCase().includes(q)) : pool;
   const liveCount = venues.filter(isVenueLive).length;
+
+  const removeVenue = async (venue: Venue) => {
+    setBusy(`${venue.id}:delete`);
+    setSaveError(null);
+    try {
+      await api.adminDeleteVenue(venue.id, removeNote);
+      show(`${venue.name} was deleted`);
+      setRemoving(null);
+      setRemoveNote('');
+      reload();
+      registrations.reload();
+    } catch (e) {
+      setSaveError(`${venue.name}: ${friendlyError(e)}`);
+    }
+    setBusy(null);
+  };
 
   const verify = async (venue: Venue, verified: boolean) => {
     setBusy(`${venue.id}:verify`);
@@ -127,7 +145,26 @@ export default function VenuesPanel() {
                   <Pencil className="w-3.5 h-3.5" />
                   Edit venue
                 </button>
+                <button onClick={() => { setRemoving(v.id); setRemoveNote(''); }} aria-label={`Delete ${v.name}`} className={`${ghostBtn} !px-2.5 !py-1.5 text-xs !text-wa-live`}>
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
               </div>
+              {removing === v.id && (
+                <div className="mb-3 p-3 rounded-xl border border-wa-live/40 bg-wa-live/5 space-y-2.5" role="alertdialog" aria-label={`Delete ${v.name}?`}>
+                  <p className={`text-sm font-semibold ${bodyText}`}>Are you sure you want to delete this venue?</p>
+                  <p className={`text-xs ${mutedText}`}>
+                    {v.name} is removed for good, with its events, reviews, followers and staff links. Posts stay, without the venue tag.
+                    Everyone linked to it is told.
+                  </p>
+                  <input value={removeNote} onChange={(e) => setRemoveNote(e.target.value)} maxLength={300} placeholder="Reason (sent to its staff, optional)" className={inputClass} />
+                  <div className="flex gap-2">
+                    <button onClick={() => removeVenue(v)} disabled={busy !== null} className={dangerBtn}>
+                      {busy === `${v.id}:delete` && <Loader2 className="w-4 h-4 animate-spin" />}Delete venue
+                    </button>
+                    <button onClick={() => setRemoving(null)} disabled={busy !== null} className={ghostBtn}>Cancel</button>
+                  </div>
+                </div>
+              )}
               {reg && (
                 <div className="flex items-center gap-2 flex-wrap mb-2.5 -mt-1">
                   <span className={`text-xs ${mutedText}`}>
