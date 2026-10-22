@@ -23,18 +23,22 @@ const heading = `text-xs font-semibold uppercase tracking-wide mb-2 ${mutedText}
  * Hosts and venue managers run every venue they are linked to (venue_managers): pick one, then set its status,
  * post as it, or edit its profile. Live / Sold out expire automatically.
  */
-export default function MyVenueModal({ onClose }: { onClose: () => void }) {
+export default function MyVenueModal({ onClose, initialVenue }: { onClose: () => void; initialVenue?: Venue }) {
   const { user } = useAuth();
   const { show } = useToast();
   const { venues } = useVenues({ orderBy: 'name' });
   const managed = useAsync(() => api.managedVenues(user!.id), [], user ? userKey(user.id, 'managed-venue-roles') : null);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  // a just-registered venue opens selected, and shows before the venue list refresh brings it in
+  const [selectedId, setSelectedId] = useState<string | null>(initialVenue?.id ?? null);
   const [minutes, setMinutes] = useState(360);
   const [busy, setBusy] = useState<string | null>(null);
-  const [fresh, setFresh] = useState<Record<string, Venue>>({});
+  const [fresh, setFresh] = useState<Record<string, Venue>>(initialVenue ? { [initialVenue.id]: initialVenue } : {});
   const [error, setError] = useState<string | null>(null);
 
-  const mine = (managed.data ?? [])
+  const links = managed.data ?? [];
+  const mine = (initialVenue && !links.some((m) => m.venue_id === initialVenue.id)
+    ? [...links, { venue_id: initialVenue.id, role: 'manager' as VenueRole }]
+    : links)
     .map((m) => ({ role: m.role, venue: fresh[m.venue_id] ?? venues.find((v) => v.id === m.venue_id) }))
     .filter((m): m is { role: VenueRole; venue: Venue } => !!m.venue);
   const current = mine.find((m) => m.venue.id === selectedId) ?? mine[0];

@@ -318,6 +318,13 @@ export function createApi(c: SupabaseClient) {
       const rows = unwrap(await c.from('venues').update(patch).eq('id', venueId).select('id')) as unknown[];
       if (rows.length === 0) throw new ApiError('You do not manage this venue.', '42501');
     },
+    /** Any active user: creates the venue (unverified, Not active) and links them as its manager (migration 12). */
+    async registerVenue(input: { name: string; location: string; description?: string | null; image_url?: string | null; logo_url?: string | null }) {
+      return unwrap(await c.rpc('register_venue', {
+        p_name: input.name.trim(), p_location: input.location.trim(), p_description: input.description?.trim() || null,
+        p_image_url: input.image_url ?? null, p_logo_url: input.logo_url ?? null,
+      })) as Venue;
+    },
     async setVenueStatus(venueId: string, status: VenueStatus, minutes = 360) {
       return unwrap(await c.rpc('set_venue_status', { p_venue_id: venueId, p_status: status, p_duration_minutes: minutes })) as Venue;
     },

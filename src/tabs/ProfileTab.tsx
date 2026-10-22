@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Bell, ChevronRight, Settings, LogOut, Bookmark, BadgeCheck, Store, ShieldCheck, UserCog, LogIn, UserRound, Mail, BookmarkCheck, Flame } from 'lucide-react';
+import { Bell, ChevronRight, Settings, LogOut, Bookmark, BadgeCheck, Store, ShieldCheck, UserCog, LogIn, UserRound, Mail, BookmarkCheck, Flame, PlusCircle } from 'lucide-react';
 import Avatar from '@/components/Avatar';
 import RoleBadge from '@/components/RoleBadge';
 import NotificationsModal from '@/components/profile/NotificationsModal';
@@ -8,6 +8,7 @@ import SavedVenuesModal from '@/components/profile/SavedVenuesModal';
 import EditProfileModal from '@/components/profile/EditProfileModal';
 import VerificationModal from '@/components/profile/VerificationModal';
 import MyVenueModal from '@/components/profile/MyVenueModal';
+import RegisterVenueModal from '@/components/profile/RegisterVenueModal';
 import SavedPostsModal from '@/components/profile/SavedPostsModal';
 import { Stat } from '@/components/social/Stat';
 import { primaryBtn, ghostBtn, mutedText, bodyText } from '@/components/ui';
@@ -17,9 +18,10 @@ import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/context/ToastContext';
 import { useSocial } from '@/context/SocialContext';
 import { api } from '@/lib/apiClient';
-import { userKey } from '@/lib/cache';
+import { userKey, revalidateAll } from '@/lib/cache';
+import type { Venue } from '@/lib/types';
 
-type ModalId = 'notifications' | 'settings' | 'saved' | 'savedPosts' | 'edit' | 'verify' | 'venue' | null;
+type ModalId = 'notifications' | 'settings' | 'saved' | 'savedPosts' | 'edit' | 'verify' | 'venue' | 'register' | null;
 
 type MenuItem = { label: string; icon: typeof Bell; onClick: () => void; badge?: number; href?: string };
 
@@ -29,7 +31,11 @@ function monthYear(iso: string) {
 
 export default function ProfileTab() {
   const [modal, setModal] = useState<ModalId>(null);
-  const closeModal = () => setModal(null);
+  const [registered, setRegistered] = useState<Venue | null>(null);
+  const closeModal = () => {
+    setModal(null);
+    setRegistered(null);
+  };
   const { user, profile, isAdmin, openAuth, signOut } = useAuth();
   const { show } = useToast();
   const feed = useNotifications();
@@ -55,6 +61,7 @@ export default function ProfileTab() {
     { label: 'Settings', icon: Settings, onClick: () => setModal('settings') },
   ];
   if (user && managedCount > 0) menuItems.push({ label: managedCount > 1 ? 'My venues' : 'My venue', icon: Store, onClick: () => setModal('venue') });
+  if (user) menuItems.push({ label: 'Register a club', icon: PlusCircle, onClick: () => setModal('register') });
   if (user) menuItems.push({ label: 'Request verification', icon: BadgeCheck, onClick: () => setModal('verify') });
   if (isAdmin) menuItems.push({ label: 'Admin dashboard', icon: ShieldCheck, onClick: () => { window.location.hash = '#/manage'; } });
 
@@ -157,7 +164,19 @@ export default function ProfileTab() {
       {modal === 'savedPosts' && <SavedPostsModal onClose={closeModal} />}
       {modal === 'edit' && <EditProfileModal onClose={closeModal} />}
       {modal === 'verify' && <VerificationModal onClose={closeModal} />}
-      {modal === 'venue' && <MyVenueModal onClose={closeModal} />}
+      {modal === 'venue' && <MyVenueModal onClose={closeModal} initialVenue={registered ?? undefined} />}
+      {modal === 'register' && (
+        <RegisterVenueModal
+          onClose={closeModal}
+          onRegistered={(venue) => {
+            // refresh venue lists and "My venues", then open the new venue so they can manage it right away
+            revalidateAll();
+            managed.reload();
+            setRegistered(venue);
+            setModal('venue');
+          }}
+        />
+      )}
     </div>
   );
 }
