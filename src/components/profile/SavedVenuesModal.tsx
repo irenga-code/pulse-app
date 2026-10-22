@@ -1,5 +1,8 @@
+import { useState } from 'react';
 import { Bookmark, MapPin } from 'lucide-react';
 import Modal from '@/components/Modal';
+import VenueLogo from '@/components/VenueLogo';
+import VenueSheet from '@/components/VenueSheet';
 import { Spinner, ErrorNote, primaryBtn, mutedText } from '@/components/ui';
 import { useVenues } from '@/hooks/useVenues';
 import { useVenueLibrary } from '@/context/VenueLibraryContext';
@@ -16,6 +19,8 @@ export default function SavedVenuesModal({ onClose }: { onClose: () => void }) {
   const { user, openAuth } = useAuth();
   const { saved, loading: savedLoading, error: savedError, toggleSaved } = useVenueLibrary();
   const { venues, loading: venuesLoading, error: venuesError } = useVenues({ orderBy: 'created_at' });
+  const [openId, setOpenId] = useState<string | null>(null);
+  const open = venues.find((v) => v.id === openId);
 
   if (!user) {
     return (
@@ -33,6 +38,9 @@ export default function SavedVenuesModal({ onClose }: { onClose: () => void }) {
       </Modal>
     );
   }
+
+  // swap rather than stack, so Esc only closes the sheet and returns to the list
+  if (open) return <VenueSheet venue={open} onClose={() => setOpenId(null)} />;
 
   const loading = savedLoading || venuesLoading;
   const error = savedError || venuesError;
@@ -63,23 +71,27 @@ export default function SavedVenuesModal({ onClose }: { onClose: () => void }) {
               key={venue.id}
               className="flex items-center gap-3 bg-wa-light dark:bg-wa-dark rounded-xl p-3 border border-wa-lightBorder dark:border-wa-darkBorder"
             >
-              {venue.image_url ? (
-                <img src={venue.image_url} alt={venue.name} className="w-12 h-12 rounded-lg object-cover flex-shrink-0" loading="lazy" />
-              ) : (
-                <div className="w-12 h-12 rounded-lg bg-wa-darkSecondary flex items-center justify-center flex-shrink-0">
-                  <MapPin className="w-5 h-5 text-wa-quiet" />
+              <button type="button" onClick={() => setOpenId(venue.id)} className="min-w-0 flex-1 flex items-center gap-3 text-left">
+                {venue.logo_url ? (
+                  <VenueLogo venue={venue} size={48} />
+                ) : venue.image_url ? (
+                  <img src={venue.image_url} alt={venue.name} className="w-12 h-12 rounded-lg object-cover flex-shrink-0" loading="lazy" />
+                ) : (
+                  <div className="w-12 h-12 rounded-lg bg-wa-darkSecondary flex items-center justify-center flex-shrink-0">
+                    <MapPin className="w-5 h-5 text-wa-quiet" />
+                  </div>
+                )}
+                <div className="min-w-0 flex-1">
+                  <h3 className="font-semibold text-sm text-wa-lightText dark:text-wa-darkText truncate">{venue.name}</h3>
+                  <div className="flex items-center gap-1 mt-0.5">
+                    <MapPin className={`w-3 h-3 flex-shrink-0 ${mutedText}`} />
+                    <span className={`text-xs truncate ${mutedText}`}>{venue.location}</span>
+                  </div>
                 </div>
-              )}
-              <div className="min-w-0 flex-1">
-                <h3 className="font-semibold text-sm text-wa-lightText dark:text-wa-darkText truncate">{venue.name}</h3>
-                <div className="flex items-center gap-1 mt-0.5">
-                  <MapPin className={`w-3 h-3 flex-shrink-0 ${mutedText}`} />
-                  <span className={`text-xs truncate ${mutedText}`}>{venue.location}</span>
-                </div>
-              </div>
-              <span className={`text-xs font-semibold rounded-full px-2.5 py-1 ${statusStyle[venue.status] ?? statusStyle.not_active}`}>
-                {statusLabel[venue.status] ?? 'Not active'}
-              </span>
+                <span className={`text-xs font-semibold rounded-full px-2.5 py-1 ${statusStyle[venue.status] ?? statusStyle.not_active}`}>
+                  {statusLabel[venue.status] ?? 'Not active'}
+                </span>
+              </button>
               <button
                 onClick={() => toggleSaved(venue.id)}
                 aria-label={`Remove ${venue.name} from saved venues`}

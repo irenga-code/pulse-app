@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { Search as SearchIcon, MapPin, X } from 'lucide-react';
 import { type Venue } from '@/lib/supabase';
 import { useVenues } from '@/hooks/useVenues';
+import VenueLogo from '@/components/VenueLogo';
+import VenueSheet from '@/components/VenueSheet';
 
 const suggestions = ['Kololo', 'Ggaba Road', 'Bugolobi', 'Industrial Area', 'Live now'];
 
@@ -10,6 +12,8 @@ export default function SearchTab() {
   const [results, setResults] = useState<Venue[]>([]);
   const { venues: allVenues } = useVenues({ orderBy: 'created_at' });
   const [searched, setSearched] = useState(false);
+  const [openId, setOpenId] = useState<string | null>(null);
+  const open = allVenues.find((v) => v.id === openId);
 
   useEffect(() => {
     if (!query.trim()) {
@@ -93,11 +97,15 @@ export default function SearchTab() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 md:gap-3 mt-1">
             {results.map((venue) => (
-              <div
+              <button
+                type="button"
                 key={venue.id}
-                className="flex items-center gap-3 bg-wa-lightPanel dark:bg-wa-darkSecondary rounded-xl p-3 border border-wa-lightBorder dark:border-wa-darkBorder animate-fade-in"
+                onClick={() => setOpenId(venue.id)}
+                className="w-full text-left flex items-center gap-3 bg-wa-lightPanel dark:bg-wa-darkSecondary rounded-xl p-3 border border-wa-lightBorder dark:border-wa-darkBorder animate-fade-in"
               >
-                {venue.image_url && (
+                {venue.logo_url ? (
+                  <VenueLogo venue={venue} size={48} />
+                ) : venue.image_url && (
                   <img
                     src={venue.image_url}
                     alt={venue.name}
@@ -119,11 +127,12 @@ export default function SearchTab() {
                 <span className={`text-xs font-semibold rounded-full px-2.5 py-1 ${statusColor(venue.status)}`}>
                   {venue.status}
                 </span>
-              </div>
+              </button>
             ))}
           </div>
         )}
       </div>
+      {open && <VenueSheet venue={open} onClose={() => setOpenId(null)} />}
     </div>
   );
 }

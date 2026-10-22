@@ -1,12 +1,18 @@
+import { useState } from 'react';
 import { AlertCircle, Flame, MapPin } from 'lucide-react';
 import { useVenues } from '@/hooks/useVenues';
 import { isVenueLive } from '@/lib/venues';
 import { VenueGridSkeleton } from '@/components/Skeleton';
+import VenueLogo from '@/components/VenueLogo';
+import VenueSheet from '@/components/VenueSheet';
 
 export default function TonightTab() {
   // all venues, filtered here: a venue is also live while one of its events is running, not only by status
   const { venues: all, loading, error } = useVenues({ orderBy: 'name' });
   const venues = all.filter(isVenueLive);
+  // by id, so the open sheet follows realtime updates
+  const [openId, setOpenId] = useState<string | null>(null);
+  const open = all.find((v) => v.id === openId);
 
   return (
     <div className="flex flex-col h-full bg-wa-light dark:bg-wa-dark">
@@ -39,9 +45,12 @@ export default function TonightTab() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-5 mt-2">
             {venues.map((venue) => (
-              <div
+              <button
+                type="button"
                 key={venue.id}
-                className="relative rounded-2xl overflow-hidden border border-wa-lightBorder dark:border-wa-darkBorder animate-slide-up"
+                onClick={() => setOpenId(venue.id)}
+                aria-label={`Open ${venue.name}`}
+                className="block w-full text-left relative rounded-2xl overflow-hidden border border-wa-lightBorder dark:border-wa-darkBorder animate-slide-up"
               >
                 <div className="relative h-52 md:h-56 lg:h-64">
                   {venue.image_url && (
@@ -64,21 +73,25 @@ export default function TonightTab() {
                     </div>
                   )}
                   {/* Info overlay */}
-                  <div className="absolute bottom-0 left-0 right-0 p-4">
-                    <h3 className="text-lg font-bold text-white">{venue.name}</h3>
-                    <div className="flex items-center gap-3 mt-1">
-                      <span className="flex items-center gap-1 text-xs text-white/80">
-                        <MapPin className="w-3 h-3" />
-                        {venue.location}
-                      </span>
+                  <div className="absolute bottom-0 left-0 right-0 p-4 flex items-center gap-3">
+                    <VenueLogo venue={venue} size={48} className="shadow-md" />
+                    <div className="min-w-0">
+                      <h3 className="text-lg font-bold text-white truncate">{venue.name}</h3>
+                      <div className="flex items-center gap-3 mt-1">
+                        <span className="flex items-center gap-1 text-xs text-white/80">
+                          <MapPin className="w-3 h-3" />
+                          {venue.location}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
+              </button>
             ))}
           </div>
         )}
       </div>
+      {open && <VenueSheet venue={open} onClose={() => setOpenId(null)} />}
     </div>
   );
 }
