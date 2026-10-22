@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { Store } from 'lucide-react';
-import { Spinner, ErrorNote, inputClass, mutedText, bodyText } from '@/components/ui';
+import { Pencil, Store } from 'lucide-react';
+import { Spinner, ErrorNote, inputClass, ghostBtn, mutedText, bodyText } from '@/components/ui';
+import VenueProfileModal from '@/components/profile/VenueProfileModal';
 import { panelCard } from '@/admin/shared';
 import { VenueStatusButtons, DurationSelect } from '@/components/VenueStatusControls';
 import { api } from '@/lib/apiClient';
@@ -18,6 +19,7 @@ export default function VenuesPanel() {
   const [query, setQuery] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [editing, setEditing] = useState<Venue | null>(null);
 
   const q = query.trim().toLowerCase();
   const shown = q ? venues.filter((v) => `${v.name} ${v.location}`.toLowerCase().includes(q)) : venues;
@@ -70,12 +72,17 @@ export default function VenuesPanel() {
                   </span>
                 )}
                 {left && <span className="text-[11px] text-wa-green ml-auto">{left}</span>}
+                <button onClick={() => setEditing(v)} className={`${ghostBtn} !px-3 !py-1.5 text-xs ${left ? '' : 'ml-auto'}`}>
+                  <Pencil className="w-3.5 h-3.5" />
+                  Edit venue
+                </button>
               </div>
               <VenueStatusButtons venue={v} busy={busy} onSet={set} />
             </div>
           );
         })
       )}
+      {editing && <VenueProfileModal venue={editing} onClose={() => setEditing(null)} onSaved={reload} />}
     </div>
   );
 }
