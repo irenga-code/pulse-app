@@ -17,6 +17,7 @@ For an existing project, `supabase/upgrade_live_database.sql` is all of them in 
 | 8 | `20261020100000_security_hardening.sql` | post authors can edit only `content` (no swapping `media_url` past the upload checks); venue/event image and ticket URLs must be http(s) | Yes (after 7) |
 | 9 | `20261022100000_multi_venue_management.sql` | multi-venue management: `host` role on `venue_managers`; linked hosts/managers edit every linked venue's profile; `posts.as_venue` publishes as the venue (author shown as the venue, `user_id` kept) | Yes (after 8) |
 | 10 | `20261022110000_admin_venue_staff.sql` | admin RPCs behind Moderation -> Staff: find a user by display name or exact email (email never returned), link/unlink them to a venue as manager or host (logged) | Yes (after 9) |
+| 11 | `20261023100000_venue_logo.sql` | `venues.logo_url` (square logo / profile picture next to the `image_url` cover photo, http(s) only), editable by linked hosts/managers and admins; exposed on `venues_public` | Yes (after 10) |
 
 Also still required from earlier work: `20261003130000_fix_venue_locations.sql` (venue names/neighborhoods incl. Taboo - Bugolobi) and `20261003131000_profile_saved_venues_notifications.sql`.
 

@@ -9,7 +9,10 @@ export type Venue = {
   status_expires_at?: string | null;
   /** From venues_public: live status or an event running now (see isVenueLive). */
   is_live?: boolean;
+  /** Cover photo. */
   image_url: string | null;
+  /** Square logo / profile picture (migration 11; undefined before it is applied). */
+  logo_url?: string | null;
   is_verified?: boolean;
   /** Profile fields linked hosts/managers can edit (My venues). */
   description?: string | null;
@@ -22,7 +25,7 @@ export type Venue = {
 /** A venue the signed-in user is linked to in `venue_managers` (migration 9 adds 'host'). */
 export type VenueRole = 'owner' | 'manager' | 'host';
 export type ManagedVenue = { venue_id: string; role: VenueRole };
-export type VenueProfilePatch = Partial<Pick<Venue, 'description' | 'address' | 'phone' | 'whatsapp' | 'image_url'>>;
+export type VenueProfilePatch = Partial<Pick<Venue, 'description' | 'address' | 'phone' | 'whatsapp' | 'image_url' | 'logo_url'>>;
 
 export type Post = {
   id: string;
