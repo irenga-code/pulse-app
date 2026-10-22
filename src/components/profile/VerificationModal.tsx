@@ -123,15 +123,13 @@ export default function VerificationModal({ onClose }: { onClose: () => void }) 
             )}
             {needsVenue && (
               <>
-                <p className={`text-xs font-semibold mt-3.5 mb-1.5 ${bodyText}`}>Which venue are you the {role} of?</p>
-                <div className="flex flex-wrap gap-2 max-h-48 overflow-y-auto" role="radiogroup">
+                <label htmlFor="verify-venue" className={`block text-xs font-semibold mt-3.5 mb-1.5 ${bodyText}`}>Which venue are you the {role} of?</label>
+                <select id="verify-venue" value={hostVenueId ?? ''} onChange={(e) => setHostVenueId(e.target.value || null)} className={inputClass}>
+                  <option value="">Choose a venue</option>
                   {venues.map((v) => (
-                    <button key={v.id} type="button" role="radio" onClick={() => setHostVenueId(v.id)} aria-checked={hostVenueId === v.id} className={pill(hostVenueId === v.id)}>
-                      {hostVenueId === v.id && <Check className="w-3.5 h-3.5" />}
-                      {v.name} · {v.location}
-                    </button>
+                    <option key={v.id} value={v.id}>{v.name} · {v.location}</option>
                   ))}
-                </div>
+                </select>
                 <span className={`block text-[11px] mt-1 ${mutedText}`}>Once approved, you can manage this venue from your profile.</span>
               </>
             )}
