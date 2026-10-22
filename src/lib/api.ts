@@ -516,6 +516,16 @@ export function createApi(c: SupabaseClient) {
     async adminReviewVerification(requestId: string, approve: boolean, note?: string) {
       unwrap(await c.rpc('admin_review_verification', { p_request_id: requestId, p_approve: approve, p_note: note?.trim() || null }));
     },
+    /** Venues people registered themselves (migration 12), newest first. */
+    async adminRegisteredVenues() {
+      return unwrap(
+        await c.from('venues').select('id, created_by, created_at').not('created_by', 'is', null).order('created_at', { ascending: false }).limit(200)
+      ) as { id: string; created_by: string; created_at: string }[];
+    },
+    /** Grants or removes the Official badge (logged by admin_update_venue). */
+    async adminSetVenueVerified(venueId: string, verified: boolean) {
+      unwrap(await c.rpc('admin_update_venue', { p_venue_id: venueId, p_is_verified: verified }));
+    },
     /** Display name (partial) or exact email; needs 2+ characters. */
     async adminFindUsers(query: string) {
       return unwrap(await c.rpc('admin_find_users', { p_query: query.trim() })) as StaffCandidate[];
