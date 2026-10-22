@@ -328,6 +328,8 @@ export function createApi(c: SupabaseClient) {
       type Row = { kind: 'host' | 'venue'; role?: VerificationRole; venue_id?: string; message?: string };
       const base: Row = { kind: input.kind };
       if (input.kind === 'host' && input.role) base.role = input.role;
+      // a Manager / Host names the venue they work at, so approval can link them to it
+      if (input.kind === 'host' && input.venue_id) base.venue_id = input.venue_id;
       if (input.message?.trim()) base.message = input.message.trim();
       const venueIds = [...new Set([...(input.venue_ids ?? []), ...(input.venue_id ? [input.venue_id] : [])])];
       const rows: Row[] = input.kind === 'venue' && venueIds.length > 0 ? venueIds.map((venue_id) => ({ ...base, venue_id })) : [base];

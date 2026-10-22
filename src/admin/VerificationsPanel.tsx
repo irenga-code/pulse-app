@@ -18,14 +18,18 @@ function RequestCard({ req, who, venueName, onDone }: { req: VerificationRequest
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // a Manager / Host request that names a venue is linked to it on approval
+  const linkRole = req.kind === 'host' && req.venue_id && (req.role === 'Manager' || req.role === 'Host') ? (req.role === 'Manager' ? 'manager' : 'host') : null;
 
   const submit = async () => {
     if (!mode) return;
     setBusy(true);
     setError(null);
     try {
+      // link first: assigning is idempotent, so if the review then fails, confirming again finishes both
+      if (mode === 'approve' && linkRole) await api.adminAssignVenueStaff(req.user_id, req.venue_id!, linkRole);
       await api.adminReviewVerification(req.id, mode === 'approve', note);
-      show(mode === 'approve' ? 'Approved' : 'Rejected');
+      show(mode === 'approve' ? (linkRole ? `Approved and linked to ${venueName ?? 'the venue'} as ${linkRole}` : 'Approved') : 'Rejected');
       onDone();
     } catch (e) {
       setError(friendlyError(e));
@@ -39,7 +43,7 @@ function RequestCard({ req, who, venueName, onDone }: { req: VerificationRequest
         <span className={`font-semibold text-sm ${bodyText}`}>{who?.display_name ?? 'Unknown user'}</span>
         <Chip>{req.kind === 'host' ? 'Performer / Staff' : 'Venue account'}</Chip>
         {req.kind === 'host' && req.role && <Chip>{req.role}</Chip>}
-        {req.kind === 'venue' && <Chip>{venueName ?? 'venue'}</Chip>}
+        {req.venue_id && <Chip>{venueName ?? 'venue'}</Chip>}
         <StatusChip status={req.status} />
         <span className={`text-[11px] ml-auto ${mutedText}`}>{formatDateTime(req.created_at)}</span>
       </div>
@@ -53,14 +57,15 @@ function RequestCard({ req, who, venueName, onDone }: { req: VerificationRequest
             {error && <ErrorNote message={error} />}
             <div className="flex gap-2">
               <button onClick={submit} disabled={busy} className={primaryBtn}>
-                {busy && <Loader2 className="w-4 h-4 animate-spin" />}Confirm {mode}
+                {busy && <Loader2 className="w-4 h-4 animate-spin" />}
+                {mode === 'approve' && linkRole ? `Confirm: approve and link as ${linkRole}` : `Confirm ${mode}`}
               </button>
               <button onClick={() => setMode(null)} disabled={busy} className={ghostBtn}>Cancel</button>
             </div>
           </div>
         ) : (
           <div className="flex gap-2 mt-3">
-            <button onClick={() => setMode('approve')} className={primaryBtn}>Approve</button>
+            <button onClick={() => setMode('approve')} className={primaryBtn}>{linkRole ? `Approve & link to ${venueName ?? 'venue'}` : 'Approve'}</button>
             <button onClick={() => setMode('reject')} className={ghostBtn}>Reject</button>
           </div>
         ))}

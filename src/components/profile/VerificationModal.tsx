@@ -19,6 +19,9 @@ const statusStyle = {
 
 const tabs = [['host', 'Performer / Staff'], ['venue', 'Venue account']] as const;
 
+/** Roles tied to one venue: the request names it, so an admin can link the user to it on approval. */
+const VENUE_ROLES: readonly VerificationRole[] = ['Manager', 'Host'];
+
 const pill = (on: boolean) =>
   `inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-medium border transition-colors disabled:opacity-50 ${
     on ? 'border-wa-green bg-wa-green/10 text-wa-green' : `border-wa-lightBorder dark:border-wa-darkBorder ${bodyText}`
@@ -33,6 +36,7 @@ export default function VerificationModal({ onClose }: { onClose: () => void }) 
   const [kind, setKind] = useState<'host' | 'venue'>('host');
   const [role, setRole] = useState<VerificationRole | null>(null);
   const [venueIds, setVenueIds] = useState<string[]>([]);
+  const [hostVenueId, setHostVenueId] = useState<string | null>(null);
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -43,6 +47,7 @@ export default function VerificationModal({ onClose }: { onClose: () => void }) 
   );
   // the database allows one pending Performer / Staff request at a time
   const hostPending = (requests.data ?? []).find((r) => r.status === 'pending' && r.kind === 'host');
+  const needsVenue = kind === 'host' && !!role && VENUE_ROLES.includes(role);
   const hasPending = kind === 'host' ? !!hostPending : venues.length > 0 && venues.every((v) => pendingVenueIds.has(v.id));
   const toggleVenue = (id: string) =>
     setVenueIds((ids) => (ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]));
@@ -56,15 +61,19 @@ export default function VerificationModal({ onClose }: { onClose: () => void }) 
     // a venue that already has a pending request is not sent again (the database allows one pending request per venue)
     const selected = venueIds.filter((id) => !pendingVenueIds.has(id));
     if (kind === 'host' && !role) return setError('Choose your role.');
+    if (needsVenue && !hostVenueId) return setError('Choose the venue you work at.');
     if (kind === 'venue' && selected.length === 0) return setError('Choose at least one venue.');
     if (message.trim().length < 10) return setError('Tell us a little about who you are (at least 10 characters).');
     setBusy(true);
     setError(null);
     try {
-      await api.requestVerification(kind === 'host' ? { kind, role, message } : { kind, venue_ids: selected, message });
+      await api.requestVerification(
+        kind === 'host' ? { kind, role, venue_id: needsVenue ? hostVenueId : null, message } : { kind, venue_ids: selected, message }
+      );
       show(kind === 'venue' && selected.length > 1 ? `${selected.length} requests sent. We will review them soon.` : 'Request sent. We will review it soon.');
       setMessage('');
       setVenueIds([]);
+      setHostVenueId(null);
       setRole(null);
       await requests.reload();
     } catch (err) {
@@ -109,8 +118,22 @@ export default function VerificationModal({ onClose }: { onClose: () => void }) 
             </div>
             {hostPending && (
               <span className={`block text-[11px] mt-1 ${mutedText}`}>
-                Your {hostPending.role ?? 'Performer / Staff'} request is being reviewed.
+                Your {hostPending.role ?? 'Performer / Staff'} request{hostPending.venue_id && ` at ${venueName(hostPending.venue_id)}`} is being reviewed.
               </span>
+            )}
+            {needsVenue && (
+              <>
+                <p className={`text-xs font-semibold mt-3.5 mb-1.5 ${bodyText}`}>Which venue are you the {role} of?</p>
+                <div className="flex flex-wrap gap-2 max-h-48 overflow-y-auto" role="radiogroup">
+                  {venues.map((v) => (
+                    <button key={v.id} type="button" role="radio" onClick={() => setHostVenueId(v.id)} aria-checked={hostVenueId === v.id} className={pill(hostVenueId === v.id)}>
+                      {hostVenueId === v.id && <Check className="w-3.5 h-3.5" />}
+                      {v.name} · {v.location}
+                    </button>
+                  ))}
+                </div>
+                <span className={`block text-[11px] mt-1 ${mutedText}`}>Once approved, you can manage this venue from your profile.</span>
+              </>
             )}
           </fieldset>
         ) : (
@@ -152,7 +175,9 @@ export default function VerificationModal({ onClose }: { onClose: () => void }) 
         <ul className="space-y-2">
           {requests.data!.map((r) => (
             <li key={r.id} className="flex items-center gap-2 text-sm rounded-xl px-3 py-2 border border-wa-lightBorder dark:border-wa-darkBorder">
-              <span className={`flex-1 ${bodyText}`}>{r.kind === 'host' ? (r.role ?? 'Performer / Staff') : `Venue: ${venueName(r.venue_id)}`}</span>
+              <span className={`flex-1 ${bodyText}`}>{r.kind === 'host'
+                  ? `${r.role ?? 'Performer / Staff'}${r.venue_id ? ` at ${venueName(r.venue_id)}` : ''}`
+                  : `Venue: ${venueName(r.venue_id)}`}</span>
               <span className={`text-[11px] font-semibold rounded-full px-2 py-0.5 ${statusStyle[r.status]}`}>{r.status}</span>
             </li>
           ))}
