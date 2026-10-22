@@ -1,10 +1,12 @@
-import { Settings as SettingsIcon, Moon, Flame, MessageCircle, Megaphone, RotateCcw } from 'lucide-react';
+import { Settings as SettingsIcon, Moon, Flame, MessageCircle, Megaphone, RotateCcw, Volume2 } from 'lucide-react';
 import Modal from '@/components/Modal';
 import AccountSection from '@/components/profile/AccountSection';
 import { mutedText, bodyText } from '@/components/ui';
 import { useTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
 import { useSettings, type Settings } from '@/context/SettingsContext';
+import { useNotificationSounds } from '@/hooks/useNotificationSounds';
+import { playNotificationSound } from '@/lib/notificationSound';
 
 function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label: string }) {
   return (
@@ -45,6 +47,7 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
   const { theme } = useTheme();
   const { user } = useAuth();
   const { settings, setSetting, resetSettings, setThemePreference } = useSettings();
+  const [sounds, setSounds] = useNotificationSounds();
 
   const alertRows: { key: keyof Settings; icon: typeof Moon; title: string; description: string }[] = [
     { key: 'liveVenueAlerts', icon: Flame, title: 'Live venue alerts', description: 'When a venue you follow goes live' },
@@ -68,6 +71,17 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
             <Toggle checked={settings[r.key]} onChange={(v) => setSetting(r.key, v)} label={r.title} />
           </Row>
         ))}
+        <Row icon={Volume2} title="In-app notification sounds" description="A soft pop for new notifications and messages. Saved on this device.">
+          <Toggle
+            checked={sounds}
+            onChange={(on) => {
+              setSounds(on);
+              // a preview, which also lets the browser play later sounds
+              if (on) playNotificationSound({ force: true });
+            }}
+            label="In-app notification sounds"
+          />
+        </Row>
       </div>
 
       <button

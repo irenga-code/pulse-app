@@ -8,6 +8,7 @@ import { SocialProvider } from '@/context/SocialContext';
 import { VenueLibraryProvider } from '@/context/VenueLibraryContext';
 import { VenueVibesProvider } from '@/context/VenueVibesContext';
 import AuthModals from '@/components/auth/AuthModals';
+import NotificationSounds from '@/components/NotificationSounds';
 import AdminDashboard from '@/admin/AdminDashboard';
 import { useHashRoute, isAdminRoute } from '@/hooks/useHashRoute';
 import { useLiveVenueCount } from '@/hooks/useVenues';
@@ -143,6 +144,7 @@ function App() {
                 <SocialProvider>
                   <Router />
                 </SocialProvider>
+                <NotificationSounds />
                 <AuthModals />
               </VenueVibesProvider>
             </VenueLibraryProvider>
