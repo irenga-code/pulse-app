@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { Sun, Moon, ChevronDown, Activity } from 'lucide-react';
 import { useTheme } from '@/context/ThemeContext';
-<<<<<<< HEAD
 import { useSettings } from '@/context/SettingsContext';
 import { useLiveVenueCount } from '@/hooks/useVenues';
 
@@ -10,12 +9,6 @@ export default function Header() {
   const { setThemePreference } = useSettings();
   const [cityOpen, setCityOpen] = useState(false);
   const liveCount = useLiveVenueCount();
-=======
-
-export default function Header() {
-  const { theme, toggleTheme } = useTheme();
-  const [cityOpen, setCityOpen] = useState(false);
->>>>>>> e14542724eaa5b9d785ae538c31a2e121d3a7fd9
 
   return (
     <header className="md:hidden sticky top-0 z-30 bg-wa-lightHeader dark:bg-wa-darkPanel border-b border-wa-lightBorder dark:border-wa-darkBorder transition-colors duration-300">
@@ -55,7 +48,6 @@ export default function Header() {
 
         {/* Right actions */}
         <div className="flex items-center gap-3">
-<<<<<<< HEAD
           {liveCount > 0 && (
             <div className="flex items-center gap-1.5 bg-white/15 dark:bg-wa-darkSecondary/60 rounded-full px-2.5 py-1" aria-label={`${liveCount} venues live now`}>
               <span className="relative flex h-2 w-2">
@@ -68,18 +60,6 @@ export default function Header() {
 
           <button
             onClick={() => setThemePreference(theme === 'dark' ? 'light' : 'dark')}
-=======
-          <div className="flex items-center gap-1.5 bg-white/15 dark:bg-wa-darkSecondary/60 rounded-full px-2.5 py-1">
-            <span className="relative flex h-2 w-2">
-              <span className="absolute inline-flex h-full w-full rounded-full bg-wa-live animate-pulse-dot" />
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-wa-live" />
-            </span>
-            <span className="text-xs font-medium text-white dark:text-wa-darkText">LIVE</span>
-          </div>
-
-          <button
-            onClick={toggleTheme}
->>>>>>> e14542724eaa5b9d785ae538c31a2e121d3a7fd9
             className="p-2 rounded-full hover:bg-white/10 dark:hover:bg-wa-darkSecondary/60 transition-colors duration-200"
             aria-label="Toggle theme"
           >

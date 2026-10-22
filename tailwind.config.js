@@ -27,11 +27,7 @@ export default {
           greenLight: '#25d366',
           // Status colors
           live: '#f15c6d',
-<<<<<<< HEAD
           busy: '#ffb74d',
-=======
-          soldout: '#ffb74d',
->>>>>>> e14542724eaa5b9d785ae538c31a2e121d3a7fd9
           quiet: '#8696a0',
         },
       },

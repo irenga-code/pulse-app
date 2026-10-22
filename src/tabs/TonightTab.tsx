@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 import { AlertCircle, Flame, MapPin } from 'lucide-react';
 import { useVenues } from '@/hooks/useVenues';
 import { isVenueLive } from '@/lib/venues';
@@ -8,13 +7,6 @@ export default function TonightTab() {
   // all venues, filtered here: a venue is also live while one of its events is running, not only by status
   const { venues: all, loading, error } = useVenues({ orderBy: 'name' });
   const venues = all.filter(isVenueLive);
-=======
-import { Loader2, AlertCircle, Flame, MapPin } from 'lucide-react';
-import { useVenues } from '@/hooks/useVenues';
-
-export default function TonightTab() {
-  const { venues, loading, error } = useVenues({ status: 'live', orderBy: 'name' });
->>>>>>> e14542724eaa5b9d785ae538c31a2e121d3a7fd9
 
   return (
     <div className="flex flex-col h-full bg-wa-light dark:bg-wa-dark">
@@ -30,16 +22,7 @@ export default function TonightTab() {
 
       <div className="flex-1 overflow-y-auto px-4 md:px-8 pb-6">
         {loading ? (
-<<<<<<< HEAD
           <VenueGridSkeleton count={3} tall label="Loading tonight's lineup" />
-=======
-          <div className="flex flex-col items-center justify-center py-20">
-            <Loader2 className="w-8 h-8 text-wa-green animate-spin" />
-            <p className="text-sm text-wa-lightTextSecondary dark:text-wa-darkTextSecondary mt-3">
-              Loading tonight's lineup...
-            </p>
-          </div>
->>>>>>> e14542724eaa5b9d785ae538c31a2e121d3a7fd9
         ) : error ? (
           <div className="flex flex-col items-center justify-center py-20">
             <AlertCircle className="w-10 h-10 text-wa-live" />
@@ -58,11 +41,7 @@ export default function TonightTab() {
             {venues.map((venue) => (
               <div
                 key={venue.id}
-<<<<<<< HEAD
                 className="relative rounded-2xl overflow-hidden border border-wa-lightBorder dark:border-wa-darkBorder animate-slide-up"
-=======
-                className="relative rounded-2xl overflow-y-auto border border-wa-lightBorder dark:border-wa-darkBorder animate-slide-up"
->>>>>>> e14542724eaa5b9d785ae538c31a2e121d3a7fd9
               >
                 <div className="relative h-52 md:h-56 lg:h-64">
                   {venue.image_url && (
@@ -75,7 +54,6 @@ export default function TonightTab() {
                   )}
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
                   {/* Live badge */}
-<<<<<<< HEAD
                   {isVenueLive(venue) && (
                     <div className="absolute top-3 left-3 flex items-center gap-1.5 bg-wa-live rounded-full px-3 py-1">
                       <span className="relative flex h-2 w-2">
@@ -85,15 +63,6 @@ export default function TonightTab() {
                       <span className="text-xs font-bold text-white">LIVE</span>
                     </div>
                   )}
-=======
-                  <div className="absolute top-3 left-3 flex items-center gap-1.5 bg-wa-live rounded-full px-3 py-1">
-                    <span className="relative flex h-2 w-2">
-                      <span className="absolute inline-flex h-full w-full rounded-full bg-white animate-pulse-dot" />
-                      <span className="relative inline-flex rounded-full h-2 w-2 bg-white" />
-                    </span>
-                    <span className="text-xs font-bold text-white">LIVE</span>
-                  </div>
->>>>>>> e14542724eaa5b9d785ae538c31a2e121d3a7fd9
                   {/* Info overlay */}
                   <div className="absolute bottom-0 left-0 right-0 p-4">
                     <h3 className="text-lg font-bold text-white">{venue.name}</h3>

@@ -1,14 +1,8 @@
-<<<<<<< HEAD
 import { MapPin, Plus, Check, Bookmark } from 'lucide-react';
 import { useVenueLibrary } from '@/context/VenueLibraryContext';
 import VenueVibes from '@/components/reactions/VenueVibes';
 import type { Venue } from '@/lib/types';
 import { isVenueLive } from '@/lib/venues';
-=======
-import { useState } from 'react';
-import { MapPin, Plus, Check } from 'lucide-react';
-import type { Venue } from '@/lib/supabase';
->>>>>>> e14542724eaa5b9d785ae538c31a2e121d3a7fd9
 
 type StatusConfig = {
   label: string;
@@ -19,17 +13,12 @@ type StatusConfig = {
 
 const statusConfigs: Record<string, StatusConfig> = {
   live: {
-<<<<<<< HEAD
     label: 'Live now',
-=======
-    label: 'Live tonight',
->>>>>>> e14542724eaa5b9d785ae538c31a2e121d3a7fd9
     color: 'text-wa-live',
     dot: 'bg-wa-live',
     bg: 'bg-wa-live/10',
   },
   sold_out: {
-<<<<<<< HEAD
     label: 'Sold out',
     color: 'text-wa-busy',
     dot: 'bg-wa-busy',
@@ -37,15 +26,6 @@ const statusConfigs: Record<string, StatusConfig> = {
   },
   not_active: {
     label: 'Not active',
-=======
-    label: 'Sold Out',
-    color: 'text-wa-soldout',
-    dot: 'bg-wa-soldout',
-    bg: 'bg-wa-soldout/10',
-  },
-  not_active: {
-    label: 'Not Active',
->>>>>>> e14542724eaa5b9d785ae538c31a2e121d3a7fd9
     color: 'text-wa-quiet',
     dot: 'bg-wa-quiet',
     bg: 'bg-wa-quiet/10',
@@ -57,7 +37,6 @@ type Props = {
 };
 
 export default function VenueCard({ venue }: Props) {
-<<<<<<< HEAD
   const { isSaved, toggleSaved, isFollowing, toggleFollow } = useVenueLibrary();
   const saved = isSaved(venue.id);
   const following = isFollowing(venue.id);
@@ -69,16 +48,6 @@ export default function VenueCard({ venue }: Props) {
     <div className="bg-wa-lightPanel dark:bg-wa-darkSecondary rounded-2xl overflow-hidden border border-wa-lightBorder dark:border-wa-darkBorder transition-all duration-300 hover:shadow-lg animate-slide-up">
       {/* Image */}
       <div className="relative h-40 overflow-hidden">
-=======
-  const [following, setFollowing] = useState(false);
-  const status = statusConfigs[venue.status] ?? statusConfigs.not_active;
-  const isLive = venue.status === 'live';
-
-  return (
-    <div className="bg-wa-lightPanel dark:bg-wa-darkSecondary rounded-2xl overflow-y-auto border border-wa-lightBorder dark:border-wa-darkBorder transition-all duration-300 hover:shadow-lg animate-slide-up">
-      {/* Image */}
-      <div className="relative h-40 overflow-y-auto">
->>>>>>> e14542724eaa5b9d785ae538c31a2e121d3a7fd9
         {venue.image_url ? (
           <img
             src={venue.image_url}
@@ -104,7 +73,6 @@ export default function VenueCard({ venue }: Props) {
           <span className={`text-xs font-semibold ${status.color}`}>{status.label}</span>
         </div>
 
-<<<<<<< HEAD
         {/* Save / bookmark */}
         <button
           onClick={() => toggleSaved(venue.id)}
@@ -114,8 +82,6 @@ export default function VenueCard({ venue }: Props) {
         >
           <Bookmark className={`w-4 h-4 ${saved ? 'fill-wa-green text-wa-green' : ''}`} />
         </button>
-=======
->>>>>>> e14542724eaa5b9d785ae538c31a2e121d3a7fd9
       </div>
 
       {/* Info */}
@@ -133,12 +99,8 @@ export default function VenueCard({ venue }: Props) {
             </div>
           </div>
           <button
-<<<<<<< HEAD
             onClick={() => toggleFollow(venue.id)}
             aria-pressed={following}
-=======
-            onClick={() => setFollowing((v) => !v)}
->>>>>>> e14542724eaa5b9d785ae538c31a2e121d3a7fd9
             className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-all duration-200 flex-shrink-0 ${
               following
                 ? 'bg-wa-green/15 text-wa-green'
@@ -158,10 +120,7 @@ export default function VenueCard({ venue }: Props) {
             )}
           </button>
         </div>
-<<<<<<< HEAD
         <VenueVibes venueId={venue.id} />
-=======
->>>>>>> e14542724eaa5b9d785ae538c31a2e121d3a7fd9
       </div>
     </div>
   );

@@ -1,8 +1,9 @@
 import { useRef, useState } from 'react';
-import { UserCog, Camera, Loader2 } from 'lucide-react';
+import { UserCog, Camera, Loader2, BadgeCheck } from 'lucide-react';
 import Modal from '@/components/Modal';
 import Avatar from '@/components/Avatar';
-import { Field, ErrorNote, inputClass, primaryBtn, mutedText } from '@/components/ui';
+import VerificationModal from '@/components/profile/VerificationModal';
+import { Field, ErrorNote, inputClass, primaryBtn, ghostBtn, mutedText } from '@/components/ui';
 import { api } from '@/lib/apiClient';
 import { friendlyError } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
@@ -21,8 +22,11 @@ export default function EditProfileModal({ onClose }: { onClose: () => void }) {
   const [preview, setPreview] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [verifying, setVerifying] = useState(false);
 
   if (!user || !profile) return null;
+  // swap rather than stack, so Esc only closes the verification sheet and returns here with edits intact
+  if (verifying) return <VerificationModal onClose={() => setVerifying(false)} />;
 
   const pick = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
@@ -85,6 +89,15 @@ export default function EditProfileModal({ onClose }: { onClose: () => void }) {
           Save changes
         </button>
       </form>
+      {!profile.is_verified && (
+        <div className="mt-5 pt-4 border-t border-wa-lightBorder dark:border-wa-darkBorder">
+          <p className={`text-xs mb-2 ${mutedText}`}>Performer, staff or venue account? Get a verified badge.</p>
+          <button type="button" onClick={() => setVerifying(true)} className={`${ghostBtn} w-full`}>
+            <BadgeCheck className="w-4 h-4" />
+            Request verification
+          </button>
+        </div>
+      )}
     </Modal>
   );
 }

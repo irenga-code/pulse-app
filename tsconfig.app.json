@@ -14,16 +14,9 @@
     "noEmit": true,
     "jsx": "react-jsx",
 
-<<<<<<< HEAD
     /* Path alias (@/foo === src/foo). No baseUrl: it is deprecated in TS 6 and not needed with bundler resolution. */
     "paths": {
       "@/*": ["./src/*"]
-=======
-    /* Path alias — depth-invariant imports for src (@/foo === src/foo from any file) */
-    "baseUrl": ".",
-    "paths": {
-      "@/*": ["src/*"]
->>>>>>> e14542724eaa5b9d785ae538c31a2e121d3a7fd9
     },
 
     /* Linting */
