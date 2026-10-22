@@ -55,7 +55,7 @@ export default function ProfileTab() {
     { label: 'Settings', icon: Settings, onClick: () => setModal('settings') },
   ];
   if (user && managedCount > 0) menuItems.push({ label: managedCount > 1 ? 'My venues' : 'My venue', icon: Store, onClick: () => setModal('venue') });
-  if (user && profile && !profile.is_verified) menuItems.push({ label: 'Request verification', icon: BadgeCheck, onClick: () => setModal('verify') });
+  if (user) menuItems.push({ label: 'Request verification', icon: BadgeCheck, onClick: () => setModal('verify') });
   if (isAdmin) menuItems.push({ label: 'Admin dashboard', icon: ShieldCheck, onClick: () => { window.location.hash = '#/manage'; } });
 
   return (

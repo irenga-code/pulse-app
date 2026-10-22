@@ -89,15 +89,13 @@ export default function EditProfileModal({ onClose }: { onClose: () => void }) {
           Save changes
         </button>
       </form>
-      {!profile.is_verified && (
-        <div className="mt-5 pt-4 border-t border-wa-lightBorder dark:border-wa-darkBorder">
-          <p className={`text-xs mb-2 ${mutedText}`}>Performer, staff or venue account? Get a verified badge.</p>
-          <button type="button" onClick={() => setVerifying(true)} className={`${ghostBtn} w-full`}>
-            <BadgeCheck className="w-4 h-4" />
-            Request verification
-          </button>
-        </div>
-      )}
+      <div className="mt-5 pt-4 border-t border-wa-lightBorder dark:border-wa-darkBorder">
+        <p className={`text-xs mb-2 ${mutedText}`}>Performer, staff or venue account? Request verification for a new role or venue.</p>
+        <button type="button" onClick={() => setVerifying(true)} className={`${ghostBtn} w-full`}>
+          <BadgeCheck className="w-4 h-4" />
+          Request verification
+        </button>
+      </div>
     </Modal>
   );
 }
