@@ -29,13 +29,15 @@ export default function SharedPostModal({ postId, onClose }: { postId: string; o
       ) : (
         <article className="space-y-2.5">
           <div className="flex items-center gap-3">
-            <button onClick={() => post.user_id && openProfile(post.user_id)} aria-label={`View ${post.user_name}'s profile`}><Avatar name={post.user_name} url={data.data?.author?.avatar_url} /></button>
+            <button onClick={() => post.user_id && !post.as_venue && openProfile(post.user_id)} disabled={post.as_venue} aria-label={`View ${post.user_name}'s profile`}><Avatar name={post.user_name} url={post.as_venue ? null : data.data?.author?.avatar_url} /></button>
             <div className="min-w-0">
               <div className="flex items-center gap-1.5 flex-wrap">
                 <span className={`font-semibold text-sm ${bodyText}`}>{post.user_name}</span>
-                <RoleBadge accountType={data.data?.author?.account_type} verified={data.data?.author?.is_verified} official={post.is_official} />
+                {post.as_venue
+                  ? <RoleBadge official={post.is_official} />
+                  : <RoleBadge accountType={data.data?.author?.account_type} verified={data.data?.author?.is_verified} official={post.is_official} />}
               </div>
-              <span className={`text-xs ${mutedText}`}>{timeAgo(post.created_at)}{post.venue_name ? ` · ${post.venue_name}` : ''}</span>
+              <span className={`text-xs ${mutedText}`}>{timeAgo(post.created_at)}{post.venue_name && !post.as_venue ? ` · ${post.venue_name}` : ''}</span>
             </div>
           </div>
           {post.content && <p className={`text-sm leading-relaxed whitespace-pre-wrap break-words ${bodyText}`}><EmojiText text={post.content} /></p>}

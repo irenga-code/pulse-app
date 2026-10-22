@@ -52,6 +52,8 @@ export default function PostCard({ post, author, counts, mine, onReact, onDelete
   const [reporting, setReporting] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const own = !!user && post.user_id === user.id;
+  // a post made as a venue speaks for the venue, so it does not link to (or badge) the person who wrote it
+  const profileId = post.as_venue ? null : post.user_id;
   const liked = mine === 'heart';
 
   const share = async () => {
@@ -63,16 +65,16 @@ export default function PostCard({ post, author, counts, mine, onReact, onDelete
   return (
     <article ref={cardRef} className="relative bg-wa-lightPanel dark:bg-wa-darkSecondary rounded-2xl p-4 border border-wa-lightBorder dark:border-wa-darkBorder animate-slide-up">
       <div className="flex items-start gap-3">
-        <button type="button" onClick={() => post.user_id && openProfile(post.user_id)} aria-label={`View ${post.user_name}'s profile`} className="flex-shrink-0 self-start" disabled={!post.user_id}>
-          <Avatar name={post.user_name} url={author?.avatar_url} />
+        <button type="button" onClick={() => profileId && openProfile(profileId)} aria-label={`View ${post.user_name}'s profile`} className="flex-shrink-0 self-start" disabled={!profileId}>
+          <Avatar name={post.user_name} url={post.as_venue ? null : author?.avatar_url} />
         </button>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5 flex-wrap">
-            <button type="button" onClick={() => post.user_id && openProfile(post.user_id)} disabled={!post.user_id} className={`font-semibold text-sm hover:underline ${bodyText}`}>{post.user_name}</button>
-            <RoleBadge accountType={author?.account_type} verified={author?.is_verified} official={post.is_official} />
+            <button type="button" onClick={() => profileId && openProfile(profileId)} disabled={!profileId} className={`font-semibold text-sm ${profileId ? 'hover:underline' : ''} ${bodyText}`}>{post.user_name}</button>
+            {post.as_venue ? <RoleBadge official={post.is_official} /> : <RoleBadge accountType={author?.account_type} verified={author?.is_verified} official={post.is_official} />}
             <span className={`text-xs ${mutedText}`}>· {timeAgo(post.created_at)}</span>
           </div>
-          {post.venue_name && (
+          {post.venue_name && !post.as_venue && (
             <span className="inline-flex items-center gap-1 text-xs text-wa-green font-medium mt-0.5">
               <MapPin className="w-3 h-3" />
               {post.venue_name}

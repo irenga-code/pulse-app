@@ -36,7 +36,7 @@ export default function ProfileTab() {
   const { openInbox, unread } = useSocial();
   const stats = useAsync(() => (user ? api.profileStats(user.id) : Promise.resolve(null)), [], user ? userKey(user.id, 'profile-stats') : null);
   const managed = useAsync(() => (user ? api.managedVenueIds(user.id) : Promise.resolve([] as string[])), [], user ? userKey(user.id, 'managed-venues') : null);
-  const managesVenue = (managed.data ?? []).length > 0;
+  const managedCount = (managed.data ?? []).length;
 
   const handleSignOut = async () => {
     try {
@@ -54,7 +54,7 @@ export default function ProfileTab() {
     { label: 'Saved venues', icon: Bookmark, onClick: () => setModal('saved') },
     { label: 'Settings', icon: Settings, onClick: () => setModal('settings') },
   ];
-  if (user && managesVenue) menuItems.push({ label: 'My venue', icon: Store, onClick: () => setModal('venue') });
+  if (user && managedCount > 0) menuItems.push({ label: managedCount > 1 ? 'My venues' : 'My venue', icon: Store, onClick: () => setModal('venue') });
   if (user && profile?.account_type === 'user') menuItems.push({ label: 'Get verified', icon: BadgeCheck, onClick: () => setModal('verify') });
   if (isAdmin) menuItems.push({ label: 'Admin dashboard', icon: ShieldCheck, onClick: () => { window.location.hash = '#/manage'; } });
 

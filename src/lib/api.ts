@@ -10,7 +10,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type {
   Venue, VenueStatus, Post, Comment, ReactionKind, ReactionCounts, ReactionType, NewPostInput, Profile, PublicProfile, Preferences,
   AppNotification, ReportTarget, ReportReason, ReportRow, VerificationRequest, ModerationLogRow, AccountStatus,
-  ProfileStats, Status, NewStatusInput, ChatMessage, ConversationSummary, MessageRef, VerificationRole,
+  ProfileStats, Status, NewStatusInput, ChatMessage, ConversationSummary, MessageRef, VerificationRole, ManagedVenue, VenueProfilePatch, StaffCandidate, VenueStaffRow,
 } from './types';
 
 export class ApiError extends Error {
@@ -85,6 +85,7 @@ export function createApi(c: SupabaseClient) {
     async createPost(input: NewPostInput) {
       const row: Record<string, unknown> = { content: input.content.trim() };
       if (input.venue_id) row.venue_id = input.venue_id;
+      if (input.as_venue) row.as_venue = true;
       for (const k of ['kind', 'media_url', 'media_type', 'media_width', 'media_height', 'media_duration_ms', 'media_meta'] as const) {
         if (input[k] !== undefined) row[k] = input[k];
       }
@@ -309,6 +310,14 @@ export function createApi(c: SupabaseClient) {
       const rows = unwrap(await c.from('venue_managers').select('venue_id').eq('user_id', userId)) as { venue_id: string }[];
       return rows.map((r) => r.venue_id);
     },
+    async managedVenues(userId: string) {
+      return unwrap(await c.from('venue_managers').select('venue_id, role').eq('user_id', userId).order('created_at')) as ManagedVenue[];
+    },
+    /** Linked hosts/managers only (RLS + column grants); image_url must be an http(s) URL. */
+    async updateVenueProfile(venueId: string, patch: VenueProfilePatch) {
+      const rows = unwrap(await c.from('venues').update(patch).eq('id', venueId).select('id')) as unknown[];
+      if (rows.length === 0) throw new ApiError('You do not manage this venue.', '42501');
+    },
     async setVenueStatus(venueId: string, status: VenueStatus, minutes = 360) {
       return unwrap(await c.rpc('set_venue_status', { p_venue_id: venueId, p_status: status, p_duration_minutes: minutes })) as Venue;
     },
@@ -497,6 +506,19 @@ export function createApi(c: SupabaseClient) {
     },
     async adminReviewVerification(requestId: string, approve: boolean, note?: string) {
       unwrap(await c.rpc('admin_review_verification', { p_request_id: requestId, p_approve: approve, p_note: note?.trim() || null }));
+    },
+    /** Display name (partial) or exact email; needs 2+ characters. */
+    async adminFindUsers(query: string) {
+      return unwrap(await c.rpc('admin_find_users', { p_query: query.trim() })) as StaffCandidate[];
+    },
+    async adminListVenueStaff() {
+      return unwrap(await c.from('venue_managers').select('venue_id, user_id, role, created_at').order('created_at', { ascending: false })) as VenueStaffRow[];
+    },
+    async adminAssignVenueStaff(userId: string, venueId: string, role: 'manager' | 'host') {
+      unwrap(await c.rpc('admin_assign_venue_staff', { p_user_id: userId, p_venue_id: venueId, p_role: role }));
+    },
+    async adminUnassignVenueStaff(userId: string, venueId: string) {
+      unwrap(await c.rpc('admin_unassign_venue_staff', { p_user_id: userId, p_venue_id: venueId }));
     },
     async adminModerationLog() {
       return unwrap(await c.from('moderation_log').select('*').order('created_at', { ascending: false }).limit(100)) as ModerationLogRow[];

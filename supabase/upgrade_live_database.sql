@@ -1,4 +1,4 @@
--- Pulse: full database upgrade (every migration in supabase/migrations, in order). Generated 2026-10-20.
+-- Pulse: full database upgrade (every migration in supabase/migrations, in order). Generated 2026-10-22.
 -- Safe to run more than once. Paste into the Supabase SQL Editor and Run.
 
 -- ============================================================================
@@ -3288,5 +3288,145 @@ BEGIN
                    r.t, r.name, r.c, r.c);
   END LOOP;
 END $$;
+
+NOTIFY pgrst, 'reload schema';
+
+-- ============================================================================
+-- >>> 20261022100000_multi_venue_management.sql
+-- ============================================================================
+/*
+# Pulse backend 9 — multi-venue management (hosts and venue managers)
+
+Idempotent and additive: no rows are deleted, no auth settings are touched. Apply after migration 8.
+
+`venue_managers` already links a user to any number of venues (primary key `(venue_id, user_id)`), and
+`manages_venue()` already gates venue edits, events and status changes. This migration:
+
+- venue_managers: adds the `host` role next to `owner` / `manager`. A host (resident DJ, MC, promoter) can be
+  linked to several clubs and has the same venue rights as a manager. Assignments stay admin-only (`vm_admin_write`):
+    INSERT INTO public.venue_managers (venue_id, user_id, role)
+    SELECT v.id, u.id, 'host' FROM public.venues v, auth.users u
+    WHERE v.name IN ('Nomad', 'Taboo') AND u.email = 'host@example.com' ON CONFLICT DO NOTHING;
+- venues: managers edit the profile (image, description/bio, address, phone, WhatsApp, map pin) of every venue they
+  are linked to. Same rule as migration 3, restated here so the policy and grant sit next to the feature that uses them.
+- posts: `as_venue` lets a linked user publish *as* the venue. The author name becomes the venue's name; `user_id`
+  still records who wrote it (moderation, rate limits, deletes). Only real `venue_managers` rows qualify (admins are
+  not implicitly every venue). The Official badge rule is unchanged (linked user + verified venue).
+*/
+
+-- ============================================================================
+-- venue_managers: host role
+-- ============================================================================
+ALTER TABLE public.venue_managers DROP CONSTRAINT IF EXISTS venue_managers_role_check;
+ALTER TABLE public.venue_managers ADD CONSTRAINT venue_managers_role_check CHECK (role IN ('owner', 'manager', 'host'));
+
+-- ============================================================================
+-- venues: linked users edit their venues' profiles
+-- ============================================================================
+DROP POLICY IF EXISTS venues_update_managers ON public.venues;
+CREATE POLICY venues_update_managers ON public.venues FOR UPDATE TO authenticated
+  USING (public.manages_venue(id)) WITH CHECK (public.manages_venue(id));
+GRANT UPDATE (description, address, phone, whatsapp, image_url, latitude, longitude) ON public.venues TO authenticated;
+
+-- ============================================================================
+-- posts: publish as a venue
+-- ============================================================================
+ALTER TABLE public.posts ADD COLUMN IF NOT EXISTS as_venue boolean NOT NULL DEFAULT false;
+
+-- Runs after posts_prepare (BEFORE triggers fire in name order), which has already stamped user_name / venue_name.
+CREATE OR REPLACE FUNCTION public.posts_prepare_as_venue()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  uid uuid := auth.uid();
+BEGIN
+  IF NOT NEW.as_venue THEN RETURN NEW; END IF;
+  IF NEW.venue_id IS NULL THEN RAISE EXCEPTION 'choose a venue to post as' USING ERRCODE = '22023'; END IF;
+  IF uid IS NOT NULL AND NOT EXISTS (
+      SELECT 1 FROM public.venue_managers m WHERE m.venue_id = NEW.venue_id AND m.user_id = uid) THEN
+    RAISE EXCEPTION 'you do not manage this venue' USING ERRCODE = '42501';
+  END IF;
+  NEW.user_name := (SELECT name FROM public.venues WHERE id = NEW.venue_id);
+  RETURN NEW;
+END $$;
+
+DROP TRIGGER IF EXISTS posts_prepare_as_venue ON public.posts;
+CREATE TRIGGER posts_prepare_as_venue BEFORE INSERT ON public.posts
+FOR EACH ROW EXECUTE FUNCTION public.posts_prepare_as_venue();
+
+REVOKE INSERT ON public.posts FROM authenticated;
+GRANT INSERT (content, venue_id, event_id, media_url, kind, media_type, media_width, media_height,
+              media_duration_ms, media_meta, as_venue) ON public.posts TO authenticated;
+
+NOTIFY pgrst, 'reload schema';
+
+-- ============================================================================
+-- >>> 20261022110000_admin_venue_staff.sql
+-- ============================================================================
+/*
+# Pulse backend 10 — admin: link users to venues as Manager or Host
+
+Idempotent and additive. Apply after migration 9.
+
+- `admin_find_users(q)`: admins look a user up by display name (partial match) or by email (exact match,
+  case-insensitive). The email is only compared, never returned, so it stays out of every API response.
+- `admin_assign_venue_staff(user, venue, role)`: links a user to a venue as 'manager' or 'host' (re-assigning
+  changes the role). 'owner' stays reserved for approved venue verification requests.
+- `admin_unassign_venue_staff(user, venue)`: removes the link.
+Both write to `moderation_log`. Reading the assignment list uses the existing `vm_select` policy (admins see all rows).
+*/
+
+CREATE OR REPLACE FUNCTION public.admin_find_users(p_query text)
+RETURNS TABLE (id uuid, display_name text, avatar_url text, account_type text, is_verified boolean, status text, matched_email boolean)
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  q text := btrim(coalesce(p_query, ''));
+BEGIN
+  IF NOT public.is_admin() THEN RAISE EXCEPTION 'admins only' USING ERRCODE = '42501'; END IF;
+  IF char_length(q) < 2 THEN RETURN; END IF;
+  RETURN QUERY
+    SELECT p.id, p.display_name, p.avatar_url, p.account_type::text, p.is_verified, p.status::text,
+           lower(u.email) = lower(q) AS matched_email
+    FROM public.profiles p
+    JOIN auth.users u ON u.id = p.id
+    WHERE lower(u.email) = lower(q)
+       OR p.display_name ILIKE '%' || replace(replace(replace(q, '\', '\\'), '%', '\%'), '_', '\_') || '%'
+    ORDER BY (lower(u.email) = lower(q)) DESC, p.display_name
+    LIMIT 20;
+END $$;
+
+CREATE OR REPLACE FUNCTION public.admin_assign_venue_staff(p_user_id uuid, p_venue_id uuid, p_role text)
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  vname text;
+BEGIN
+  IF NOT public.is_admin() THEN RAISE EXCEPTION 'admins only' USING ERRCODE = '42501'; END IF;
+  IF p_role NOT IN ('manager', 'host') THEN RAISE EXCEPTION 'role must be manager or host' USING ERRCODE = '22023'; END IF;
+  IF NOT EXISTS (SELECT 1 FROM public.profiles WHERE id = p_user_id) THEN
+    RAISE EXCEPTION 'user not found' USING ERRCODE = 'P0002';
+  END IF;
+  SELECT name INTO vname FROM public.venues WHERE id = p_venue_id;
+  IF vname IS NULL THEN RAISE EXCEPTION 'venue not found' USING ERRCODE = 'P0002'; END IF;
+
+  INSERT INTO public.venue_managers (venue_id, user_id, role) VALUES (p_venue_id, p_user_id, p_role)
+  ON CONFLICT (venue_id, user_id) DO UPDATE SET role = EXCLUDED.role;
+  PERFORM public.log_admin_action('assign_venue_staff', 'user', p_user_id, p_role || ' of ' || vname);
+END $$;
+
+CREATE OR REPLACE FUNCTION public.admin_unassign_venue_staff(p_user_id uuid, p_venue_id uuid)
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  removed text;
+BEGIN
+  IF NOT public.is_admin() THEN RAISE EXCEPTION 'admins only' USING ERRCODE = '42501'; END IF;
+  DELETE FROM public.venue_managers WHERE venue_id = p_venue_id AND user_id = p_user_id RETURNING role INTO removed;
+  IF removed IS NULL THEN RAISE EXCEPTION 'assignment not found' USING ERRCODE = 'P0002'; END IF;
+  PERFORM public.log_admin_action('unassign_venue_staff', 'user', p_user_id,
+    removed || ' of ' || (SELECT name FROM public.venues WHERE id = p_venue_id));
+END $$;
+
+REVOKE EXECUTE ON FUNCTION public.admin_find_users(text), public.admin_assign_venue_staff(uuid, uuid, text),
+  public.admin_unassign_venue_staff(uuid, uuid) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.admin_find_users(text), public.admin_assign_venue_staff(uuid, uuid, text),
+  public.admin_unassign_venue_staff(uuid, uuid) TO authenticated;
 
 NOTIFY pgrst, 'reload schema';

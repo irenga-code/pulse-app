@@ -15,6 +15,8 @@ For an existing project, `supabase/upgrade_live_database.sql` is all of them in 
 | 6 | `20261019100000_verification_roles.sql` | Performer / Staff role on verification requests (Manager, Host, Mc, Dj, Promoter, Musician, Dancer) | Yes (after 5) |
 | 7 | `20261019110000_venue_is_live.sql` | `venues_public.is_live` (status Live, or a published event running now; never when Sold out); events in realtime | Yes (after 6) |
 | 8 | `20261020100000_security_hardening.sql` | post authors can edit only `content` (no swapping `media_url` past the upload checks); venue/event image and ticket URLs must be http(s) | Yes (after 7) |
+| 9 | `20261022100000_multi_venue_management.sql` | multi-venue management: `host` role on `venue_managers`; linked hosts/managers edit every linked venue's profile; `posts.as_venue` publishes as the venue (author shown as the venue, `user_id` kept) | Yes (after 8) |
+| 10 | `20261022110000_admin_venue_staff.sql` | admin RPCs behind Moderation -> Staff: find a user by display name or exact email (email never returned), link/unlink them to a venue as manager or host (logged) | Yes (after 9) |
 
 Also still required from earlier work: `20261003130000_fix_venue_locations.sql` (venue names/neighborhoods incl. Taboo - Bugolobi) and `20261003131000_profile_saved_venues_notifications.sql`.
 
@@ -37,7 +39,7 @@ Also still required from earlier work: `20261003130000_fix_venue_locations.sql` 
    ```
    (`http://127.0.0.1:54321` when using `supabase start`.) Snap posts must point at a file that really exists in
    `post-media/<your user id>/...` on that origin, so tracking pixels on other hosts are rejected.
-6. Run `supabase/tests/rls_smoke.sql` in the SQL editor. It rolls back and prints `ALL CHECKS PASSED` (164 checks). `supabase/tests/rls_social_smoke.sql` covers migration 5 (105 checks).
+6. Run `supabase/tests/rls_smoke.sql` in the SQL editor. It rolls back and prints `ALL CHECKS PASSED` (164 checks). `supabase/tests/rls_social_smoke.sql` covers migration 5 (105 checks). `supabase/tests/rls_multi_venue_smoke.sql` covers migration 9 (20 checks). `supabase/tests/rls_admin_staff_smoke.sql` covers migration 10 (21 checks).
 
 ## Accounts and roles
 
@@ -46,6 +48,7 @@ Also still required from earlier work: `20261003130000_fix_venue_locations.sql` 
 | Regular User | Sign up |
 | Verified Host/MC/DJ | `verification_requests` (kind `host`) -> admin approves |
 | Venue Account | `verification_requests` (kind `venue`, venue_id) -> admin approves; links the user in `venue_managers` and verifies the venue |
+| Host / Venue Manager of several venues | Admin links them per venue in Moderation -> Staff (role `manager` or `host`); the user picks the venue in Profile -> My venues |
 | PULSE Administrator | Row in `admins` (SQL editor only) |
 
 Users cannot change `account_type`, `is_verified` or `status` themselves (no UPDATE privilege on those columns).

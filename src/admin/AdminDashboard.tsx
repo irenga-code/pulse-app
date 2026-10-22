@@ -1,19 +1,21 @@
 import { useState } from 'react';
-import { ShieldCheck, ArrowLeft, Flag, Users, BadgeCheck, ScrollText, LogIn, Lock, Store } from 'lucide-react';
+import { ShieldCheck, ArrowLeft, Flag, Users, BadgeCheck, ScrollText, LogIn, Lock, Store, UserCog } from 'lucide-react';
 import ReportsPanel from '@/admin/ReportsPanel';
 import UsersPanel from '@/admin/UsersPanel';
 import VerificationsPanel from '@/admin/VerificationsPanel';
 import VenuesPanel from '@/admin/VenuesPanel';
+import StaffPanel from '@/admin/StaffPanel';
 import LogPanel from '@/admin/LogPanel';
 import { Spinner, primaryBtn, ghostBtn, mutedText, bodyText } from '@/components/ui';
 import { useAuth } from '@/context/AuthContext';
 
-type TabId = 'reports' | 'users' | 'verifications' | 'venues' | 'log';
+type TabId = 'reports' | 'users' | 'verifications' | 'venues' | 'staff' | 'log';
 const tabs: { id: TabId; label: string; icon: typeof Flag }[] = [
   { id: 'reports', label: 'Reports', icon: Flag },
   { id: 'users', label: 'Users', icon: Users },
   { id: 'verifications', label: 'Verifications', icon: BadgeCheck },
   { id: 'venues', label: 'Venues', icon: Store },
+  { id: 'staff', label: 'Venue staff', icon: UserCog },
   { id: 'log', label: 'Activity', icon: ScrollText },
 ];
 
@@ -84,6 +86,7 @@ export default function AdminDashboard() {
             {tab === 'users' && <UsersPanel />}
             {tab === 'verifications' && <VerificationsPanel />}
             {tab === 'venues' && <VenuesPanel />}
+            {tab === 'staff' && <StaffPanel />}
             {tab === 'log' && <LogPanel />}
           </>
         )}

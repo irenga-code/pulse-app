@@ -11,8 +11,18 @@ export type Venue = {
   is_live?: boolean;
   image_url: string | null;
   is_verified?: boolean;
+  /** Profile fields linked hosts/managers can edit (My venues). */
+  description?: string | null;
+  address?: string | null;
+  phone?: string | null;
+  whatsapp?: string | null;
   created_at: string;
 };
+
+/** A venue the signed-in user is linked to in `venue_managers` (migration 9 adds 'host'). */
+export type VenueRole = 'owner' | 'manager' | 'host';
+export type ManagedVenue = { venue_id: string; role: VenueRole };
+export type VenueProfilePatch = Partial<Pick<Venue, 'description' | 'address' | 'phone' | 'whatsapp' | 'image_url'>>;
 
 export type Post = {
   id: string;
@@ -31,6 +41,8 @@ export type Post = {
   kind: 'post' | 'snap';
   expires_at: string | null;
   is_official: boolean;
+  /** Published as the venue: user_name is the venue's name (migration 9; optional for an older database). */
+  as_venue?: boolean;
   status: 'visible' | 'removed';
   likes: number;
   comments: number;
@@ -45,6 +57,8 @@ export type SnapMeta = { filter?: string; effect?: string; geo?: string; stamp?:
 export type NewPostInput = {
   content: string;
   venue_id?: string | null;
+  /** Post as the venue (venue_id required; only for venues you are linked to). */
+  as_venue?: boolean;
   kind?: 'post' | 'snap';
   media_url?: string;
   media_type?: 'image' | 'video';
@@ -98,6 +112,9 @@ export type Profile = {
 
 /** Public subset shown next to posts/comments. */
 export type PublicProfile = Pick<Profile, 'id' | 'display_name' | 'avatar_url' | 'account_type' | 'is_verified' | 'status'>;
+/** admin_find_users result: the email is only matched, never returned. */
+export type StaffCandidate = PublicProfile & { matched_email: boolean };
+export type VenueStaffRow = { venue_id: string; user_id: string; role: VenueRole; created_at: string };
 
 export type Preferences = {
   theme: 'dark' | 'light' | 'system';
