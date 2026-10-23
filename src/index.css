@@ -10,6 +10,15 @@
   .scrollbar-hide::-webkit-scrollbar {
     display: none;
   }
+  /* Full visible height on phones: 100dvh leaves out the browser's address bar; 100vh is the fallback */
+  .h-viewport {
+    height: 100vh;
+    height: 100dvh;
+  }
+  .max-h-sheet {
+    max-height: 88vh;
+    max-height: 88dvh;
+  }
 }
 
 /* Floating emoji for live reactions */

@@ -1,14 +1,14 @@
 import { useEffect, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
+import { lockBodyScroll } from '@/lib/scrollLock';
 
 /** Full-screen on phones, a centered card on desktop. Leaves room for the emoji sheet (see EmojiButton). */
 export default function ChatShell({ label, onClose, secret = false, children }: { label: string; onClose: () => void; secret?: boolean; children: ReactNode }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('keydown', onKey);
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => { window.removeEventListener('keydown', onKey); document.body.style.overflow = prev; };
+    const unlock = lockBodyScroll();
+    return () => { window.removeEventListener('keydown', onKey); unlock(); };
   }, [onClose]);
 
   return createPortal(

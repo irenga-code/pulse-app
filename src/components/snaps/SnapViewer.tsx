@@ -9,6 +9,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useSocial } from '@/context/SocialContext';
 import { timeAgo, timeLeft } from '@/lib/time';
 import type { Post, PublicProfile, ReactionCounts, ReactionKind } from '@/lib/types';
+import { lockBodyScroll } from '@/lib/scrollLock';
 
 const IMAGE_MS = 6000;
 
@@ -58,9 +59,8 @@ export default function SnapViewer({ snaps, start, authors, counts, mine, bursts
       else if (e.key === 'ArrowLeft') prev();
     };
     window.addEventListener('keydown', onKey);
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => { window.removeEventListener('keydown', onKey); document.body.style.overflow = prevOverflow; };
+    const unlock = lockBodyScroll();
+    return () => { window.removeEventListener('keydown', onKey); unlock(); };
   }, [next, prev, onClose]);
 
   if (!snap) return null;

@@ -38,7 +38,7 @@ export default function AdminDashboard() {
   const [tab, setTab] = useState<TabId>('reports');
 
   return (
-    <div className="h-screen w-full overflow-y-auto bg-wa-light dark:bg-wa-dark">
+    <div className="h-viewport w-full overflow-y-auto bg-wa-light dark:bg-wa-dark">
       <header className="sticky top-0 z-30 bg-wa-lightHeader dark:bg-wa-darkPanel border-b border-wa-lightBorder dark:border-wa-darkBorder">
         <div className="max-w-4xl mx-auto flex items-center gap-3 px-4 py-3">
           <ShieldCheck className="w-5 h-5 text-wa-greenLight" />

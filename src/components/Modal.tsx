@@ -1,6 +1,7 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { X, type LucideIcon } from 'lucide-react';
+import { lockBodyScroll } from '@/lib/scrollLock';
 
 type Props = {
   title: string;
@@ -15,8 +16,7 @@ export default function Modal({ title, icon: Icon, onClose, children }: Props) {
 
   useEffect(() => {
     const previouslyFocused = document.activeElement as HTMLElement | null;
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
+    const unlock = lockBodyScroll();
     panelRef.current?.focus();
 
     const onKey = (e: KeyboardEvent) => {
@@ -26,7 +26,7 @@ export default function Modal({ title, icon: Icon, onClose, children }: Props) {
 
     return () => {
       window.removeEventListener('keydown', onKey);
-      document.body.style.overflow = prevOverflow;
+      unlock();
       previouslyFocused?.focus?.();
     };
   }, [onClose]);
@@ -44,7 +44,7 @@ export default function Modal({ title, icon: Icon, onClose, children }: Props) {
         aria-modal="true"
         aria-label={title}
         tabIndex={-1}
-        className="w-full md:max-w-lg max-h-[88vh] flex flex-col bg-wa-lightPanel dark:bg-wa-darkPanel rounded-t-3xl md:rounded-2xl border border-wa-lightBorder dark:border-wa-darkBorder shadow-2xl outline-none animate-slide-up"
+        className="w-full md:max-w-lg max-h-sheet flex flex-col bg-wa-lightPanel dark:bg-wa-darkPanel rounded-t-3xl md:rounded-2xl border border-wa-lightBorder dark:border-wa-darkBorder shadow-2xl outline-none animate-slide-up"
       >
         <div className="flex items-center gap-2.5 px-5 py-4 border-b border-wa-lightBorder dark:border-wa-darkBorder flex-shrink-0">
           {Icon && <Icon className="w-5 h-5 text-wa-green" />}
@@ -57,7 +57,7 @@ export default function Modal({ title, icon: Icon, onClose, children }: Props) {
             <X className="w-5 h-5" />
           </button>
         </div>
-        <div className="flex-1 overflow-y-auto px-5 py-4">{children}</div>
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-5 py-4">{children}</div>
       </div>
     </div>,
     document.body

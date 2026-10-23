@@ -14,6 +14,7 @@ import { useToast } from '@/context/ToastContext';
 import { useSocial } from '@/context/SocialContext';
 import type { StatusGroup } from '@/hooks/useStatuses';
 import type { PublicProfile, Status } from '@/lib/types';
+import { lockBodyScroll } from '@/lib/scrollLock';
 
 export const STATUS_IMAGE_MS = 5000;
 const HOLD_MS = 180;
@@ -138,9 +139,8 @@ export default function StatusViewerModal({ groups, startGroup, authors, venueNa
       else if (e.key === ' ') { e.preventDefault(); setHolding((h) => !h); }
     };
     window.addEventListener('keydown', onKey);
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => { window.removeEventListener('keydown', onKey); document.body.style.overflow = prev; window.clearTimeout(holdTimer.current); };
+    const unlock = lockBodyScroll();
+    return () => { window.removeEventListener('keydown', onKey); unlock(); window.clearTimeout(holdTimer.current); };
   }, [goNext, goPrev, onClose]);
 
   const onDown = () => {

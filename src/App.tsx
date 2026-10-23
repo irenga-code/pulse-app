@@ -48,7 +48,7 @@ function MainApp({ sharedPostId }: { sharedPostId?: string }) {
 
   return (
     <>
-      <div className="h-screen w-full overflow-hidden bg-wa-light dark:bg-wa-dark flex flex-col md:flex-row transition-colors duration-300">
+      <div className="h-viewport w-full overflow-hidden bg-wa-light dark:bg-wa-dark flex flex-col md:flex-row transition-colors duration-300">
         {/* Desktop sidebar */}
         <aside className="hidden md:flex w-72 lg:w-80 flex-col bg-wa-lightPanel dark:bg-wa-darkPanel border-r border-wa-lightBorder dark:border-wa-darkBorder flex-shrink-0">
           <SidebarBranding />
@@ -84,7 +84,7 @@ function MainApp({ sharedPostId }: { sharedPostId?: string }) {
         </aside>
 
         {/* Main content area */}
-        <div className="flex-1 flex flex-col min-w-0">
+        <div className="flex-1 flex flex-col min-w-0 min-h-0">
           {/* Mobile header (hidden on desktop) */}
           <Header />
 
@@ -107,7 +107,7 @@ function MainApp({ sharedPostId }: { sharedPostId?: string }) {
           </div>
 
           {/* Tab content */}
-          <main className="flex-1 flex flex-col overflow-y-auto">
+          <main className="flex-1 flex flex-col min-h-0 overflow-y-auto overscroll-y-contain">
             <div key={activeTab} className="flex-1 flex flex-col animate-fade-in">
               {renderTab()}
             </div>

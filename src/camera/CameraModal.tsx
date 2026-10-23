@@ -18,6 +18,7 @@ import { EMPTY_SCENE, type CaptureResult, type Scene, type TextItem } from '@/ca
 import { useVenues } from '@/hooks/useVenues';
 import { useToast } from '@/context/ToastContext';
 import type { NewPostInput, Post, SnapMeta, Venue } from '@/lib/types';
+import { lockBodyScroll } from '@/lib/scrollLock';
 
 type Mode = 'capture' | 'edit' | 'review';
 type Panel = null | 'filters' | 'effects' | 'stickers' | 'venue';
@@ -136,10 +137,9 @@ export default function CameraModal({ onClose, savePost, initialVenueId }: {
 
   // ---- housekeeping ---------------------------------------------------------
   useEffect(() => {
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
+    const unlock = lockBodyScroll();
     return () => {
-      document.body.style.overflow = prev;
+      unlock();
       micRef.current?.getTracks().forEach((t) => t.stop());
     };
   }, []);
