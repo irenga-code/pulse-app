@@ -38,8 +38,8 @@ export default function VenuesTab() {
         </p>
       </div>
 
-      {/* Filter pills: scroll sideways; stick just below the mobile header (61px) while the page scrolls */}
-      <div className="sticky top-[61px] md:top-0 z-10 flex gap-2 px-4 md:px-8 py-2 bg-wa-light dark:bg-wa-dark overflow-x-auto scrollbar-hide whitespace-nowrap">
+      {/* Filter pills: scroll sideways; stick to the top of <main> (the scroller, already below the header) */}
+      <div className="sticky top-0 z-10 flex gap-2 px-4 md:px-8 py-2 bg-wa-light dark:bg-wa-dark overflow-x-auto scrollbar-hide whitespace-nowrap">
         {filters.map((f) => (
           <button
             key={f.id}
