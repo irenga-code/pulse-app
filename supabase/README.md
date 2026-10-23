@@ -20,6 +20,7 @@ For an existing project, `supabase/upgrade_live_database.sql` is all of them in 
 | 11 | `20261023100000_venue_logo.sql` | `venues.logo_url` (square logo / profile picture next to the `image_url` cover photo, http(s) only), editable by linked hosts/managers and admins; exposed on `venues_public` | Yes (after 10) |
 | 12 | `20261024100000_register_venue.sql` | self-service venue registration: `register_venue()` lets any active signed-in user create a venue (unverified, Not active; max 3 per day; no duplicate name in the same location) and links them as its manager; `venues.created_by` | Yes (after 11) |
 | 13 | `20261025100000_self_service_controls.sql` | self-service controls: drop your role (`relinquish_my_role`), leave a venue (`leave_venue`), rename or delete a venue you registered (`rename_my_venue`, `delete_my_venue`); admins delete any venue (`admin_delete_venue`, linked users told) and set anyone's role/badge (`admin_set_user_role`), both logged; `venues_public.created_by` | Yes (after 12) |
+| 14 | `20261026100000_self_link_venues.sql` | hosts and venue accounts link themselves: policy `vm_self_insert` lets an active user with account role `host` or `venue` insert their own `venue_managers` row (role `manager` or `host`, never `owner`), any number of venues, no approval | Yes (after 13) |
 
 Also still required from earlier work: `20261003130000_fix_venue_locations.sql` (venue names/neighborhoods incl. Taboo - Bugolobi) and `20261003131000_profile_saved_venues_notifications.sql`.
 
@@ -42,7 +43,7 @@ Also still required from earlier work: `20261003130000_fix_venue_locations.sql` 
    ```
    (`http://127.0.0.1:54321` when using `supabase start`.) Snap posts must point at a file that really exists in
    `post-media/<your user id>/...` on that origin, so tracking pixels on other hosts are rejected.
-6. Run `supabase/tests/rls_smoke.sql` in the SQL editor. It rolls back and prints `ALL CHECKS PASSED` (164 checks). `supabase/tests/rls_social_smoke.sql` covers migration 5 (105 checks). `supabase/tests/rls_multi_venue_smoke.sql` covers migration 9 (20 checks). `supabase/tests/rls_admin_staff_smoke.sql` covers migration 10 (21 checks). `supabase/tests/rls_venue_logo_smoke.sql` covers migration 11 (8 checks). `supabase/tests/rls_register_venue_smoke.sql` covers migration 12. `supabase/tests/rls_self_service_smoke.sql` covers migration 13.
+6. Run `supabase/tests/rls_smoke.sql` in the SQL editor. It rolls back and prints `ALL CHECKS PASSED` (164 checks). `supabase/tests/rls_social_smoke.sql` covers migration 5 (105 checks). `supabase/tests/rls_multi_venue_smoke.sql` covers migration 9 (20 checks). `supabase/tests/rls_admin_staff_smoke.sql` covers migration 10 (21 checks). `supabase/tests/rls_venue_logo_smoke.sql` covers migration 11 (8 checks). `supabase/tests/rls_register_venue_smoke.sql` covers migration 12. `supabase/tests/rls_self_service_smoke.sql` covers migration 13. `supabase/tests/rls_self_link_smoke.sql` covers migration 14.
 
 ## Accounts and roles
 

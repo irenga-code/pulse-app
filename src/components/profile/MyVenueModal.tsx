@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Store, Trash2, Loader2, AlertTriangle } from 'lucide-react';
+import { Store, Trash2, Loader2, AlertTriangle, Search, Plus } from 'lucide-react';
 import Modal from '@/components/Modal';
 import { Spinner, ErrorNote, Field, inputClass, primaryBtn, ghostBtn, dangerBtn, mutedText, bodyText } from '@/components/ui';
 import { api } from '@/lib/apiClient';
@@ -12,6 +12,7 @@ import type { Venue, VenueRole, VenueStatus } from '@/lib/types';
 import { VenueStatusButtons, DurationSelect } from '@/components/VenueStatusControls';
 import VenueProfileForm from '@/components/profile/VenueProfileForm';
 import VenuePostComposer from '@/components/profile/VenuePostComposer';
+import VenueLogo from '@/components/VenueLogo';
 import { statusLabel, timeLeft } from '@/lib/venues';
 import { revalidateAll, userKey } from '@/lib/cache';
 
@@ -21,12 +22,14 @@ const heading = `text-xs font-semibold uppercase tracking-wide mb-2 ${mutedText}
 
 /**
  * Hosts and venue managers run every venue they are linked to (venue_managers): pick one, then set its status,
- * post as it, or edit its profile. Live / Sold out expire automatically.
+ * post as it, or edit its profile. Live / Sold out expire automatically. Host and Venue accounts add more clubs
+ * themselves with the search below (vm_self_insert, migration 14).
  */
 export default function MyVenueModal({ onClose, initialVenue }: { onClose: () => void; initialVenue?: Venue }) {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const { show } = useToast();
   const { venues } = useVenues({ orderBy: 'name' });
+  const canLink = profile?.status === 'active' && (profile.account_type === 'host' || profile.account_type === 'venue');
   const managed = useAsync(() => api.managedVenues(user!.id), [], user ? userKey(user.id, 'managed-venue-roles') : null);
   // a just-registered venue opens selected, and shows before the venue list refresh brings it in
   const [selectedId, setSelectedId] = useState<string | null>(initialVenue?.id ?? null);
@@ -47,6 +50,17 @@ export default function MyVenueModal({ onClose, initialVenue }: { onClose: () =>
     .map((m) => ({ role: m.role, venue: fresh[m.venue_id] ?? venues.find((v) => v.id === m.venue_id) }))
     .filter((m): m is { role: VenueRole; venue: Venue } => !!m.venue);
   const current = mine.find((m) => m.venue.id === selectedId) ?? mine[0];
+
+  const added = async (venue: Venue) => {
+    await managed.reload();
+    setSelectedId(venue.id);
+    setError(null);
+    revalidateAll();
+    show(`${venue.name} added to your venues`);
+  };
+  const addPicker = canLink && (
+    <AddVenuePicker venues={venues.filter((v) => !gone.has(v.id) && !links.some((m) => m.venue_id === v.id))} onAdded={added} />
+  );
 
   const patchVenue = (venue: Venue, patch: Partial<Venue>) => setFresh((f) => ({ ...f, [venue.id]: { ...venue, ...patch } }));
 
@@ -105,7 +119,14 @@ export default function MyVenueModal({ onClose, initialVenue }: { onClose: () =>
       {managed.loading && !managed.data ? (
         <Spinner />
       ) : !current ? (
-        <p className={`text-sm py-6 text-center ${mutedText}`}>You do not manage any venue yet.</p>
+        <div className="space-y-4">
+          <p className={`text-sm pt-4 text-center ${mutedText}`}>You do not manage any venue yet.</p>
+          {addPicker || (
+            <p className={`text-xs text-center pb-4 ${mutedText}`}>
+              Performer / Staff and Venue accounts can add clubs here. Use Request verification to get one.
+            </p>
+          )}
+        </div>
       ) : (
         <div className="space-y-4">
           {mine.length > 1 && (
@@ -173,6 +194,13 @@ export default function MyVenueModal({ onClose, initialVenue }: { onClose: () =>
             </>
           )}
 
+          {addPicker && (
+            <div className={section}>
+              <h4 className={heading}>Add a club</h4>
+              {addPicker}
+            </div>
+          )}
+
           <p className={`text-[11px] leading-relaxed ${mutedText}`}>
             Followers get an alert when you go live. Posts made as a verified venue show the Official badge.
           </p>
@@ -224,5 +252,61 @@ function RenameVenueForm({ venue, onSaved }: { venue: Venue; onSaved: (v: Venue)
         {busy && <Loader2 className="w-4 h-4 animate-spin" />}Save name &amp; location
       </button>
     </form>
+  );
+}
+
+/** Search every club and add one to your own list as its manager (Host / Venue accounts, migration 14). */
+function AddVenuePicker({ venues, onAdded }: { venues: Venue[]; onAdded: (v: Venue) => Promise<void> }) {
+  const { user } = useAuth();
+  const [query, setQuery] = useState('');
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const q = query.trim().toLowerCase();
+  const matches = q ? venues.filter((v) => `${v.name} ${v.location}`.toLowerCase().includes(q)) : venues;
+  const shown = matches.slice(0, 8);
+
+  const add = async (venue: Venue) => {
+    if (!user) return;
+    setBusy(venue.id);
+    setError(null);
+    try {
+      await api.linkMyVenue(user.id, venue.id);
+      setQuery('');
+      await onAdded(venue);
+    } catch (e) {
+      const code = (e as { code?: string }).code;
+      setError(code === '23505' ? `${venue.name} is already in your venues.`
+        : code === '42501' ? 'Only active Performer / Staff and Venue accounts can add clubs.' : friendlyError(e));
+    }
+    setBusy(null);
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="relative">
+        <Search className={`w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 ${mutedText}`} />
+        <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search clubs by name or area" aria-label="Search clubs to add" className={`${inputClass} pl-9`} />
+      </div>
+      {error && <ErrorNote message={error} />}
+      {shown.length === 0 ? (
+        <p className={`text-xs py-2 ${mutedText}`}>{q ? 'No club matches. You can add a new one with Register a club.' : 'You manage every club on Pulse.'}</p>
+      ) : (
+        <ul className="divide-y divide-wa-lightBorder dark:divide-wa-darkBorder">
+          {shown.map((v) => (
+            <li key={v.id} className="flex items-center gap-3 py-2">
+              {v.logo_url ? <VenueLogo venue={v} size={32} /> : <Store className={`w-5 h-5 mx-1.5 flex-shrink-0 ${mutedText}`} />}
+              <div className="min-w-0 flex-1">
+                <p className={`text-sm font-medium truncate ${bodyText}`}>{v.name}</p>
+                <p className={`text-xs truncate ${mutedText}`}>{v.location}</p>
+              </div>
+              <button onClick={() => add(v)} disabled={busy !== null} aria-label={`Add ${v.name}`} className={`${ghostBtn} !px-3 !py-1.5 text-xs`}>
+                {busy === v.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}Add
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {matches.length > shown.length && <p className={`text-[11px] ${mutedText}`}>Showing {shown.length} of {matches.length}. Type to narrow it down.</p>}
+    </div>
   );
 }

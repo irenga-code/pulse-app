@@ -60,7 +60,9 @@ export default function ProfileTab() {
     { label: 'Saved venues', icon: Bookmark, onClick: () => setModal('saved') },
     { label: 'Settings', icon: Settings, onClick: () => setModal('settings') },
   ];
-  if (user && managedCount > 0) menuItems.push({ label: managedCount > 1 ? 'My venues' : 'My venue', icon: Store, onClick: () => setModal('venue') });
+  // Host / Venue accounts get My venues before their first club, to add one (migration 14)
+  const canLink = profile?.status === 'active' && (profile.account_type === 'host' || profile.account_type === 'venue');
+  if (user && (managedCount > 0 || canLink)) menuItems.push({ label: managedCount === 1 ? 'My venue' : 'My venues', icon: Store, onClick: () => setModal('venue') });
   if (user) menuItems.push({ label: 'Register a club', icon: PlusCircle, onClick: () => setModal('register') });
   if (user) menuItems.push({ label: 'Request verification', icon: BadgeCheck, onClick: () => setModal('verify') });
   if (isAdmin) menuItems.push({ label: 'Admin dashboard', icon: ShieldCheck, onClick: () => { window.location.hash = '#/manage'; } });

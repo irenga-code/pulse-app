@@ -342,6 +342,10 @@ export function createApi(c: SupabaseClient) {
     async relinquishMyRole() {
       return unwrap(await c.rpc('relinquish_my_role')) as Profile;
     },
+    /** Host / Venue accounts add a club to their own list, no approval (vm_self_insert, migration 14). */
+    async linkMyVenue(userId: string, venueId: string) {
+      unwrap(await c.from('venue_managers').insert({ venue_id: venueId, user_id: userId }));
+    },
     async leaveVenue(venueId: string) {
       unwrap(await c.rpc('leave_venue', { p_venue_id: venueId }));
     },
