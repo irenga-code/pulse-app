@@ -135,20 +135,20 @@ function AssignForm({ onAssigned }: { onAssigned: () => void }) {
   );
 }
 
-function StaffRow({ row, profile, venueName, onRemoved }: { row: VenueStaffRow; profile?: PublicProfile; venueName: string; onRemoved: () => void }) {
+function StaffRow({ row, profile, venueName, onRemoved }: { row: VenueStaffRow; profile?: PublicProfile; venueName: string; onRemoved: (row: VenueStaffRow) => void }) {
   const { show } = useToast();
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const name = profile?.display_name ?? row.user_id.slice(0, 8);
 
-  const remove = async () => {
+  const handleUnlink = async () => {
     setBusy(true);
     setError(null);
     try {
       await api.adminUnassignVenueStaff(row.user_id, row.venue_id);
       show(`${name} unlinked from ${venueName}`);
-      onRemoved();
+      onRemoved(row);
     } catch (err) {
       setError(friendlyError(err));
       setBusy(false);
@@ -180,7 +180,7 @@ function StaffRow({ row, profile, venueName, onRemoved }: { row: VenueStaffRow; 
           </p>
           {error && <ErrorNote message={error} />}
           <div className="flex gap-2">
-            <button onClick={remove} disabled={busy} className={dangerBtn}>
+            <button onClick={handleUnlink} disabled={busy} className={dangerBtn}>
               {busy && <Loader2 className="w-4 h-4 animate-spin" />}Unlink
             </button>
             <button onClick={() => { setConfirming(false); setError(null); }} disabled={busy} className={ghostBtn}>Cancel</button>
@@ -191,11 +191,18 @@ function StaffRow({ row, profile, venueName, onRemoved }: { row: VenueStaffRow; 
   );
 }
 
-/** Venue managers / hosts: who is linked to which venue (venue_managers). Writes go through logged admin RPCs. */
+/** Venue managers / hosts: who is linked to which venue (venue_managers). Linking uses a logged admin RPC; unlinking deletes the row. */
 export default function StaffPanel() {
   const { user } = useAuth();
   const { venues } = useVenues({ orderBy: 'name' });
   const [filter, setFilter] = useState('');
+  // unlinked rows leave the list at once, before the reload confirms it
+  const [unlinked, setUnlinked] = useState<Set<string>>(() => new Set());
+  const rowKey = (r: VenueStaffRow) => `${r.venue_id}:${r.user_id}`;
+  const removed = (r: VenueStaffRow) => {
+    setUnlinked((s) => new Set(s).add(rowKey(r)));
+    staff.reload();
+  };
   const staff = useAsync(async () => {
     const rows = await api.adminListVenueStaff();
     const profiles = await api.profilesByIds(rows.map((r) => r.user_id));
@@ -204,7 +211,8 @@ export default function StaffPanel() {
 
   const venueName = (id: string) => venues.find((v) => v.id === id)?.name ?? 'Unknown venue';
   const q = filter.trim().toLowerCase();
-  const rows = (staff.data?.rows ?? []).filter((r) =>
+  const all = (staff.data?.rows ?? []).filter((r) => !unlinked.has(rowKey(r)));
+  const rows = all.filter((r) =>
     !q || `${venueName(r.venue_id)} ${staff.data?.profiles[r.user_id]?.display_name ?? ''} ${r.role}`.toLowerCase().includes(q));
 
   return (
@@ -213,7 +221,7 @@ export default function StaffPanel() {
 
       <div className="flex items-center gap-2 pt-2">
         <h3 className={`font-semibold text-sm ${bodyText}`}>Current assignments</h3>
-        {staff.data && <span className={`text-xs ${mutedText}`}>{staff.data.rows.length}</span>}
+        {staff.data && <span className={`text-xs ${mutedText}`}>{all.length}</span>}
         <input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Filter by venue, name or role"
           aria-label="Filter assignments" className={`${inputClass} !w-auto flex-1 min-w-0 ml-auto py-1.5 text-xs`} />
       </div>
@@ -229,8 +237,8 @@ export default function StaffPanel() {
         </div>
       ) : (
         rows.map((r) => (
-          <StaffRow key={`${r.venue_id}:${r.user_id}`} row={r} profile={staff.data?.profiles[r.user_id]}
-            venueName={venueName(r.venue_id)} onRemoved={staff.reload} />
+          <StaffRow key={rowKey(r)} row={r} profile={staff.data?.profiles[r.user_id]}
+            venueName={venueName(r.venue_id)} onRemoved={removed} />
         ))
       )}
     </div>
