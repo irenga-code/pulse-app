@@ -31,7 +31,7 @@ export default function VenueSheet({ venue, onClose }: { venue: Venue; onClose: 
       </div>
 
       <div className="flex items-center gap-3">
-        <VenueLogo venue={venue} size={64} className="-mt-10 relative shadow-md" />
+        <VenueLogo venue={venue} size={64} fallback className="-mt-10 relative shadow-md" />
         <div className="min-w-0 flex-1">
           <h3 className={`font-bold text-lg truncate ${bodyText}`}>{venue.name}</h3>
           <p className={`flex items-center gap-1 text-xs ${mutedText}`}>

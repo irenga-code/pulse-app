@@ -74,7 +74,7 @@ export default function TonightTab() {
                   )}
                   {/* Info overlay */}
                   <div className="absolute bottom-0 left-0 right-0 p-4 flex items-center gap-3">
-                    <VenueLogo venue={venue} size={48} className="shadow-md" />
+                    <VenueLogo venue={venue} size={48} fallback className="shadow-md" />
                     <div className="min-w-0">
                       <h3 className="text-lg font-bold text-white truncate">{venue.name}</h3>
                       <div className="flex items-center gap-3 mt-1">

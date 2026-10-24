@@ -53,7 +53,8 @@ export default function VenueCard({ venue }: Props) {
       <div className="p-3.5">
         <div className="flex items-start justify-between gap-2">
           <button onClick={() => setOpen(true)} className="min-w-0 flex-1 flex items-start gap-2.5 text-left">
-            <VenueLogo venue={venue} size={44} className="-mt-8 relative shadow-md" />
+            {/* overlaps the cover's bottom-left corner; a club icon when there is no logo */}
+            <VenueLogo venue={venue} size={52} fallback className="-mt-9 relative shadow-md" />
             <div className="min-w-0 flex-1">
               <h3 className="font-semibold text-wa-lightText dark:text-wa-darkText text-base truncate">
                 {venue.name}
