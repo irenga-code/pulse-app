@@ -9,5 +9,11 @@ export function authErrorMessage(e: unknown): string {
   if (/same password|different from the old/i.test(msg)) return 'Choose a password you have not used before.';
   if (/banned|user is banned/i.test(msg)) return 'This account has been banned.';
   if (/failed to fetch|network/i.test(msg)) return 'Network problem. Check your connection and try again.';
+  if (/phone.*provider|sms.*provider|unsupported phone|phone_provider_disabled|phone signups? (are )?disabled/i.test(msg)) {
+    return 'Phone sign-in is not switched on for Pulse yet. Use email for now.';
+  }
+  if (/token has expired|invalid.*(otp|token)|otp_expired/i.test(msg)) return 'That code is wrong or has expired. Request a new one.';
+  if (/invalid phone|phone number.*invalid/i.test(msg)) return 'Enter the full number with country code, e.g. +256 700 000 000.';
+  if (/phone.*already|already.*phone/i.test(msg)) return 'That number is already linked to another Pulse account.';
   return msg;
 }

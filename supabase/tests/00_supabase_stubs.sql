@@ -14,6 +14,8 @@ CREATE TABLE IF NOT EXISTS auth.users (
   banned_until timestamptz,
   created_at timestamptz DEFAULT now()
 );
+-- phone sign-in columns (migration 15 syncs them into public.profile_phones)
+ALTER TABLE auth.users ADD COLUMN IF NOT EXISTS phone text, ADD COLUMN IF NOT EXISTS phone_confirmed_at timestamptz;
 CREATE OR REPLACE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS $$
   SELECT nullif(coalesce(current_setting('request.jwt.claim.sub', true),
          (nullif(current_setting('request.jwt.claims', true), '')::jsonb ->> 'sub')), '')::uuid

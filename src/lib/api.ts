@@ -10,7 +10,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type {
   Venue, VenueStatus, Post, Comment, ReactionKind, ReactionCounts, ReactionType, NewPostInput, Profile, PublicProfile, Preferences,
   AppNotification, ReportTarget, ReportReason, ReportRow, VerificationRequest, ModerationLogRow, AccountStatus, AccountType,
-  ProfileStats, Status, NewStatusInput, ChatMessage, ConversationSummary, MessageRef, VerificationRole, ManagedVenue, VenueProfilePatch, StaffCandidate, VenueStaffRow,
+  ProfileStats, Status, NewStatusInput, ChatMessage, ConversationSummary, MessageRef, MessageMedia, ConversationPrefs, VenueChannel, ChannelMessage, VerificationRole, ManagedVenue, VenueProfilePatch, StaffCandidate, VenueStaffRow,
 } from './types';
 
 export class ApiError extends Error {
@@ -37,6 +37,14 @@ export function isMissingSchema(e: unknown): boolean {
 
 const warnedMissing = new Set<string>();
 
+/** Postgres / PostgREST "no such column": a newer column is not in the database yet. */
+const isMissingColumn = (e: unknown) => ['42703', 'PGRST204'].includes((e as { code?: string })?.code ?? '');
+
+const MSG_COLS = 'id, conversation_id, sender_id, body, kind, ref_type, ref_id, vanish, created_at, read_at, expires_at';
+// chat snaps (migration 15); dropped for the rest of the session if the database does not have them yet
+let chatMediaCols = true;
+const msgCols = () => (chatMediaCols ? `${MSG_COLS}, media_url, media_type` : MSG_COLS);
+
 /**
  * Like unwrap, but for reads of optional features: if the backing table or function does not exist yet
  * (migration not applied), return `fallback` so the screen shows an empty state instead of an error.
@@ -56,7 +64,7 @@ function unwrapOr<T>(res: Res<T>, fallback: T): T {
 export function friendlyError(e: unknown): string {
   const err = e as { message?: string; code?: string };
   const msg = err?.message ?? 'Something went wrong';
-  if (isMissingSchema(err)) return 'This feature is not available yet.';
+  if (isMissingSchema(err) || isMissingColumn(err)) return 'This feature is not available yet.';
   if (err?.code === '23505') return 'That already exists.';
   if (/slow down/i.test(msg)) return 'You are doing that too fast. Please wait a few minutes.';
   if (/own post-media folder|not found in storage/i.test(msg)) return 'Upload failed. Please try again.';
@@ -482,6 +490,70 @@ export function createApi(c: SupabaseClient) {
       ) as { viewer_id: string; viewed_at: string }[];
     },
 
+    // ----------------------------------------- venue channels (migration 15)
+    /** Every channel, most recently active first. Empty before migration 15. */
+    async listChannels() {
+      return unwrapOr(
+        await c.from('venue_channels').select('*').order('last_message_at', { ascending: false, nullsFirst: false }).order('name').limit(500),
+        [],
+      ) as VenueChannel[];
+    },
+    async createChannel(venueId: string, name: string, description?: string | null) {
+      return unwrap(
+        await c.from('venue_channels').insert({ venue_id: venueId, name: name.trim(), description: description?.trim() || null }).select().single()
+      ) as VenueChannel;
+    },
+    async updateChannel(channelId: string, patch: { name?: string; description?: string | null }) {
+      return unwrap(await c.from('venue_channels').update(patch).eq('id', channelId).select().single()) as VenueChannel;
+    },
+    async myChannelFollows(userId: string) {
+      const rows = unwrapOr(await c.from('channel_followers').select('channel_id').eq('user_id', userId), []) as { channel_id: string }[];
+      return rows.map((r) => r.channel_id);
+    },
+    async followChannel(channelId: string) {
+      const res = await c.from('channel_followers').insert({ channel_id: channelId });
+      if (res.error && res.error.code !== '23505') throw new ApiError(res.error.message, res.error.code);
+    },
+    async unfollowChannel(channelId: string, userId: string) {
+      unwrap(await c.from('channel_followers').delete().eq('channel_id', channelId).eq('user_id', userId));
+    },
+    /** Latest posts of a channel, oldest first. */
+    async listChannelMessages(channelId: string, limit = 100) {
+      const rows = unwrap(
+        await c.from('channel_messages').select('*').eq('channel_id', channelId).order('created_at', { ascending: false }).limit(limit)
+      ) as ChannelMessage[];
+      return rows.reverse();
+    },
+    /** Venue staff only (RLS). Text, a photo / video, or both. */
+    async postChannelMessage(channelId: string, input: { body?: string | null; media?: MessageMedia | null }) {
+      const row: Record<string, unknown> = { channel_id: channelId, body: input.body?.trim() || null };
+      if (input.media) { row.media_url = input.media.media_url; row.media_type = input.media.media_type; }
+      return unwrap(await c.from('channel_messages').insert(row).select().single()) as ChannelMessage;
+    },
+    async deleteChannelMessage(id: string) {
+      const rows = unwrap(await c.from('channel_messages').delete().eq('id', id).select('id')) as unknown[];
+      if (rows.length === 0) throw new ApiError('You can not delete this post.', '42501');
+    },
+    /** Your own media: snaps you posted and your live statuses, newest first. */
+    async myMedia(userId: string) {
+      const [posts, statuses] = await Promise.all([
+        unwrapOr(
+          await c.from('posts').select('id, media_url, media_type, content, created_at').eq('user_id', userId).not('media_url', 'is', null)
+            .order('created_at', { ascending: false }).limit(60),
+          [],
+        ) as { id: string; media_url: string; media_type: 'image' | 'video'; content: string | null; created_at: string }[],
+        unwrapOr(
+          await c.from('statuses').select('id, media_url, media_type, caption, created_at').eq('user_id', userId)
+            .gt('expires_at', new Date().toISOString()).order('created_at', { ascending: false }),
+          [],
+        ) as { id: string; media_url: string; media_type: 'image' | 'video'; caption: string | null; created_at: string }[],
+      ]);
+      return [
+        ...posts.map((p) => ({ id: p.id, source: 'post' as const, media_url: p.media_url, media_type: p.media_type, caption: p.content, created_at: p.created_at })),
+        ...statuses.map((s) => ({ id: s.id, source: 'status' as const, media_url: s.media_url, media_type: s.media_type, caption: s.caption, created_at: s.created_at })),
+      ].sort((x, y) => y.created_at.localeCompare(x.created_at));
+    },
+
     // ----------------------------------------- direct messages
     async startConversation(otherUserId: string) {
       return unwrap(await c.rpc('get_or_create_conversation', { p_other: otherUserId })) as string;
@@ -493,23 +565,47 @@ export function createApi(c: SupabaseClient) {
       return unwrap(await c.from('conversations').select('id, vanish_mode').eq('id', id).maybeSingle()) as { id: string; vanish_mode: boolean } | null;
     },
     /** Latest messages of a conversation, oldest first. Expired vanish messages are already hidden by the database. */
-    async listMessages(conversationId: string, limit = 100) {
-      const rows = unwrap(
-        await c.from('messages')
-          .select('id, conversation_id, sender_id, body, kind, ref_type, ref_id, vanish, created_at, read_at, expires_at')
-          .eq('conversation_id', conversationId).order('created_at', { ascending: false }).limit(limit)
-      ) as ChatMessage[];
-      return rows.reverse();
+    async listMessages(conversationId: string, limit = 100): Promise<ChatMessage[]> {
+      const read = () => c.from('messages')
+        .select(msgCols()).eq('conversation_id', conversationId).order('created_at', { ascending: false }).limit(limit);
+      let res = await read();
+      if (res.error && chatMediaCols && isMissingColumn(res.error)) {
+        chatMediaCols = false;
+        res = await read();
+      }
+      return (unwrap(res) as unknown as ChatMessage[]).reverse();
     },
-    /** The database stamps sender, time, vanish flag and expiry; the client only sends text and an optional post/status reference. */
-    async sendMessage(conversationId: string, body: string, ref?: MessageRef | null) {
+    /**
+     * The database stamps sender, time, vanish flag and expiry; the client sends text, an optional post/status
+     * reference and an optional photo / video snap (migration 15).
+     */
+    async sendMessage(conversationId: string, body: string, ref?: MessageRef | null, media?: MessageMedia | null): Promise<ChatMessage> {
       const row: Record<string, unknown> = { conversation_id: conversationId, body: body.trim() };
       if (ref) { row.ref_type = ref.type; row.ref_id = ref.id; }
-      return unwrap(
-        await c.from('messages')
-          .insert(row)
-          .select('id, conversation_id, sender_id, body, kind, ref_type, ref_id, vanish, created_at, read_at, expires_at').single()
-      ) as ChatMessage;
+      if (media) { row.media_url = media.media_url; row.media_type = media.media_type; }
+      const write = () => c.from('messages').insert(row).select(msgCols()).single();
+      let res = await write();
+      if (res.error && isMissingColumn(res.error)) {
+        if (media) throw new ApiError('Sending snaps in chats needs the latest database update (migration 15).', res.error.code);
+        if (chatMediaCols) { chatMediaCols = false; res = await write(); }
+      }
+      return unwrap(res) as unknown as ChatMessage;
+    },
+    /** Favorites / Archived for your own chat list. Empty before migration 15. */
+    async myConversationPrefs(userId: string) {
+      const res = await c.from('conversation_participants').select('conversation_id, is_favorite, is_archived').eq('user_id', userId);
+      if (res.error && isMissingColumn(res.error)) return [] as ConversationPrefs[];
+      return unwrapOr(res, []) as ConversationPrefs[];
+    },
+    async setConversationPrefs(conversationId: string, userId: string, patch: Partial<Pick<ConversationPrefs, 'is_favorite' | 'is_archived'>>) {
+      const rows = unwrap(
+        await c.from('conversation_participants').update(patch).eq('conversation_id', conversationId).eq('user_id', userId).select('conversation_id')
+      ) as unknown[];
+      if (rows.length === 0) throw new ApiError('Could not update this chat.', '42501');
+    },
+    /** Start a chat by phone number (exact match, any formatting). Returns the profile id or null; never the number. */
+    async findUserByPhone(phone: string) {
+      return unwrap(await c.rpc('find_user_by_phone', { p_phone: phone })) as string | null;
     },
     async setVanishMode(conversationId: string, on: boolean) {
       return unwrap(await c.rpc('set_vanish_mode', { p_conv: conversationId, p_on: on })) as boolean;

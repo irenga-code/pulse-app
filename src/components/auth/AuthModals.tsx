@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
-import { LogIn, Eye, EyeOff, Loader2, MailCheck, KeyRound } from 'lucide-react';
+import { LogIn, Eye, EyeOff, Loader2, MailCheck, KeyRound, Smartphone, Mail, ArrowLeft } from 'lucide-react';
 import Modal from '@/components/Modal';
-import { Field, ErrorNote, inputClass, primaryBtn, mutedText, bodyText } from '@/components/ui';
+import { Field, ErrorNote, inputClass, primaryBtn, ghostBtn, mutedText, bodyText } from '@/components/ui';
 import { useAuth, type AuthMode } from '@/context/AuthContext';
 import { authErrorMessage } from '@/lib/authErrors';
 import { useToast } from '@/context/ToastContext';
+import { toE164, formatPhone } from '@/lib/phone';
 
 const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
@@ -195,21 +196,151 @@ function ForgotForm({ onMode }: { onMode: (m: AuthMode) => void }) {
   );
 }
 
+const RESEND_SECONDS = 30;
+
+/**
+ * Phone sign-in / sign-up with a one-time SMS code (Supabase Auth). The same flow signs in an existing number or
+ * creates an account for a new one; the display name is only used for new accounts.
+ */
+function PhoneForm({ signup, onDone, onUseEmail }: { signup: boolean; onDone: () => void; onUseEmail: () => void }) {
+  const { sendPhoneCode, verifyPhoneCode } = useAuth();
+  const [phone, setPhone] = useState('');
+  const [name, setName] = useState('');
+  const [sentTo, setSentTo] = useState<string | null>(null);
+  const [code, setCode] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [wait, setWait] = useState(0);
+
+  useEffect(() => {
+    if (wait <= 0) return;
+    const t = window.setTimeout(() => setWait((w) => w - 1), 1000);
+    return () => window.clearTimeout(t);
+  }, [wait]);
+
+  const send = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    const e164 = toE164(phone);
+    if (!e164) return setError('Enter the full number with country code, e.g. +256 700 000 000.');
+    if (signup && name.trim() && (name.trim().length < 3 || name.trim().length > 30)) return setError('Display names are 3-30 characters.');
+    setBusy(true);
+    setError(null);
+    try {
+      await sendPhoneCode(e164, signup ? name : undefined);
+      setSentTo(e164);
+      setCode('');
+      setWait(RESEND_SECONDS);
+    } catch (err) {
+      setError(authErrorMessage(err));
+    }
+    setBusy(false);
+  };
+
+  const verify = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!sentTo) return;
+    if (!/^\d{6}$/.test(code.trim())) return setError('Enter the 6-digit code from the text message.');
+    setBusy(true);
+    setError(null);
+    try {
+      await verifyPhoneCode(sentTo, code);
+      onDone();
+    } catch (err) {
+      setError(authErrorMessage(err));
+      setBusy(false);
+    }
+  };
+
+  const notEnabled = error?.startsWith('Phone sign-in is not switched on');
+
+  if (sentTo) {
+    return (
+      <form onSubmit={verify} className="space-y-3.5" noValidate>
+        <p className={`text-sm ${bodyText}`}>Enter the 6-digit code we texted to <b>{formatPhone(sentTo)}</b>.</p>
+        <Field label="Code">
+          <input value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))} inputMode="numeric" autoComplete="one-time-code"
+            placeholder="123456" aria-label="Verification code" className={`${inputClass} tracking-[0.5em] text-center text-lg font-semibold`} autoFocus />
+        </Field>
+        {error && <ErrorNote message={error} />}
+        <button type="submit" disabled={busy || code.length !== 6} className={`${primaryBtn} w-full`}>
+          {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <LogIn className="w-4 h-4" />}Verify and continue
+        </button>
+        <div className="flex items-center justify-between text-xs">
+          <button type="button" onClick={() => { setSentTo(null); setError(null); }} className="inline-flex items-center gap-1 text-wa-green font-semibold">
+            <ArrowLeft className="w-3.5 h-3.5" />Change number
+          </button>
+          <button type="button" onClick={() => send()} disabled={wait > 0 || busy} className="text-wa-green font-semibold disabled:opacity-50">
+            {wait > 0 ? `Resend in ${wait}s` : 'Resend code'}
+          </button>
+        </div>
+      </form>
+    );
+  }
+
+  return (
+    <form onSubmit={send} className="space-y-3.5" noValidate>
+      <Field label="Phone number" hint="With country code. We text you a 6-digit code.">
+        <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} autoComplete="tel" inputMode="tel" placeholder="+256 700 000 000"
+          aria-label="Phone number" className={inputClass} />
+      </Field>
+      {signup && (
+        <Field label="Display name" hint="Optional. 3-30 characters; you can change it later.">
+          <input value={name} onChange={(e) => setName(e.target.value)} maxLength={30} autoComplete="nickname" className={inputClass} />
+        </Field>
+      )}
+      {error && <ErrorNote message={error} />}
+      {notEnabled && (
+        <button type="button" onClick={onUseEmail} className={`${ghostBtn} w-full`}><Mail className="w-4 h-4" />Use email instead</button>
+      )}
+      <button type="submit" disabled={busy} className={`${primaryBtn} w-full`}>
+        {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Smartphone className="w-4 h-4" />}Send code
+      </button>
+      <p className={`text-[11px] text-center ${mutedText}`}>Standard SMS rates may apply. Your number stays private.</p>
+    </form>
+  );
+}
+
 function SignInUpModal() {
   const { authUi, closeAuth, openAuth } = useAuth();
   const { show } = useToast();
   const title = authUi.mode === 'signin' ? 'Sign in' : authUi.mode === 'signup' ? 'Create your account' : 'Reset password';
   const setMode = (m: AuthMode) => openAuth(m, authUi.reason ?? undefined);
+  // phone first (WhatsApp-style); email stays for existing accounts and admins
+  const [method, setMethod] = useState<'phone' | 'email'>('phone');
+  const tabs = authUi.mode !== 'forgot' && (
+    <div className="grid grid-cols-2 gap-1 p-1 mb-4 rounded-xl bg-wa-lightSecondary dark:bg-wa-darkSecondary" role="tablist" aria-label="Sign-in method">
+      {(['phone', 'email'] as const).map((m) => (
+        <button key={m} type="button" role="tab" aria-selected={method === m} onClick={() => setMethod(m)}
+          className={`flex items-center justify-center gap-1.5 rounded-lg py-2 text-sm font-semibold transition-colors ${
+            method === m ? 'bg-wa-lightPanel dark:bg-wa-darkPanel text-wa-green shadow-sm' : mutedText
+          }`}>
+          {m === 'phone' ? <Smartphone className="w-4 h-4" /> : <Mail className="w-4 h-4" />}{m === 'phone' ? 'Phone' : 'Email'}
+        </button>
+      ))}
+    </div>
+  );
 
   return (
     <Modal title={title} icon={LogIn} onClose={closeAuth}>
       {authUi.reason && authUi.mode !== 'forgot' && (
         <p className="text-xs rounded-xl px-3 py-2 mb-4 bg-wa-green/10 text-wa-green">{authUi.reason}</p>
       )}
-      {authUi.mode === 'signin' && (
+      {tabs}
+      {authUi.mode !== 'forgot' && method === 'phone' && (
+        <>
+          <PhoneForm signup={authUi.mode === 'signup'} onUseEmail={() => setMethod('email')} onDone={() => { closeAuth(); show(authUi.mode === 'signup' ? 'Welcome to Pulse!' : 'Signed in'); }} />
+          <p className={`text-xs text-center mt-4 ${mutedText}`}>
+            {authUi.mode === 'signin' ? 'New to Pulse? ' : 'Already have an account? '}
+            <button type="button" onClick={() => setMode(authUi.mode === 'signin' ? 'signup' : 'signin')} className="text-wa-green font-semibold">
+              {authUi.mode === 'signin' ? 'Create account' : 'Sign in'}
+            </button>
+          </p>
+        </>
+      )}
+      {authUi.mode === 'signin' && method === 'email' && (
         <SignInForm onMode={setMode} onDone={() => { closeAuth(); show('Signed in'); }} />
       )}
-      {authUi.mode === 'signup' && (
+      {authUi.mode === 'signup' && method === 'email' && (
         <SignUpForm onMode={setMode} onDone={() => { closeAuth(); show('Welcome to Pulse!'); }} />
       )}
       {authUi.mode === 'forgot' && <ForgotForm onMode={setMode} />}

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Bell, ChevronRight, Settings, LogOut, Bookmark, BadgeCheck, Store, ShieldCheck, UserCog, LogIn, UserRound, Mail, BookmarkCheck, Flame, PlusCircle } from 'lucide-react';
+import { Bell, ChevronRight, Settings, LogOut, Bookmark, BadgeCheck, Store, ShieldCheck, UserCog, LogIn, UserRound, Mail, BookmarkCheck, Flame, PlusCircle, Phone, Megaphone, Images } from 'lucide-react';
 import Avatar from '@/components/Avatar';
 import RoleBadge from '@/components/RoleBadge';
 import NotificationsModal from '@/components/profile/NotificationsModal';
@@ -20,6 +20,7 @@ import { useSocial } from '@/context/SocialContext';
 import { api } from '@/lib/apiClient';
 import { userKey, revalidateAll } from '@/lib/cache';
 import type { Venue } from '@/lib/types';
+import type { SectionId } from '@/components/nav/sections';
 
 type ModalId = 'notifications' | 'settings' | 'saved' | 'savedPosts' | 'edit' | 'verify' | 'venue' | 'register' | null;
 
@@ -29,7 +30,8 @@ function monthYear(iso: string) {
   return new Date(iso).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' });
 }
 
-export default function ProfileTab() {
+/** `onNavigate` adds shortcuts to the screens phones have no rail button for (Calls, Broadcasts, Media). */
+export default function ProfileTab({ onNavigate }: { onNavigate?: (id: SectionId) => void } = {}) {
   const [modal, setModal] = useState<ModalId>(null);
   const [registered, setRegistered] = useState<Venue | null>(null);
   const closeModal = () => {
@@ -60,6 +62,13 @@ export default function ProfileTab() {
     { label: 'Saved venues', icon: Bookmark, onClick: () => setModal('saved') },
     { label: 'Settings', icon: Settings, onClick: () => setModal('settings') },
   ];
+  if (onNavigate) {
+    menuItems.push(
+      { label: 'Calls', icon: Phone, onClick: () => onNavigate('calls') },
+      { label: 'Media gallery', icon: Images, onClick: () => onNavigate('media') },
+      { label: 'Broadcast blasts', icon: Megaphone, onClick: () => onNavigate('broadcasts') },
+    );
+  }
   // Host / Venue accounts get My venues before their first club, to add one (migration 14)
   const canLink = profile?.status === 'active' && (profile.account_type === 'host' || profile.account_type === 'venue');
   if (user && (managedCount > 0 || canLink)) menuItems.push({ label: managedCount === 1 ? 'My venue' : 'My venues', icon: Store, onClick: () => setModal('venue') });

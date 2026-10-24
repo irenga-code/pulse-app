@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Sun, Moon, ChevronDown, Activity } from 'lucide-react';
+import { Sun, Moon, ChevronDown, Activity, Camera } from 'lucide-react';
+import { useQuickSnap } from '@/camera/QuickSnapContext';
 import { useTheme } from '@/context/ThemeContext';
 import { useSettings } from '@/context/SettingsContext';
 import { useLiveVenueCount } from '@/hooks/useVenues';
@@ -9,6 +10,7 @@ export default function Header() {
   const { setThemePreference } = useSettings();
   const [cityOpen, setCityOpen] = useState(false);
   const liveCount = useLiveVenueCount();
+  const { openQuickSnap } = useQuickSnap();
 
   return (
     <header className="md:hidden sticky top-0 z-30 bg-wa-lightHeader dark:bg-wa-darkPanel border-b border-wa-lightBorder dark:border-wa-darkBorder transition-colors duration-300">
@@ -58,6 +60,9 @@ export default function Header() {
             </div>
           )}
 
+          <button onClick={() => openQuickSnap()} aria-label="Quick-Snap camera" className="p-2 rounded-full hover:bg-white/10 dark:hover:bg-wa-darkSecondary/60 transition-colors duration-200">
+            <Camera className="w-5 h-5 text-white dark:text-wa-darkText" />
+          </button>
           <button
             onClick={() => setThemePreference(theme === 'dark' ? 'light' : 'dark')}
             className="p-2 rounded-full hover:bg-white/10 dark:hover:bg-wa-darkSecondary/60 transition-colors duration-200"

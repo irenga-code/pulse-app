@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, X, Send, Ghost, Loader2 } from 'lucide-react';
+import { ArrowLeft, X, Send, Ghost, Loader2, Camera } from 'lucide-react';
 import Avatar from '@/components/Avatar';
 import ChatShell from '@/components/social/ChatShell';
 import RefPreview from '@/components/social/RefPreview';
@@ -12,6 +12,7 @@ import { friendlyError } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/context/ToastContext';
 import { useSocial } from '@/context/SocialContext';
+import { useQuickSnap } from '@/camera/QuickSnapContext';
 import type { ChatMessage, MessageRef, PublicProfile } from '@/lib/types';
 import { ChatSkeleton } from '@/components/Skeleton';
 
@@ -30,6 +31,7 @@ export default function ChatThread({ otherUserId, initialRef, onBack, onClose }:
   const { user } = useAuth();
   const { show } = useToast();
   const { refreshUnread, openProfile } = useSocial();
+  const { openQuickSnap } = useQuickSnap();
   const me = user?.id ?? '';
   const [convId, setConvId] = useState<string | null>(null);
   const [other, setOther] = useState<PublicProfile | null>(null);
@@ -238,7 +240,13 @@ export default function ChatThread({ otherUserId, initialRef, onBack, onClose }:
                   }`}
                 >
                   {m.ref_type && m.ref_id && <div className="mb-1.5"><RefPreview type={m.ref_type} id={m.ref_id} tone="bubble" /></div>}
-                  <p className="whitespace-pre-wrap break-words"><EmojiText text={m.body} /></p>
+                  {m.media_url && (
+                    m.media_type === 'video'
+                      ? <video src={m.media_url} controls playsInline preload="metadata" aria-label="Video snap" className="-mx-1 mb-1 w-56 max-w-full aspect-[9/16] rounded-xl bg-black object-cover" />
+                      : <img src={m.media_url} alt="Photo snap" loading="lazy" className="-mx-1 mb-1 w-56 max-w-full aspect-[9/16] rounded-xl bg-black object-cover" />
+                  )}
+                  {/* a snap without a caption carries a placeholder body ("📸 Snap"); the picture says it already */}
+                  {!(m.media_url && /^(📸|🎥) Snap$/u.test(m.body)) && <p className="whitespace-pre-wrap break-words"><EmojiText text={m.body} /></p>}
                   <p className="mt-0.5 text-[10px] opacity-75 text-right flex items-center justify-end gap-1">
                     {m.vanish && <Ghost className="w-3 h-3" />}
                     {left !== null ? `vanishes in ${left}s` : m.vanish ? (mine ? 'vanishes after read' : 'vanishes once read') : ''}
@@ -256,6 +264,19 @@ export default function ChatThread({ otherUserId, initialRef, onBack, onClose }:
         {ref && <div className="px-1 pb-2"><RefPreview type={ref.type} id={ref.id} onRemove={() => setRef(null)} /></div>}
         <div className="flex items-center gap-1">
           <EmojiButton label="Add emoji to message" onPick={insertEmoji} />
+          <button
+            type="button"
+            disabled={!convId}
+            aria-label="Send a snap"
+            title="Quick-Snap: tap for photo, hold for video"
+            onClick={() => convId && openQuickSnap({
+              destination: { kind: 'chat', conversationId: convId, label: other?.display_name ?? 'this chat' },
+              onSent: () => { void syncMessages(); },
+            })}
+            className={`p-2 rounded-full disabled:opacity-40 ${secret ? 'text-zinc-300 hover:bg-white/10' : 'text-wa-lightTextSecondary dark:text-wa-darkTextSecondary hover:bg-black/5 dark:hover:bg-white/10'}`}
+          >
+            <Camera className="w-5 h-5" />
+          </button>
           <input
             ref={inputRef}
             value={text}

@@ -159,7 +159,7 @@ export default function CommunityTab() {
       )}
       {cameraOpen && (
         <Suspense fallback={null}>
-          <CameraModal onClose={() => setCameraOpen(false)} savePost={feed.publish} />
+          <CameraModal onClose={() => setCameraOpen(false)} savePost={feed.publish} defaultDestinations={[{ kind: 'feed' }]} />
         </Suspense>
       )}
     </div>

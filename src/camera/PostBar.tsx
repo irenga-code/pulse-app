@@ -3,12 +3,12 @@ import { MapPin, Send, Loader2, RotateCcw } from 'lucide-react';
 import EmojiButton from '@/components/emoji/EmojiPicker';
 import { insertAtCaret } from '@/components/emoji/emojiData';
 import { MAX_CAPTION } from '@/camera/constants';
-import type { PublishState } from '@/camera/useSnapPublisher';
+import type { PublishState } from '@/camera/useSnapDispatch';
 
 /** One-tap publishing: caption, venue tag and the Post button live together under the snap. */
-export default function PostBar({ caption, onCaption, venueLabel, onPickVenue, onPost, state, error }: {
+export default function PostBar({ caption, onCaption, venueLabel, onPickVenue, onPost, postLabel = 'Send to…', state, error }: {
   caption: string; onCaption: (v: string) => void; venueLabel: string | null; onPickVenue: () => void; onPost: () => void;
-  state: PublishState; error: string | null;
+  postLabel?: string; state: PublishState; error: string | null;
 }) {
   const ref = useRef<HTMLInputElement>(null);
   const busy = state === 'uploading' || state === 'saving';
@@ -47,7 +47,7 @@ export default function PostBar({ caption, onCaption, venueLabel, onPickVenue, o
           className="ml-auto flex items-center gap-2 rounded-full bg-wa-green px-6 py-2.5 text-sm font-bold disabled:opacity-60"
         >
           {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : state === 'error' ? <RotateCcw className="w-4 h-4" /> : <Send className="w-4 h-4" />}
-          {state === 'uploading' ? 'Uploading…' : state === 'saving' ? 'Posting…' : state === 'error' ? 'Retry' : 'Post to Pulse'}
+          <span className="truncate max-w-[11rem]">{state === 'uploading' ? 'Uploading…' : state === 'saving' ? 'Sending…' : state === 'error' ? 'Retry' : postLabel}</span>
         </button>
       </div>
     </div>

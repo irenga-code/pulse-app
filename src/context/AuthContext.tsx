@@ -33,6 +33,12 @@ type AuthContextValue = {
   sendPasswordReset: (email: string) => Promise<void>;
   setNewPassword: (password: string) => Promise<void>;
   changeEmail: (email: string) => Promise<void>;
+  /** Phone sign-in / sign-up: texts a one-time code (Supabase Auth SMS). A new number creates the account. */
+  sendPhoneCode: (phone: string, displayName?: string) => Promise<void>;
+  verifyPhoneCode: (phone: string, code: string) => Promise<void>;
+  /** Add or change the number on a signed-in account (email accounts too): texts a code to the new number. */
+  addPhone: (phone: string) => Promise<void>;
+  confirmPhone: (phone: string, code: string) => Promise<void>;
   deleteAccount: () => Promise<void>;
   refreshProfile: () => Promise<void>;
 };
@@ -174,10 +180,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (error) throw error;
   }, []);
 
+  const sendPhoneCode = useCallback(async (phone: string, displayName?: string) => {
+    if (displayName?.trim() && (await api.isDisplayNameTaken(displayName))) throw new Error('That display name is already taken. Please pick another.');
+    const { error } = await supabase.auth.signInWithOtp({
+      phone,
+      options: { shouldCreateUser: true, data: displayName?.trim() ? { display_name: displayName.trim() } : undefined },
+    });
+    if (error) throw error;
+  }, []);
+
+  const verifyPhoneCode = useCallback(async (phone: string, code: string) => {
+    const { error } = await supabase.auth.verifyOtp({ phone, token: code.trim(), type: 'sms' });
+    if (error) throw error;
+  }, []);
+
+  const addPhone = useCallback(async (phone: string) => {
+    const { error } = await supabase.auth.updateUser({ phone });
+    if (error) throw error;
+  }, []);
+
   const deleteAccount = useCallback(async () => {
     await api.deleteMyAccount();
     await supabase.auth.signOut({ scope: 'local' });
   }, []);
+
+  const confirmPhone = useCallback(async (phone: string, code: string) => {
+    const { error } = await supabase.auth.verifyOtp({ phone, token: code.trim(), type: 'phone_change' });
+    if (error) throw error;
+    await refreshProfile(); // phone_verified is set by the database trigger
+  }, [refreshProfile]);
 
   const value = useMemo<AuthContextValue>(
     () => ({
@@ -200,11 +231,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       sendPasswordReset,
       setNewPassword,
       changeEmail,
+      sendPhoneCode,
+      verifyPhoneCode,
+      addPhone,
+      confirmPhone,
       deleteAccount,
       refreshProfile,
     }),
     [session, user, userId, profile, isAdmin, loading, loadedFor, authUi, openAuth, closeAuth, requireAuth, recovery,
-      signIn, signUp, signOut, sendPasswordReset, setNewPassword, changeEmail, deleteAccount, refreshProfile]
+      signIn, signUp, signOut, sendPasswordReset, setNewPassword, changeEmail, sendPhoneCode, verifyPhoneCode, addPhone, confirmPhone,
+      deleteAccount, refreshProfile]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

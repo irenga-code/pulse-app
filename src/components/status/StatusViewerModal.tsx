@@ -250,7 +250,13 @@ export default function StatusViewerModal({ groups, startGroup, authors, venueNa
         </div>
 
         <div className="absolute bottom-0 left-0 right-0 z-20 p-4 bg-gradient-to-t from-black/85 to-transparent" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
-          {status.caption && <p className="text-sm mb-3 leading-snug break-words"><EmojiText text={status.caption} /></p>}
+          {/* Status overlay: where and when it was taken */}
+          <p data-testid="vibe-check-overlay" className="inline-flex items-center gap-1.5 mb-2 rounded-full bg-black/55 backdrop-blur-sm px-3 py-1 text-xs font-semibold">
+            <span className="w-1.5 h-1.5 rounded-full bg-wa-live" aria-hidden="true" />
+            {status.venue_id && venueNames[status.venue_id] ? <><MapPin className="w-3.5 h-3.5 text-wa-green" />{venueNames[status.venue_id]} · </> : 'Status · '}
+            {new Date(status.created_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+          </p>
+          {status.caption &&<p className="text-sm mb-3 leading-snug break-words"><EmojiText text={status.caption} /></p>}
           {mine ? (
             <button onClick={() => setPanel(panel === 'viewers' ? null : 'viewers')} aria-label={`${viewers.length} views`} className="flex items-center gap-1.5 text-sm text-white/90">
               <Eye className="w-4 h-4" />{viewers.length} {viewers.length === 1 ? 'view' : 'views'}

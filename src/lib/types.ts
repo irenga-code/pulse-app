@@ -112,6 +112,8 @@ export type Profile = {
   account_type: AccountType;
   is_verified: boolean;
   status: AccountStatus;
+  /** A confirmed phone number is on file (migration 15). The number itself is private. */
+  phone_verified?: boolean;
   created_at: string;
 };
 
@@ -235,7 +237,36 @@ export type ChatMessage = {
   read_at: string | null;
   /** When a vanish message (or an unread-for-24h one) disappears. */
   expires_at: string | null;
+  /** A photo / video snap (migration 15). */
+  media_url?: string | null;
+  media_type?: 'image' | 'video' | null;
 };
+export type MessageMedia = { media_url: string; media_type: 'image' | 'video' };
+/** Your own chat list filters (conversation_participants, migration 15). */
+export type ConversationPrefs = { conversation_id: string; is_favorite: boolean; is_archived: boolean };
+
+// ---------------------------------------------------------------- venue channels (migration 15)
+export type VenueChannel = {
+  id: string;
+  venue_id: string;
+  name: string;
+  description: string | null;
+  follower_count: number;
+  last_message_at: string | null;
+  created_by: string | null;
+  created_at: string;
+};
+export type ChannelMessage = {
+  id: string;
+  channel_id: string;
+  author_id: string;
+  body: string | null;
+  media_url: string | null;
+  media_type: 'image' | 'video' | null;
+  created_at: string;
+};
+/** A live 24 h status with its venue, for the Vibe Check overlay (vibe_check_stories view). */
+export type VibeCheckStory = Status & { venue_name: string | null; venue_location: string | null };
 export type ConversationSummary = {
   conversation_id: string;
   other_user_id: string;

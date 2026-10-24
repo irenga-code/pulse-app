@@ -7,21 +7,24 @@ import ShutterButton from '@/camera/ShutterButton';
 import { DrawBar, EffectStrip, FilterStrip, StickerTray, TextEditor } from '@/camera/CameraTools';
 import VenuePicker from '@/camera/VenuePicker';
 import PostBar from '@/camera/PostBar';
+import SendToSheet from '@/camera/SendToSheet';
 import { useCameraStream } from '@/camera/useCameraStream';
 import { useCanvasRecorder, type RecordResult } from '@/camera/useCanvasRecorder';
 import { useGeolocation } from '@/camera/useGeolocation';
-import { useSnapPublisher } from '@/camera/useSnapPublisher';
+import { useSnapDispatch, destinationKey, destinationLabel, type SnapDestination } from '@/camera/useSnapDispatch';
 import { venuesIn } from '@/camera/geo';
 import { drawScene } from '@/camera/renderer';
 import { MAX_VIDEO_MS, STAGE_H, STAGE_W, type StickerDef } from '@/camera/constants';
 import { EMPTY_SCENE, type CaptureResult, type Scene, type TextItem } from '@/camera/types';
 import { useVenues } from '@/hooks/useVenues';
 import { useToast } from '@/context/ToastContext';
+import { api } from '@/lib/apiClient';
+import { revalidateAll } from '@/lib/cache';
 import type { NewPostInput, Post, SnapMeta, Venue } from '@/lib/types';
 import { lockBodyScroll } from '@/lib/scrollLock';
 
 type Mode = 'capture' | 'edit' | 'review';
-type Panel = null | 'filters' | 'effects' | 'stickers' | 'venue';
+type Panel = null | 'filters' | 'effects' | 'stickers' | 'venue' | 'sendto';
 type VideoClip = { blob: Blob; url: string; ext: 'mp4' | 'webm'; durationMs: number; width: number; height: number; meta: SnapMeta };
 
 const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
@@ -59,20 +62,36 @@ function probeVideo(url: string) {
   });
 }
 
+/** Without a feed hook (Quick-Snap from the header or a chat), feed snaps go straight to the API. */
+const createPostDirect = async (input: NewPostInput) => {
+  const post = await api.createPost(input);
+  revalidateAll();
+  return post;
+};
+
 /**
- * Full-screen camera. Flow: capture (tap = photo, hold = video) -> edit (text, drawing, stickers, filters,
- * effects, location + venue stamps) -> caption + venue -> "Post to Pulse" (upload + publish in one tap).
+ * Full-screen camera (Quick-Snap). Flow: capture (tap = photo, hold = video, up to 15 s) -> edit (text, drawing,
+ * stickers, filters, effects, location + venue stamps) -> caption + venue -> Send to: status, Pulse feed,
+ * your venue channels and chats (upload once, deliver everywhere). With `destination` (a chat's camera button) the
+ * snap goes straight there.
  */
-export default function CameraModal({ onClose, savePost, initialVenueId }: {
+export default function CameraModal({ onClose, savePost = createPostDirect, initialVenueId, destination, defaultDestinations, onSent }: {
   onClose: () => void;
-  savePost: (input: NewPostInput) => Promise<Post>;
+  savePost?: (input: NewPostInput) => Promise<Post>;
   initialVenueId?: string | null;
+  /** Locked destination: skip the Send to sheet. */
+  destination?: SnapDestination;
+  /** Pre-ticked in the Send to sheet (default: My status). */
+  defaultDestinations?: SnapDestination[];
+  onSent?: (sent: SnapDestination[]) => void;
 }) {
   const { show } = useToast();
   const { venues } = useVenues({ orderBy: 'name' });
   const geo = useGeolocation();
   const recorder = useCanvasRecorder();
-  const publisher = useSnapPublisher(savePost);
+  const publisher = useSnapDispatch(savePost);
+  // the Send to sheet re-opens with only the failed destinations ticked
+  const [sendTo, setSendTo] = useState<SnapDestination[]>(() => defaultDestinations ?? [{ kind: 'status' }]);
 
   const [mode, setMode] = useState<Mode>('capture');
   const [fromGallery, setFromGallery] = useState(false);
@@ -301,7 +320,7 @@ export default function CameraModal({ onClose, savePost, initialVenueId }: {
   const suggested = useMemo(() => venuesIn(venues, geo.info?.neighborhood ?? null), [venues, geo.info]);
 
   // ---- publish ----------------------------------------------------------------
-  const post = async () => {
+  const send = async (destinations: SnapDestination[]) => {
     let capture = captureRef.current;
     if (!capture) {
       if (mode === 'edit') {
@@ -312,12 +331,18 @@ export default function CameraModal({ onClose, savePost, initialVenueId }: {
       } else return;
       captureRef.current = capture;
     }
-    const created = await publisher.publish(capture, { caption, venueId });
-    if (created) {
-      show('Snap posted to Pulse');
+    const result = await publisher.dispatch(capture, destinations, { caption, venueId });
+    if (!result) return;
+    if (result.sent.length > 0) onSent?.(result.sent);
+    if (result.failed.length === 0) {
+      show(destinations.length === 1 ? `Sent to ${destinationLabel(destinations[0])}` : `Sent to ${destinations.length} places`);
       onClose();
+    } else {
+      setSendTo(result.failed.map((f) => f.destination));
+      if (!destination) setPanel('sendto');
     }
   };
+  const post = () => (destination ? send([destination]) : setPanel('sendto'));
 
   // ---- render -----------------------------------------------------------------
   const camBlocked = mode === 'capture' && !fromGallery && cam.status !== 'ready';
@@ -446,6 +471,7 @@ export default function CameraModal({ onClose, savePost, initialVenueId }: {
             venueLabel={venue ? venue.name : null}
             onPickVenue={() => setPanel('venue')}
             onPost={post}
+            postLabel={destination ? `Send to ${destinationLabel(destination)}` : 'Send to…'}
             state={publisher.state}
             error={publisher.error}
           />
@@ -455,6 +481,16 @@ export default function CameraModal({ onClose, savePost, initialVenueId }: {
         {panel === 'filters' && <FilterStrip value={scene.filter} onChange={(f) => setScene((s) => ({ ...s, filter: f }))} onClose={() => setPanel(null)} />}
         {panel === 'effects' && <EffectStrip value={scene.effect} onChange={(f) => setScene((s) => ({ ...s, effect: f }))} onClose={() => setPanel(null)} />}
         {panel === 'stickers' && <StickerTray onPick={addSticker} onClose={() => setPanel(null)} />}
+        {panel === 'sendto' && (
+          <SendToSheet
+            key={sendTo.map(destinationKey).join()}
+            initial={sendTo}
+            busy={publisher.busy}
+            venueLabel={venue ? venue.name : null}
+            onSend={(list) => { setSendTo(list); void send(list); }}
+            onClose={() => setPanel(null)}
+          />
+        )}
         {panel === 'venue' && (
           <VenuePicker
             venues={venues}
