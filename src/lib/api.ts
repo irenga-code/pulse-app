@@ -580,10 +580,9 @@ export function createApi(c: SupabaseClient) {
     async adminAssignVenueStaff(userId: string, venueId: string, role: 'manager' | 'host') {
       unwrap(await c.rpc('admin_assign_venue_staff', { p_user_id: userId, p_venue_id: venueId, p_role: role }));
     },
-    /** Deletes the venue_managers row directly (admins: vm_admin_write). RLS hides rows it blocks, so 0 rows -> 42501. */
+    /** Deletes the venue_managers row and logs it (admin_unassign_venue_staff, migration 10). */
     async adminUnassignVenueStaff(userId: string, venueId: string) {
-      const rows = unwrap(await c.from('venue_managers').delete().eq('venue_id', venueId).eq('user_id', userId).select('venue_id')) as unknown[];
-      if (rows.length === 0) throw new ApiError('Nothing was unlinked. It may already be removed, or your account is not a Pulse admin.', '42501');
+      unwrap(await c.rpc('admin_unassign_venue_staff', { p_user_id: userId, p_venue_id: venueId }));
     },
     async adminModerationLog() {
       return unwrap(await c.from('moderation_log').select('*').order('created_at', { ascending: false }).limit(100)) as ModerationLogRow[];

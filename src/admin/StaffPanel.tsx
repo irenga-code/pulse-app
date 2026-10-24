@@ -191,7 +191,7 @@ function StaffRow({ row, profile, venueName, onRemoved }: { row: VenueStaffRow; 
   );
 }
 
-/** Venue managers / hosts: who is linked to which venue (venue_managers). Linking uses a logged admin RPC; unlinking deletes the row. */
+/** Venue managers / hosts: who is linked to which venue (venue_managers). Writes go through logged admin RPCs. */
 export default function StaffPanel() {
   const { user } = useAuth();
   const { venues } = useVenues({ orderBy: 'name' });
