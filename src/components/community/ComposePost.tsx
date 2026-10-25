@@ -27,7 +27,7 @@ export default function ComposePost({ onSubmit, onOpenCamera }: Props) {
   if (!user) {
     return (
       <div className={`${card} flex items-center gap-3`}>
-        <p className={`text-sm flex-1 ${mutedText}`}>Share what is happening tonight with Kampala.</p>
+        <p className={`text-sm flex-1 ${mutedText}`}>What's happening?</p>
         <button onClick={() => openAuth('signin', 'Sign in to post to the community.')} className={primaryBtn}>Sign in to post</button>
       </div>
     );
@@ -68,7 +68,7 @@ export default function ComposePost({ onSubmit, onOpenCamera }: Props) {
             value={text}
             onChange={(e) => setText(e.target.value.slice(0, MAX))}
             rows={text.length > 80 ? 4 : 2}
-            placeholder="What's the vibe tonight?"
+            placeholder="What's happening?"
             aria-label="Write a post"
             className={`${inputClass} resize-none`}
           />

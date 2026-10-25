@@ -50,7 +50,7 @@ function DesktopTopBar() {
           <span className="text-sm font-semibold text-wa-live">LIVE · {liveCount}</span>
         </>
       )}
-      <span className={`text-sm text-wa-lightTextSecondary dark:text-wa-darkTextSecondary flex-1 ${liveCount > 0 ? 'ml-2' : ''}`}>Pulse · Kampala nightlife</span>
+      <span className={`text-sm text-wa-lightTextSecondary dark:text-wa-darkTextSecondary flex-1 ${liveCount > 0 ? 'ml-2' : ''}`}>Pulse</span>
       <button onClick={() => openQuickSnap()} className="flex items-center gap-2 rounded-full bg-wa-green text-white px-4 py-1.5 text-sm font-semibold hover:bg-wa-greenDark transition-colors"
         aria-label="Quick-Snap camera" title="Tap for photo, hold for video">
         <Camera className="w-4 h-4" />Quick-Snap

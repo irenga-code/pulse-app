@@ -57,7 +57,7 @@ export default function CommunityTab() {
           </button>
         </div>
         <p className="text-sm text-wa-lightTextSecondary dark:text-wa-darkTextSecondary mt-0.5">
-          See what Kampala is saying tonight
+          See what's happening right now
         </p>
       </div>
 
