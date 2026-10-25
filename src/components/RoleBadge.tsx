@@ -16,7 +16,7 @@ export default function RoleBadge({ accountType, verified, admin, official }: Pr
         <span className={`${pill} bg-wa-green/15 text-wa-green`}><BadgeCheck className="w-3 h-3" />Official</span>
       )}
       {!official && accountType === 'host' && (
-        <span className={`${pill} bg-blue-500/15 text-blue-400`}><Mic2 className="w-3 h-3" />Host</span>
+        <span className={`${pill} bg-wa-green/15 text-wa-green`}><Mic2 className="w-3 h-3" />Host</span>
       )}
       {!official && accountType === 'venue' && (
         <span className={`${pill} bg-wa-busy/15 text-wa-busy`}><Store className="w-3 h-3" />Venue</span>

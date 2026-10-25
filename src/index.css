@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 /* Accent colour (space-separated RGB so Tailwind's /opacity works). ThemeContext sets data-accent:
-   Emerald Green by default in dark mode, Electric Blue in light mode, or the colour picked in Settings > Appearance.
+   Emerald Green (#10b981) by default in both modes, or the colour picked in Settings > Appearance.
    Navy and the pinks are lifted in dark mode, Yellow and Soft Pink deepened in light mode, so accent text stays readable. */
 :root, :root[data-accent='emerald'] { --wa-green: 16 185 129; --wa-green-dark: 5 150 105; --wa-green-light: 52 211 153; }
 :root[data-accent='blue'] { --wa-green: 37 99 235; --wa-green-dark: 29 78 216; --wa-green-light: 59 130 246; }

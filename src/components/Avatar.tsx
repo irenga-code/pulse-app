@@ -1,4 +1,4 @@
-const colors = ['bg-wa-green', 'bg-blue-500', 'bg-orange-500', 'bg-pink-500', 'bg-purple-500', 'bg-teal-600'];
+const colors = ['bg-wa-green', 'bg-emerald-700', 'bg-orange-500', 'bg-pink-500', 'bg-purple-500', 'bg-teal-600'];
 
 function initials(name: string | null | undefined) {
   name = name ?? '';

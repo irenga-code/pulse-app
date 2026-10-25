@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useState, type React
 
 type Theme = 'light' | 'dark';
 export type ThemePreference = Theme | 'system';
-/** 'auto' = Emerald Green in dark mode, Electric Blue in light mode. */
+/** 'auto' = the Pulse green (Emerald, #10b981) in both modes. */
 export type Accent = 'auto' | 'emerald' | 'blue' | 'navy' | 'violet' | 'amber' | 'yellow' | 'orange' | 'hotpink' | 'softpink';
 export const ACCENTS: { id: Exclude<Accent, 'auto'>; label: string; swatch: string }[] = [
   { id: 'emerald', label: 'Emerald Green', swatch: '#10b981' },
@@ -63,7 +63,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     write(MODE_KEY, preference);
   }, [theme, preference]);
 
-  const activeAccent = accent === 'auto' ? (theme === 'dark' ? 'emerald' : 'blue') : accent;
+  const activeAccent = accent === 'auto' ? 'emerald' : accent;
   useEffect(() => {
     // the accent colour variables in index.css switch on this attribute
     document.documentElement.dataset.accent = activeAccent;

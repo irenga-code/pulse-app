@@ -53,7 +53,7 @@ export default function PostActions(p: PostActionsProps) {
           onClick={p.onReply}
           aria-expanded={p.repliesOpen}
           aria-label={`Replies, ${p.replyCount}`}
-          className={`${base} ${p.repliesOpen ? 'text-sky-500' : mutedText} hover:text-sky-500 hover:bg-sky-500/10`}
+          className={`${base} ${p.repliesOpen ? 'text-wa-green' : mutedText} hover:text-wa-green hover:bg-wa-green/10`}
         >
           <MessageCircle className={iconBase} />
           <span>{formatCount(p.replyCount)}</span>
@@ -68,7 +68,7 @@ export default function PostActions(p: PostActionsProps) {
             aria-expanded={menu}
             aria-pressed={p.reposted}
             aria-label={`${p.reposted ? 'Undo repost' : 'Repost'}, ${p.repostCount}`}
-            className={`${base} ${p.reposted ? 'text-emerald-500 font-semibold' : mutedText} hover:text-emerald-500 hover:bg-emerald-500/10 disabled:opacity-40`}
+            className={`${base} ${p.reposted ? 'text-wa-green font-semibold' : mutedText} hover:text-wa-green hover:bg-wa-green/10 disabled:opacity-40`}
           >
             <Repeat2 className={iconBase} />
             <span>{formatCount(p.repostCount)}</span>
@@ -112,11 +112,11 @@ export default function PostActions(p: PostActionsProps) {
           onClick={p.onSave}
           aria-pressed={p.saved}
           aria-label={p.saved ? 'Remove bookmark' : 'Bookmark'}
-          className={`${base} justify-center ${p.saved ? 'text-sky-500' : mutedText} hover:text-sky-500 hover:bg-sky-500/10`}
+          className={`${base} justify-center ${p.saved ? 'text-wa-green' : mutedText} hover:text-wa-green hover:bg-wa-green/10`}
         >
-          <Bookmark className={`${iconBase} ${p.saved ? 'fill-sky-500' : ''}`} />
+          <Bookmark className={`${iconBase} ${p.saved ? 'fill-wa-green' : ''}`} />
         </button>
-        <button type="button" onClick={p.onShare} aria-label="Share" className={`${base} justify-center ${mutedText} hover:text-sky-500 hover:bg-sky-500/10`}>
+        <button type="button" onClick={p.onShare} aria-label="Share" className={`${base} justify-center ${mutedText} hover:text-wa-green hover:bg-wa-green/10`}>
           <Share className={iconBase} />
         </button>
       </div>

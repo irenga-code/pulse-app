@@ -10,7 +10,7 @@ const typeStyle: Record<NotificationType, { icon: LucideIcon; color: string }> =
   community: { icon: MessageCircle, color: 'text-wa-green bg-wa-green/10' },
   comment: { icon: MessageCircle, color: 'text-wa-green bg-wa-green/10' },
   reaction: { icon: Smile, color: 'text-wa-busy bg-wa-busy/10' },
-  follow: { icon: UserPlus, color: 'text-blue-400 bg-blue-500/10' },
+  follow: { icon: UserPlus, color: 'text-wa-green bg-wa-green/10' },
   official_post: { icon: BadgeCheck, color: 'text-wa-green bg-wa-green/10' },
   event: { icon: CalendarDays, color: 'text-wa-busy bg-wa-busy/10' },
   moderation: { icon: ShieldAlert, color: 'text-wa-live bg-wa-live/10' },
