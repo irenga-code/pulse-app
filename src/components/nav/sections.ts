@@ -1,16 +1,19 @@
-import { MessageCircle, Phone, CircleDashed, MessageSquareDot, Users, Store, Megaphone, Images, User, type LucideIcon } from 'lucide-react';
+import type { ComponentType } from 'react';
+import { MessageCircle, MessageSquareText, Phone, Users, Store, Megaphone, Images, User } from 'lucide-react';
+import { StatusIcon, ChannelsIcon } from '@/components/nav/RailIcons';
 
 /** Every screen of the app shell. `updates` (Status + Channels together) is the phone layout's version of the two. */
 export type SectionId = 'chats' | 'calls' | 'status' | 'channels' | 'communities' | 'catalog' | 'broadcasts' | 'media' | 'profile' | 'updates';
 
-export type SectionDef = { id: SectionId; label: string; icon: LucideIcon };
+export type SectionIcon = ComponentType<{ className?: string; strokeWidth?: number | string }>;
+export type SectionDef = { id: SectionId; label: string; icon: SectionIcon };
 
 /** Desktop rail, WhatsApp Business layout: messaging on top, business tools under the divider, personal at the bottom. */
 export const RAIL_TOP: SectionDef[] = [
-  { id: 'chats', label: 'Chats', icon: MessageCircle },
+  { id: 'chats', label: 'Chats', icon: MessageSquareText },
   { id: 'calls', label: 'Calls', icon: Phone },
-  { id: 'status', label: 'Status', icon: CircleDashed },
-  { id: 'channels', label: 'Channels', icon: MessageSquareDot },
+  { id: 'status', label: 'Status', icon: StatusIcon },
+  { id: 'channels', label: 'Channels', icon: ChannelsIcon },
   { id: 'communities', label: 'Communities', icon: Users },
 ];
 export const RAIL_BUSINESS: SectionDef[] = [
@@ -22,7 +25,7 @@ export const RAIL_BOTTOM: SectionDef[] = [{ id: 'media', label: 'Media gallery',
 /** Phone bottom bar (five slots). Calls, Broadcasts and Media are in the You screen's menu. */
 export const MOBILE_TABS: SectionDef[] = [
   { id: 'chats', label: 'Chats', icon: MessageCircle },
-  { id: 'updates', label: 'Updates', icon: CircleDashed },
+  { id: 'updates', label: 'Updates', icon: StatusIcon },
   { id: 'communities', label: 'Communities', icon: Users },
   { id: 'catalog', label: 'Catalog', icon: Store },
   { id: 'profile', label: 'You', icon: User },

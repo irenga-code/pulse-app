@@ -31,7 +31,7 @@ export default function VenuesTab() {
       <div className="px-4 md:px-8 pt-4 pb-3 bg-wa-light dark:bg-wa-dark">
         <h1 className="text-2xl font-bold text-wa-lightText dark:text-wa-darkText">Venue</h1>
         <p className="text-sm text-wa-lightTextSecondary dark:text-wa-darkTextSecondary mt-0.5">
-          {venues.length} venues in Kampala
+          {venues.length} venues
           {liveCount > 0 && (
             <span className="text-wa-live font-medium"> · {liveCount} live now</span>
           )}

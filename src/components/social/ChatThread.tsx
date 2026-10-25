@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, X, Send, Ghost, Loader2, Camera } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { ArrowLeft, X, Send, Ghost, Loader2, Camera, Search } from 'lucide-react';
 import Avatar from '@/components/Avatar';
 import ChatShell from '@/components/social/ChatShell';
 import RefPreview from '@/components/social/RefPreview';
@@ -18,6 +18,7 @@ import { useVoiceComposer } from '@/components/social/VoiceComposer';
 import type { VoiceRecording } from '@/hooks/useVoiceRecorder';
 import type { ChatMessage, MessageRef, PublicProfile } from '@/lib/types';
 import { ChatSkeleton } from '@/components/Skeleton';
+import { CHAT_THEMES, getChatPrefs, subscribeChatPrefs } from '@/lib/chatPrefs';
 
 let channelCounter = 0;
 const MAX = 2000;
@@ -29,8 +30,26 @@ const byTime = (a: ChatMessage, b: ChatMessage) => a.created_at.localeCompare(b.
 const secondsLeft = (m: ChatMessage, now: number) => (m.expires_at && m.read_at ? Math.max(0, Math.ceil((new Date(m.expires_at).getTime() - now) / 1000)) : null);
 
 /** One private conversation with live updates and Secret (vanish) mode. */
-export default function ChatThread({ otherUserId, initialRef, onBack, onClose }: {
+/** What the desktop Contact info drawer needs from the open chat. */
+export type ChatMeta = { conversationId: string; vanish: boolean; other: PublicProfile | null; toggleVanish: () => void };
+
+/** The chat as a column of the desktop layout instead of an overlay. */
+function EmbeddedShell({ label, secret, children }: { label: string; secret: boolean; onClose?: () => void; children: ReactNode }) {
+  return (
+    <section aria-label={label} className={`flex flex-col h-full min-h-0 min-w-0 ${secret ? 'bg-zinc-950 text-zinc-100' : 'bg-wa-light dark:bg-wa-dark text-wa-lightText dark:text-wa-darkText'}`}
+      style={{ paddingBottom: 'var(--emoji-sheet, 0px)' }}>
+      {children}
+    </section>
+  );
+}
+
+export default function ChatThread({ otherUserId, initialRef, onBack, onClose, embedded = false, onInfo, search = null, onSearch, onMeta }: {
   otherUserId: string; initialRef: MessageRef | null; onBack: () => void; onClose: () => void;
+  /** Desktop: render as a column; the header opens Contact info (onInfo) instead of the profile card. */
+  embedded?: boolean; onInfo?: () => void;
+  /** Search inside this chat: null = closed. */
+  search?: string | null; onSearch?: (q: string | null) => void;
+  onMeta?: (meta: ChatMeta) => void;
 }) {
   const { user } = useAuth();
   const { show } = useToast();
@@ -160,7 +179,15 @@ export default function ChatThread({ otherUserId, initialRef, onBack, onClose }:
     return () => window.clearInterval(id);
   }, [counting]);
 
-  const visible = useMemo(() => messages.filter((m) => isLive(m, now)), [messages, now]);
+  // this device's chat theme and "clear chat" moment
+  const device = useSyncExternalStore(subscribeChatPrefs, getChatPrefs, getChatPrefs);
+  const clearedAt = convId ? device.clearedAt[convId] ?? null : null;
+  const themeClass = CHAT_THEMES.find((t) => t.id === (convId ? device.themes[convId] : undefined))?.className ?? '';
+  const q = search?.trim().toLowerCase() ?? '';
+  const visible = useMemo(
+    () => messages.filter((m) => isLive(m, now) && (!clearedAt || m.created_at > clearedAt) && (!q || m.body.toLowerCase().includes(q))),
+    [messages, now, clearedAt, q],
+  );
   useEffect(() => { endRef.current?.scrollIntoView?.({ block: 'end' }); }, [visible.length, loading]);
 
   const send = async (e: React.FormEvent) => {
@@ -206,17 +233,31 @@ export default function ChatThread({ otherUserId, initialRef, onBack, onClose }:
   const secret = vanish;
   const sub = secret ? 'text-zinc-400' : 'text-wa-lightTextSecondary dark:text-wa-darkTextSecondary';
 
+  const toggleRef = useRef(toggleVanish);
+  toggleRef.current = toggleVanish;
+  useEffect(() => {
+    if (convId) onMeta?.({ conversationId: convId, vanish, other, toggleVanish: () => { void toggleRef.current(); } });
+  }, [convId, vanish, other, onMeta]);
+
+  const Shell = embedded ? EmbeddedShell : ChatShell;
   return (
-    <ChatShell label={`Chat with ${other?.display_name ?? 'user'}`} onClose={onClose} secret={secret}>
+    <Shell label={`Chat with ${other?.display_name ?? 'user'}`} onClose={onClose} secret={secret}>
       <header className={`flex items-center gap-2 px-2 py-2.5 border-b ${secret ? 'border-purple-500/30 bg-zinc-900' : 'border-wa-lightBorder dark:border-wa-darkBorder bg-wa-lightPanel dark:bg-wa-darkPanel'}`}>
-        <button onClick={onBack} aria-label="Back to messages" className="p-2 rounded-full hover:bg-black/10 dark:hover:bg-white/10"><ArrowLeft className="w-5 h-5" /></button>
-        <button onClick={() => openProfile(otherUserId)} className="flex items-center gap-2.5 min-w-0 flex-1 text-left">
+        {!embedded && <button onClick={onBack} aria-label="Back to messages" className="p-2 rounded-full hover:bg-black/10 dark:hover:bg-white/10"><ArrowLeft className="w-5 h-5" /></button>}
+        <button onClick={() => (onInfo ? onInfo() : openProfile(otherUserId))} aria-label={onInfo ? `Contact info for ${other?.display_name ?? 'this chat'}` : undefined}
+          className={`flex items-center gap-2.5 min-w-0 flex-1 text-left ${embedded ? 'pl-2' : ''}`}>
           <Avatar name={other?.display_name ?? '?'} url={other?.avatar_url} size={36} />
           <span className="min-w-0">
             <span className="block text-sm font-semibold truncate">{other?.display_name ?? 'Pulse user'}</span>
-            <span className={`block text-[11px] ${sub}`}>{secret ? 'Secret mode: messages vanish after being read' : 'Private chat'}</span>
+            <span className={`block text-[11px] ${sub}`}>{secret ? 'Secret mode: messages vanish after being read' : onInfo ? 'Click here for contact info' : 'Private chat'}</span>
           </span>
         </button>
+        {onSearch && (
+          <button onClick={() => onSearch(search === null ? '' : null)} aria-pressed={search !== null} aria-label="Search in this chat" title="Search"
+            className={`p-2 rounded-full transition-colors ${search !== null ? 'bg-black/10 dark:bg-white/10' : 'hover:bg-black/10 dark:hover:bg-white/10'}`}>
+            <Search className="w-5 h-5" />
+          </button>
+        )}
         <button
           onClick={toggleVanish}
           disabled={!convId}
@@ -230,13 +271,21 @@ export default function ChatThread({ otherUserId, initialRef, onBack, onClose }:
         <button onClick={onClose} aria-label="Close chat" className="p-2 rounded-full hover:bg-black/10 dark:hover:bg-white/10"><X className="w-5 h-5" /></button>
       </header>
 
-      <div className="flex-1 overflow-y-auto px-3 py-3 space-y-1.5" aria-live="polite" data-testid="chat-messages">
+      {search !== null && onSearch && (
+        <div className={`flex items-center gap-2 px-3 py-2 border-b ${secret ? 'border-purple-500/30 bg-zinc-900' : 'border-wa-lightBorder dark:border-wa-darkBorder bg-wa-lightPanel dark:bg-wa-darkPanel'}`}>
+          <Search className={`w-4 h-4 ${sub}`} />
+          <input value={search} onChange={(e) => onSearch(e.target.value)} placeholder="Search messages" aria-label="Search messages" autoFocus
+            className="flex-1 min-w-0 bg-transparent text-sm focus:outline-none" />
+          <button onClick={() => onSearch(null)} aria-label="Close search" className="p-1 rounded-full hover:bg-black/10 dark:hover:bg-white/10"><X className="w-4 h-4" /></button>
+        </div>
+      )}
+      <div className={`flex-1 overflow-y-auto px-3 py-3 space-y-1.5 ${secret ? '' : themeClass}`} aria-live="polite" data-testid="chat-messages">
         {loading ? (
           <ChatSkeleton />
         ) : error ? (
           <p role="alert" className="text-center text-sm text-wa-live py-8">{error}</p>
         ) : visible.length === 0 ? (
-          <p className={`text-center text-xs py-10 ${sub}`}>Say hi 👋 Messages here are private between the two of you.</p>
+          <p className={`text-center text-xs py-10 ${sub}`}>{q ? 'No messages match.' : clearedAt && messages.length > 0 ? 'Chat cleared on this device.' : 'Say hi 👋 Messages here are private between the two of you.'}</p>
         ) : (
           visible.map((m) => {
             if (m.kind === 'system') {
@@ -319,6 +368,6 @@ export default function ChatThread({ otherUserId, initialRef, onBack, onClose }:
           )}
         </div>
       </form>
-    </ChatShell>
+    </Shell>
   );
 }

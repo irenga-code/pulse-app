@@ -3,7 +3,7 @@ import { api } from '@/lib/apiClient';
 import { friendlyError } from '@/lib/api';
 import type { Preferences } from '@/lib/types';
 import { useAuth } from '@/context/AuthContext';
-import { useTheme } from '@/context/ThemeContext';
+import { useTheme, type ThemePreference } from '@/context/ThemeContext';
 import { useToast } from '@/context/ToastContext';
 
 export type Settings = {
@@ -26,7 +26,7 @@ type SettingsContextValue = {
   setSetting: <K extends keyof Settings>(key: K, value: Settings[K]) => void;
   resetSettings: () => void;
   /** Change the theme and, when signed in, remember it on the account. */
-  setThemePreference: (theme: 'dark' | 'light') => void;
+  setThemePreference: (theme: ThemePreference) => void;
 };
 
 const SettingsContext = createContext<SettingsContextValue | undefined>(undefined);
@@ -73,7 +73,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     api.getPreferences(userId).then((p) => {
       if (!active || !p) return;
       setSettings({ liveVenueAlerts: p.live_venue_alerts, communityAlerts: p.community_alerts, announcements: p.announcements });
-      if (p.theme === 'dark' || p.theme === 'light') setTheme(p.theme);
+      if (p.theme === 'dark' || p.theme === 'light' || p.theme === 'system') setTheme(p.theme);
     }).catch(() => undefined);
     return () => {
       active = false;
@@ -102,7 +102,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   }, [persist]);
 
   const setThemePreference = useCallback(
-    (theme: 'dark' | 'light') => {
+    (theme: ThemePreference) => {
       setTheme(theme);
       persist({ theme });
     },

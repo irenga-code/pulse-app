@@ -89,7 +89,7 @@ export default function CommunityTab() {
               <MessageCircle className="w-12 h-12 text-wa-quiet mb-3" />
               <p className="text-sm font-medium text-wa-lightTextSecondary dark:text-wa-darkTextSecondary">No live updates yet</p>
               <p className="text-xs text-wa-lightTextSecondary dark:text-wa-darkTextSecondary mt-1 max-w-xs">
-                Be the first to post about tonight's vibe.
+                Be the first to share an update with the community.
               </p>
             </div>
           ) : (

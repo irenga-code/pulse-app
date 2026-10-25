@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import type { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import { api } from '@/lib/apiClient';
+import { phoneToEmail } from '@/lib/phone';
 import { clearUserCache, readCache, userKey, writeCache } from '@/lib/cache';
 import type { Profile } from '@/lib/types';
 
@@ -35,6 +36,10 @@ type AuthContextValue = {
   changeEmail: (email: string) => Promise<void>;
   /** Phone sign-in / sign-up: texts a one-time code (Supabase Auth SMS). A new number creates the account. */
   sendPhoneCode: (phone: string, displayName?: string) => Promise<void>;
+  /** Phone + password. Dev mapping: the account is "<digits>@pulse.local"; also works for accounts with a confirmed phone. */
+  signInWithPhone: (phone: string, password: string) => Promise<void>;
+  /** Create a phone + password account (dev mapping to "<digits>@pulse.local"; no SMS). */
+  signUpWithPhone: (phone: string, password: string, displayName: string) => Promise<void>;
   verifyPhoneCode: (phone: string, code: string) => Promise<void>;
   /** Add or change the number on a signed-in account (email accounts too): texts a code to the new number. */
   addPhone: (phone: string) => Promise<void>;
@@ -189,6 +194,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (error) throw error;
   }, []);
 
+  const signInWithPhone = useCallback(async (phone: string, password: string) => {
+    const mapped = await supabase.auth.signInWithPassword({ email: phoneToEmail(phone), password });
+    if (!mapped.error) return;
+    // not a mapped account: it may be one with a real, SMS-confirmed number
+    if (/invalid login credentials/i.test(mapped.error.message)) {
+      const real = await supabase.auth.signInWithPassword({ phone, password });
+      if (!real.error) return;
+    }
+    throw mapped.error;
+  }, []);
+
+  const signUpWithPhone = useCallback(async (phone: string, password: string, displayName: string) => {
+    const name = displayName.trim();
+    if (name && (await api.isDisplayNameTaken(name))) throw new Error('That display name is already taken. Please pick another.');
+    // the profile row (id + display_name) is created by the database trigger from this metadata; the number stays in
+    // the account's private metadata, never in the public profiles table
+    const { data, error } = await supabase.auth.signUp({
+      email: phoneToEmail(phone),
+      password,
+      options: { data: { ...(name ? { display_name: name } : {}), phone } },
+    });
+    if (error) throw error;
+    if (data.user && data.user.identities && data.user.identities.length === 0) throw new Error('phone already registered');
+    if (!data.session) throw new Error('mapped signup needs email confirmation off');
+    if (name && data.user) {
+      // keep the chosen name if the trigger had to adjust it (best effort)
+      await api.updateProfile(data.user.id, { display_name: name }).catch(() => undefined);
+    }
+  }, []);
+
   const verifyPhoneCode = useCallback(async (phone: string, code: string) => {
     const { error } = await supabase.auth.verifyOtp({ phone, token: code.trim(), type: 'sms' });
     if (error) throw error;
@@ -232,6 +267,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setNewPassword,
       changeEmail,
       sendPhoneCode,
+      signInWithPhone,
+      signUpWithPhone,
       verifyPhoneCode,
       addPhone,
       confirmPhone,
@@ -239,7 +276,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       refreshProfile,
     }),
     [session, user, userId, profile, isAdmin, loading, loadedFor, authUi, openAuth, closeAuth, requireAuth, recovery,
-      signIn, signUp, signOut, sendPasswordReset, setNewPassword, changeEmail, sendPhoneCode, verifyPhoneCode, addPhone, confirmPhone,
+      signIn, signUp, signOut, sendPasswordReset, setNewPassword, changeEmail, sendPhoneCode, signInWithPhone, signUpWithPhone, verifyPhoneCode, addPhone, confirmPhone,
       deleteAccount, refreshProfile]
   );
 

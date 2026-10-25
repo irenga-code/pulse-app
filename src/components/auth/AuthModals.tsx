@@ -1,13 +1,12 @@
 import { useEffect, useState } from 'react';
-import { LogIn, Eye, EyeOff, Loader2, MailCheck, KeyRound, Smartphone, Mail, ArrowLeft } from 'lucide-react';
+import { LogIn, Eye, EyeOff, Loader2, KeyRound, Smartphone, ArrowLeft, MessageSquareText } from 'lucide-react';
 import Modal from '@/components/Modal';
-import { Field, ErrorNote, inputClass, primaryBtn, ghostBtn, mutedText, bodyText } from '@/components/ui';
-import { useAuth, type AuthMode } from '@/context/AuthContext';
+import { Field, ErrorNote, inputClass, primaryBtn, mutedText, bodyText } from '@/components/ui';
+import { useAuth } from '@/context/AuthContext';
 import { authErrorMessage } from '@/lib/authErrors';
 import { useToast } from '@/context/ToastContext';
-import { toE164, formatPhone } from '@/lib/phone';
-
-const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+import { joinE164, formatPhone, PHONE_AUTH_MODE } from '@/lib/phone';
+import CountryPhoneInput, { usePhoneCountry } from '@/components/auth/CountryPhoneInput';
 
 function PasswordInput({ value, onChange, autoComplete, placeholder }: {
   value: string; onChange: (v: string) => void; autoComplete: string; placeholder?: string;
@@ -35,182 +34,31 @@ function PasswordInput({ value, onChange, autoComplete, placeholder }: {
   );
 }
 
-function SignInForm({ onMode, onDone }: { onMode: (m: AuthMode) => void; onDone: () => void }) {
-  const { signIn } = useAuth();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!emailRe.test(email.trim())) return setError('Enter a valid email address.');
-    if (!password) return setError('Enter your password.');
-    setBusy(true);
-    setError(null);
-    try {
-      await signIn(email, password);
-      onDone();
-    } catch (err) {
-      setError(authErrorMessage(err));
-      setBusy(false);
-    }
-  };
-
-  return (
-    <form onSubmit={submit} className="space-y-3.5" noValidate>
-      <Field label="Email">
-        <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" placeholder="you@example.com" className={inputClass} />
-      </Field>
-      <Field label="Password">
-        <PasswordInput value={password} onChange={setPassword} autoComplete="current-password" placeholder="Your password" />
-      </Field>
-      {error && <ErrorNote message={error} />}
-      <button type="submit" disabled={busy} className={`${primaryBtn} w-full`}>
-        {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <LogIn className="w-4 h-4" />}
-        Sign in
-      </button>
-      <div className="flex items-center justify-between text-xs">
-        <button type="button" onClick={() => onMode('forgot')} className="text-wa-green font-semibold">Forgot password?</button>
-        <button type="button" onClick={() => onMode('signup')} className="text-wa-green font-semibold">Create account</button>
-      </div>
-    </form>
-  );
-}
-
-function SignUpForm({ onMode, onDone }: { onMode: (m: AuthMode) => void; onDone: () => void }) {
-  const { signUp } = useAuth();
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [confirmEmail, setConfirmEmail] = useState(false);
-
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const n = name.trim();
-    if (n.length < 3 || n.length > 30) return setError('Display name must be 3-30 characters.');
-    if (n.includes('@')) return setError('Your display name is public, so it can not be an email address.');
-    if (!emailRe.test(email.trim())) return setError('Enter a valid email address.');
-    if (password.length < 8) return setError('Password must be at least 8 characters.');
-    setBusy(true);
-    setError(null);
-    try {
-      const { needsConfirmation } = await signUp(email, password, n);
-      if (needsConfirmation) {
-        setConfirmEmail(true);
-        setBusy(false);
-      } else {
-        onDone();
-      }
-    } catch (err) {
-      setError(authErrorMessage(err));
-      setBusy(false);
-    }
-  };
-
-  if (confirmEmail) {
-    return (
-      <div className="text-center py-4">
-        <MailCheck className="w-10 h-10 text-wa-green mx-auto mb-3" />
-        <p className={`text-sm font-semibold ${bodyText}`}>Check your email</p>
-        <p className={`text-xs mt-1.5 leading-relaxed ${mutedText}`}>
-          We sent a confirmation link to {email.trim()}. Open it to finish creating your account, then sign in.
-        </p>
-        <button onClick={() => onMode('signin')} className="mt-4 text-xs font-semibold text-wa-green">Back to sign in</button>
-      </div>
-    );
-  }
-
-  return (
-    <form onSubmit={submit} className="space-y-3.5" noValidate>
-      <Field label="Display name" hint="Public. Only this name and your photo are ever shown to others, never your real name or email.">
-        <input type="text" value={name} onChange={(e) => setName(e.target.value)} autoComplete="nickname" maxLength={30} placeholder="e.g. kampala_nights" className={inputClass} />
-      </Field>
-      <Field label="Email" hint="Private. Used only to sign in and recover your account.">
-        <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" placeholder="you@example.com" className={inputClass} />
-      </Field>
-      <Field label="Password" hint="At least 8 characters.">
-        <PasswordInput value={password} onChange={setPassword} autoComplete="new-password" placeholder="Create a password" />
-      </Field>
-      {error && <ErrorNote message={error} />}
-      <button type="submit" disabled={busy} className={`${primaryBtn} w-full`}>
-        {busy && <Loader2 className="w-4 h-4 animate-spin" />}
-        Create account
-      </button>
-      <p className={`text-[11px] text-center ${mutedText}`}>
-        Already have an account? <button type="button" onClick={() => onMode('signin')} className="text-wa-green font-semibold">Sign in</button>
-      </p>
-    </form>
-  );
-}
-
-function ForgotForm({ onMode }: { onMode: (m: AuthMode) => void }) {
-  const { sendPasswordReset } = useAuth();
-  const [email, setEmail] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [sent, setSent] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!emailRe.test(email.trim())) return setError('Enter a valid email address.');
-    setBusy(true);
-    setError(null);
-    try {
-      await sendPasswordReset(email);
-      setSent(true);
-    } catch (err) {
-      setError(authErrorMessage(err));
-    }
-    setBusy(false);
-  };
-
-  if (sent) {
-    return (
-      <div className="text-center py-4">
-        <MailCheck className="w-10 h-10 text-wa-green mx-auto mb-3" />
-        <p className={`text-sm font-semibold ${bodyText}`}>Check your email</p>
-        <p className={`text-xs mt-1.5 leading-relaxed ${mutedText}`}>
-          If an account exists for {email.trim()}, we have sent a link to reset the password.
-        </p>
-        <button onClick={() => onMode('signin')} className="mt-4 text-xs font-semibold text-wa-green">Back to sign in</button>
-      </div>
-    );
-  }
-
-  return (
-    <form onSubmit={submit} className="space-y-3.5" noValidate>
-      <p className={`text-xs leading-relaxed ${mutedText}`}>Enter your email and we will send you a link to choose a new password.</p>
-      <Field label="Email">
-        <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" placeholder="you@example.com" className={inputClass} />
-      </Field>
-      {error && <ErrorNote message={error} />}
-      <button type="submit" disabled={busy} className={`${primaryBtn} w-full`}>
-        {busy && <Loader2 className="w-4 h-4 animate-spin" />}
-        Send reset link
-      </button>
-      <button type="button" onClick={() => onMode('signin')} className="block mx-auto text-xs font-semibold text-wa-green">Back to sign in</button>
-    </form>
-  );
-}
-
 const RESEND_SECONDS = 30;
+const link = 'text-wa-green font-semibold';
 
 /**
- * Phone sign-in / sign-up with a one-time SMS code (Supabase Auth). The same flow signs in an existing number or
- * creates an account for a new one; the display name is only used for new accounts.
+ * Phone-only sign in / create account (Supabase Auth); both modes share this one layout.
+ * - 'mapped' (default, development): phone + password. The account is a Supabase email account derived from the
+ *   number (see phoneToEmail); the address never appears on screen.
+ * - 'sms' (VITE_PHONE_AUTH=sms): a 6-digit SMS code signs in or creates the account; sign in can also use phone +
+ *   password, and a new account can set an optional password.
  */
-function PhoneForm({ signup, onDone, onUseEmail }: { signup: boolean; onDone: () => void; onUseEmail: () => void }) {
-  const { sendPhoneCode, verifyPhoneCode } = useAuth();
+function PhoneForm({ signup, onDone, onSwitchMode }: { signup: boolean; onDone: () => void; onSwitchMode: () => void }) {
+  const { sendPhoneCode, verifyPhoneCode, signInWithPhone, signUpWithPhone, setNewPassword } = useAuth();
+  const sms = PHONE_AUTH_MODE === 'sms';
+  const { country, setIso } = usePhoneCountry();
   const [phone, setPhone] = useState('');
   const [name, setName] = useState('');
+  const [password, setPassword] = useState('');
+  const [withPassword, setWithPassword] = useState(false);
   const [sentTo, setSentTo] = useState<string | null>(null);
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [wait, setWait] = useState(0);
+  const passwordSignIn = !signup && (withPassword || !sms);
+  const passwordSignUp = signup && !sms;
 
   useEffect(() => {
     if (wait <= 0) return;
@@ -218,11 +66,15 @@ function PhoneForm({ signup, onDone, onUseEmail }: { signup: boolean; onDone: ()
     return () => window.clearTimeout(t);
   }, [wait]);
 
+  const number = () => joinE164(country.dial, phone);
+
   const send = async (e?: React.FormEvent) => {
     e?.preventDefault();
-    const e164 = toE164(phone);
-    if (!e164) return setError('Enter the full number with country code, e.g. +256 700 000 000.');
+    // a resend reuses the number the code went to
+    const e164 = sentTo ?? number();
+    if (!e164) return setError(`Enter a valid ${country.name} phone number.`);
     if (signup && name.trim() && (name.trim().length < 3 || name.trim().length > 30)) return setError('Display names are 3-30 characters.');
+    if (signup && password && password.length < 8) return setError('Passwords are at least 8 characters (or leave it empty).');
     setBusy(true);
     setError(null);
     try {
@@ -236,6 +88,39 @@ function PhoneForm({ signup, onDone, onUseEmail }: { signup: boolean; onDone: ()
     setBusy(false);
   };
 
+  const signInPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const e164 = number();
+    if (!e164) return setError(`Enter a valid ${country.name} phone number.`);
+    if (!password) return setError('Enter your password.');
+    setBusy(true);
+    setError(null);
+    try {
+      await signInWithPhone(e164, password);
+      onDone();
+    } catch (err) {
+      setError(authErrorMessage(err));
+      setBusy(false);
+    }
+  };
+
+  const signUpPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const e164 = number();
+    if (!e164) return setError(`Enter a valid ${country.name} phone number.`);
+    if (name.trim() && (name.trim().length < 3 || name.trim().length > 30)) return setError('Display names are 3-30 characters.');
+    if (password.length < 8) return setError('Choose a password of at least 8 characters.');
+    setBusy(true);
+    setError(null);
+    try {
+      await signUpWithPhone(e164, password, name);
+      onDone();
+    } catch (err) {
+      setError(authErrorMessage(err));
+      setBusy(false);
+    }
+  };
+
   const verify = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!sentTo) return;
@@ -244,6 +129,8 @@ function PhoneForm({ signup, onDone, onUseEmail }: { signup: boolean; onDone: ()
     setError(null);
     try {
       await verifyPhoneCode(sentTo, code);
+      // optional password for phone + password sign-in later; the account works without it
+      if (signup && password) await setNewPassword(password).catch(() => undefined);
       onDone();
     } catch (err) {
       setError(authErrorMessage(err));
@@ -251,7 +138,7 @@ function PhoneForm({ signup, onDone, onUseEmail }: { signup: boolean; onDone: ()
     }
   };
 
-  const notEnabled = error?.startsWith('Phone sign-in is not switched on');
+  const smsOff = error?.startsWith('SMS codes are not switched on');
 
   if (sentTo) {
     return (
@@ -266,10 +153,10 @@ function PhoneForm({ signup, onDone, onUseEmail }: { signup: boolean; onDone: ()
           {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <LogIn className="w-4 h-4" />}Verify and continue
         </button>
         <div className="flex items-center justify-between text-xs">
-          <button type="button" onClick={() => { setSentTo(null); setError(null); }} className="inline-flex items-center gap-1 text-wa-green font-semibold">
+          <button type="button" onClick={() => { setSentTo(null); setError(null); }} className={`inline-flex items-center gap-1 ${link}`}>
             <ArrowLeft className="w-3.5 h-3.5" />Change number
           </button>
-          <button type="button" onClick={() => send()} disabled={wait > 0 || busy} className="text-wa-green font-semibold disabled:opacity-50">
+          <button type="button" onClick={() => send()} disabled={wait > 0 || busy} className={`${link} disabled:opacity-50`}>
             {wait > 0 ? `Resend in ${wait}s` : 'Resend code'}
           </button>
         </div>
@@ -278,24 +165,37 @@ function PhoneForm({ signup, onDone, onUseEmail }: { signup: boolean; onDone: ()
   }
 
   return (
-    <form onSubmit={send} className="space-y-3.5" noValidate>
-      <Field label="Phone number" hint="With country code. We text you a 6-digit code.">
-        <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} autoComplete="tel" inputMode="tel" placeholder="+256 700 000 000"
-          aria-label="Phone number" className={inputClass} />
-      </Field>
+    <form onSubmit={passwordSignUp ? signUpPassword : passwordSignIn ? signInPassword : send} className="space-y-3.5" noValidate>
+      <CountryPhoneInput country={country} onCountry={setIso} value={phone} onChange={setPhone}
+        hint={sms && !passwordSignIn ? 'We text you a 6-digit code.' : undefined} />
       {signup && (
         <Field label="Display name" hint="Optional. 3-30 characters; you can change it later.">
-          <input value={name} onChange={(e) => setName(e.target.value)} maxLength={30} autoComplete="nickname" className={inputClass} />
+          <input value={name} onChange={(e) => setName(e.target.value)} maxLength={30} autoComplete="nickname" placeholder="e.g. jane_doe" className={inputClass} />
+        </Field>
+      )}
+      {(signup || passwordSignIn) && (
+        <Field label={signup && sms ? 'Password (optional)' : 'Password'}
+          hint={!signup ? undefined : sms ? 'At least 8 characters. Lets you also sign in with your number and password.' : 'At least 8 characters.'}>
+          <PasswordInput value={password} onChange={setPassword} autoComplete={signup ? 'new-password' : 'current-password'}
+            placeholder={signup ? 'Create a password' : 'Your password'} />
         </Field>
       )}
       {error && <ErrorNote message={error} />}
-      {notEnabled && (
-        <button type="button" onClick={onUseEmail} className={`${ghostBtn} w-full`}><Mail className="w-4 h-4" />Use email instead</button>
-      )}
       <button type="submit" disabled={busy} className={`${primaryBtn} w-full`}>
-        {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Smartphone className="w-4 h-4" />}Send code
+        {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : passwordSignIn || passwordSignUp ? <LogIn className="w-4 h-4" /> : <Smartphone className="w-4 h-4" />}
+        {passwordSignUp ? 'Create account' : passwordSignIn ? 'Sign in' : 'Send code'}
       </button>
-      <p className={`text-[11px] text-center ${mutedText}`}>Standard SMS rates may apply. Your number stays private.</p>
+      {sms && !signup && (
+        <button type="button" onClick={() => { setWithPassword((v) => !v); setError(null); }}
+          className={`flex items-center justify-center gap-1.5 w-full text-xs ${link} ${smsOff && !withPassword ? 'animate-pulse' : ''}`}>
+          {withPassword ? <><MessageSquareText className="w-3.5 h-3.5" />Text me a code instead</> : <><KeyRound className="w-3.5 h-3.5" />Sign in with password instead</>}
+        </button>
+      )}
+      <p className={`text-xs text-center ${mutedText}`}>
+        {signup ? 'Already have an account? ' : 'New to Pulse? '}
+        <button type="button" onClick={onSwitchMode} className={link}>{signup ? 'Sign in' : 'Create account'}</button>
+      </p>
+      <p className={`text-[11px] text-center ${mutedText}`}>{sms ? 'Standard SMS rates may apply. ' : ''}Your number stays private.</p>
     </form>
   );
 }
@@ -303,47 +203,14 @@ function PhoneForm({ signup, onDone, onUseEmail }: { signup: boolean; onDone: ()
 function SignInUpModal() {
   const { authUi, closeAuth, openAuth } = useAuth();
   const { show } = useToast();
-  const title = authUi.mode === 'signin' ? 'Sign in' : authUi.mode === 'signup' ? 'Create your account' : 'Reset password';
-  const setMode = (m: AuthMode) => openAuth(m, authUi.reason ?? undefined);
-  // phone first (WhatsApp-style); email stays for existing accounts and admins
-  const [method, setMethod] = useState<'phone' | 'email'>('phone');
-  const tabs = authUi.mode !== 'forgot' && (
-    <div className="grid grid-cols-2 gap-1 p-1 mb-4 rounded-xl bg-wa-lightSecondary dark:bg-wa-darkSecondary" role="tablist" aria-label="Sign-in method">
-      {(['phone', 'email'] as const).map((m) => (
-        <button key={m} type="button" role="tab" aria-selected={method === m} onClick={() => setMethod(m)}
-          className={`flex items-center justify-center gap-1.5 rounded-lg py-2 text-sm font-semibold transition-colors ${
-            method === m ? 'bg-wa-lightPanel dark:bg-wa-darkPanel text-wa-green shadow-sm' : mutedText
-          }`}>
-          {m === 'phone' ? <Smartphone className="w-4 h-4" /> : <Mail className="w-4 h-4" />}{m === 'phone' ? 'Phone' : 'Email'}
-        </button>
-      ))}
-    </div>
-  );
-
+  // phone only: an old "forgot password" link into the modal lands on sign in
+  const signup = authUi.mode === 'signup';
   return (
-    <Modal title={title} icon={LogIn} onClose={closeAuth}>
-      {authUi.reason && authUi.mode !== 'forgot' && (
-        <p className="text-xs rounded-xl px-3 py-2 mb-4 bg-wa-green/10 text-wa-green">{authUi.reason}</p>
-      )}
-      {tabs}
-      {authUi.mode !== 'forgot' && method === 'phone' && (
-        <>
-          <PhoneForm signup={authUi.mode === 'signup'} onUseEmail={() => setMethod('email')} onDone={() => { closeAuth(); show(authUi.mode === 'signup' ? 'Welcome to Pulse!' : 'Signed in'); }} />
-          <p className={`text-xs text-center mt-4 ${mutedText}`}>
-            {authUi.mode === 'signin' ? 'New to Pulse? ' : 'Already have an account? '}
-            <button type="button" onClick={() => setMode(authUi.mode === 'signin' ? 'signup' : 'signin')} className="text-wa-green font-semibold">
-              {authUi.mode === 'signin' ? 'Create account' : 'Sign in'}
-            </button>
-          </p>
-        </>
-      )}
-      {authUi.mode === 'signin' && method === 'email' && (
-        <SignInForm onMode={setMode} onDone={() => { closeAuth(); show('Signed in'); }} />
-      )}
-      {authUi.mode === 'signup' && method === 'email' && (
-        <SignUpForm onMode={setMode} onDone={() => { closeAuth(); show('Welcome to Pulse!'); }} />
-      )}
-      {authUi.mode === 'forgot' && <ForgotForm onMode={setMode} />}
+    <Modal title={signup ? 'Create your account' : 'Sign in'} icon={LogIn} onClose={closeAuth}>
+      {authUi.reason && <p className="text-xs rounded-xl px-3 py-2 mb-4 bg-wa-green/10 text-wa-green">{authUi.reason}</p>}
+      <PhoneForm key={signup ? 'signup' : 'signin'} signup={signup}
+        onSwitchMode={() => openAuth(signup ? 'signin' : 'signup', authUi.reason ?? undefined)}
+        onDone={() => { closeAuth(); show(signup ? 'Welcome to Pulse!' : 'Signed in'); }} />
     </Modal>
   );
 }

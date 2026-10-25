@@ -86,7 +86,7 @@ export default function RegisterVenueModal({ onClose, onRegistered }: { onClose:
         <Field label="Club name">
           <input value={name} onChange={(e) => setName(e.target.value)} maxLength={60} placeholder="e.g. Sky Lounge" className={inputClass} />
         </Field>
-        <Field label="City / area" hint="Shown under the name, e.g. Kololo, Kampala.">
+        <Field label="City / area" hint="Shown under the name, e.g. the neighbourhood or city.">
           <input value={location} onChange={(e) => setLocation(e.target.value)} maxLength={60} className={inputClass} />
         </Field>
         <Field label="About" hint={`${description.length}/${MAX_DESC}`}>

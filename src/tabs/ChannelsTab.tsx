@@ -76,14 +76,14 @@ export function ChannelsSection({ compact = false, onCreate }: { compact?: boole
       ) : ch.channels.length === 0 ? (
         <div className="text-center px-8 py-10">
           <MessageSquareDot className="w-12 h-12 text-wa-quiet mx-auto mb-3" />
-          <p className={`text-sm font-medium ${bodyText}`}>No venue channels yet</p>
-          <p className={`text-xs mt-1 ${mutedText}`}>Venues post line-ups, drops and offers here. Run a venue? Start its channel in Broadcasts.</p>
-          {onCreate && <button onClick={onCreate} className="mt-3 text-sm font-semibold text-wa-green">Open Broadcasts</button>}
+          <p className={`text-sm font-medium ${bodyText}`}>No channels yet</p>
+          <p className={`text-xs mt-1 ${mutedText}`}>Follow channels to receive updates, news, and announcements here.</p>
+          {onCreate && <button onClick={onCreate} className="mt-3 text-sm font-semibold text-wa-green">Browse Broadcasts</button>}
         </div>
       ) : (
         <>
           {followed.length > 0 && <><p className={label}>Following</p><ul>{followed.map(row)}</ul></>}
-          {discover.length > 0 && <><p className={label}>{followed.length > 0 ? 'Find channels' : 'Venue channels'}</p><ul>{discover.map(row)}</ul></>}
+          {discover.length > 0 && <><p className={label}>{followed.length > 0 ? 'Find channels' : 'All channels'}</p><ul>{discover.map(row)}</ul></>}
           {followed.length + discover.length === 0 && <p className={`text-sm px-4 py-6 ${mutedText}`}>No channel matches.</p>}
         </>
       )}
@@ -94,7 +94,7 @@ export function ChannelsSection({ compact = false, onCreate }: { compact?: boole
 export default function ChannelsTab({ onCreate }: { onCreate?: () => void }) {
   return (
     <div className="flex flex-col h-full min-h-0">
-      <SectionHeader title="Channels" subtitle="Follow venues for line-ups, drops and offers" />
+      <SectionHeader title="Channels" subtitle="Follow channels for updates, news, and announcements" />
       <ChannelsSection onCreate={onCreate} />
     </div>
   );

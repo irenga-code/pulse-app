@@ -22,13 +22,13 @@ export default function TonightTab() {
           <h1 className="text-2xl font-bold text-wa-lightText dark:text-wa-darkText">Tonight</h1>
         </div>
         <p className="text-sm text-wa-lightTextSecondary dark:text-wa-darkTextSecondary mt-0.5">
-          What's happening right now in Kampala
+          What's happening right now
         </p>
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 md:px-8 pb-6">
         {loading ? (
-          <VenueGridSkeleton count={3} tall label="Loading tonight's lineup" />
+          <VenueGridSkeleton count={3} tall label="Loading what's live" />
         ) : error ? (
           <div className="flex flex-col items-center justify-center py-20">
             <AlertCircle className="w-10 h-10 text-wa-live" />

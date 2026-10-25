@@ -41,7 +41,7 @@ function CreateChannel({ venue, onCreated }: { venue: Venue; onCreated: () => vo
     <form onSubmit={create} className="space-y-2.5 mt-3" noValidate>
       <Field label="Channel name"><input value={name} onChange={(e) => setName(e.target.value)} maxLength={60} className={inputClass} /></Field>
       <Field label="About" hint={`${description.length}/300`}>
-        <input value={description} onChange={(e) => setDescription(e.target.value.slice(0, 300))} placeholder="Line-ups, drops and offers from us" className={inputClass} />
+        <input value={description} onChange={(e) => setDescription(e.target.value.slice(0, 300))} placeholder="Updates, news, and announcements" className={inputClass} />
       </Field>
       {error && <ErrorNote message={error} />}
       <button type="submit" disabled={busy} className={primaryBtn}>{busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}Create channel</button>
@@ -110,7 +110,7 @@ export default function BroadcastsTab() {
             {ready.length > 0 && (
               <form onSubmit={blast} className={`${card} space-y-3`}>
                 <p className={`text-sm font-semibold ${bodyText}`}>New broadcast</p>
-                <textarea value={text} onChange={(e) => setText(e.target.value.slice(0, MAX))} rows={3} placeholder="Doors open at 10. First 50 in get a free shot 🔥"
+                <textarea value={text} onChange={(e) => setText(e.target.value.slice(0, MAX))} rows={3} placeholder="Share an update with your followers…"
                   aria-label="Broadcast message" className={`${inputClass} resize-none`} />
                 <div className="flex flex-wrap gap-2" role="group" aria-label="Send to channels">
                   {ready.map((c) => {

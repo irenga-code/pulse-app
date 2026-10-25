@@ -38,7 +38,7 @@ export default function VenuePostComposer({ venue }: { venue: Venue }) {
           value={text}
           onChange={(e) => setText(e.target.value.slice(0, MAX))}
           rows={text.length > 80 ? 4 : 2}
-          placeholder={`Tonight at ${venue.name}...`}
+          placeholder={`Share an update from ${venue.name}…`}
           aria-label={`Post as ${venue.name}`}
           className={`${inputClass} resize-none`}
         />

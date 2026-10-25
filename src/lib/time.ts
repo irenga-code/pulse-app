@@ -19,3 +19,16 @@ export function timeLeft(iso: string | null): string | null {
   if (mins <= 0) return null;
   return mins >= 60 ? `${Math.floor(mins / 60)}h left` : `${mins}m left`;
 }
+
+/** WhatsApp chat-list time: "3:04 PM" today, "Yesterday", the weekday this week, else the date. */
+export function chatListTime(iso: string | null | undefined, now = new Date()): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const day = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const days = Math.round((day(now) - day(d)) / 86_400_000);
+  if (days <= 0) return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  if (days === 1) return 'Yesterday';
+  if (days < 7) return d.toLocaleDateString('en-US', { weekday: 'long' });
+  return d.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}

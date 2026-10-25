@@ -7,24 +7,24 @@ export default {
       colors: {
         wa: {
           // Light mode surfaces
-          light: '#efeae2',
-          lightHeader: '#008069',
+          light: '#f8fafc',
+          lightHeader: 'rgb(var(--wa-green-dark) / <alpha-value>)',
           lightPanel: '#ffffff',
           lightSecondary: '#f0f2f5',
           lightBorder: '#e9edef',
           lightText: '#111b21',
           lightTextSecondary: '#667781',
           // Dark mode surfaces
-          dark: '#0b131a',
+          dark: '#0b141a',
           darkPanel: '#111b21',
           darkSecondary: '#202c33',
           darkBorder: '#222d34',
           darkText: '#e9edef',
           darkTextSecondary: '#8696a0',
-          // Accent green
-          green: '#00a884',
-          greenDark: '#008069',
-          greenLight: '#25d366',
+          // Accent (green by default; Settings > Appearance can switch it, see --wa-green in index.css)
+          green: 'rgb(var(--wa-green) / <alpha-value>)',
+          greenDark: 'rgb(var(--wa-green-dark) / <alpha-value>)',
+          greenLight: 'rgb(var(--wa-green-light) / <alpha-value>)',
           // Status colors
           live: '#f15c6d',
           busy: '#ffb74d',

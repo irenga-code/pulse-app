@@ -2,6 +2,23 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Accent colour (space-separated RGB so Tailwind's /opacity works). ThemeContext sets data-accent:
+   Emerald Green by default in dark mode, Electric Blue in light mode, or the colour picked in Settings > Appearance.
+   Navy and the pinks are lifted in dark mode, Yellow and Soft Pink deepened in light mode, so accent text stays readable. */
+:root, :root[data-accent='emerald'] { --wa-green: 16 185 129; --wa-green-dark: 5 150 105; --wa-green-light: 52 211 153; }
+:root[data-accent='blue'] { --wa-green: 37 99 235; --wa-green-dark: 29 78 216; --wa-green-light: 59 130 246; }
+:root[data-accent='navy'] { --wa-green: 67 56 202; --wa-green-dark: 55 48 163; --wa-green-light: 99 102 241; }
+:root.dark[data-accent='navy'] { --wa-green: 99 102 241; --wa-green-dark: 67 56 202; --wa-green-light: 129 140 248; }
+:root[data-accent='violet'] { --wa-green: 139 92 246; --wa-green-dark: 124 58 237; --wa-green-light: 167 139 250; }
+:root[data-accent='amber'] { --wa-green: 245 158 11; --wa-green-dark: 217 119 6; --wa-green-light: 251 191 36; }
+:root[data-accent='yellow'] { --wa-green: 202 138 4; --wa-green-dark: 161 98 7; --wa-green-light: 234 179 8; }
+:root.dark[data-accent='yellow'] { --wa-green: 250 204 21; --wa-green-dark: 234 179 8; --wa-green-light: 253 224 71; }
+:root[data-accent='orange'] { --wa-green: 249 115 22; --wa-green-dark: 234 88 12; --wa-green-light: 251 146 60; }
+:root[data-accent='hotpink'] { --wa-green: 219 39 119; --wa-green-dark: 190 24 93; --wa-green-light: 236 72 153; }
+:root.dark[data-accent='hotpink'] { --wa-green: 236 72 153; --wa-green-dark: 219 39 119; --wa-green-light: 244 114 182; }
+:root[data-accent='softpink'] { --wa-green: 244 63 94; --wa-green-dark: 225 29 72; --wa-green-light: 251 113 133; }
+:root.dark[data-accent='softpink'] { --wa-green: 251 113 133; --wa-green-dark: 244 63 94; --wa-green-light: 253 164 175; }
+
 @layer utilities {
   .scrollbar-hide {
     -ms-overflow-style: none;

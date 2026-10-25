@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Ghost, MessageCircle, Star, Archive, ArchiveRestore, Users } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { Ghost, MessageCircle, Star, Archive, ArchiveRestore, Users, CheckCheck, BellOff, Plus } from 'lucide-react';
 import Avatar from '@/components/Avatar';
 import { EmojiText } from '@/components/emoji/EmojiImg';
 import { ErrorNote, mutedText, bodyText } from '@/components/ui';
@@ -7,7 +7,8 @@ import { ListSkeleton } from '@/components/Skeleton';
 import { supabase } from '@/lib/supabase';
 import { api } from '@/lib/apiClient';
 import { friendlyError } from '@/lib/api';
-import { timeAgo } from '@/lib/time';
+import { chatListTime } from '@/lib/time';
+import { getChatPrefs, subscribeChatPrefs } from '@/lib/chatPrefs';
 import { useAsync } from '@/hooks/useAsync';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/context/ToastContext';
@@ -44,11 +45,28 @@ export function filterConversations(rows: ConversationSummary[], prefs: Prefs, f
   });
 }
 
-/** The chat list with WhatsApp filter pills, live updates and per-chat Favorite / Archive. */
-export default function ConversationList({ onOpen, query = '' }: { onOpen: (otherUserId: string) => void; query?: string }) {
+/**
+ * The chat list with WhatsApp filter pills, live updates and per-chat Favorite / Archive. `morePill` (desktop) puts
+ * Archived behind a [+] pill; `selectedId` highlights the open chat.
+ */
+export default function ConversationList({ onOpen, query = '', selectedId = null, morePill = false, filter: controlled, onFilter }: {
+  onOpen: (otherUserId: string) => void; query?: string; selectedId?: string | null; morePill?: boolean;
+  filter?: ChatFilter; onFilter?: (f: ChatFilter) => void;
+}) {
   const { user } = useAuth();
   const { show } = useToast();
-  const [filter, setFilter] = useState<ChatFilter>('all');
+  const [own, setOwn] = useState<ChatFilter>('all');
+  const filter = controlled ?? own;
+  const setFilter = onFilter ?? setOwn;
+  const [moreOpen, setMoreOpen] = useState(false);
+  const moreRef = useRef<HTMLDivElement>(null);
+  const device = useSyncExternalStore(subscribeChatPrefs, getChatPrefs, getChatPrefs);
+  useEffect(() => {
+    if (!moreOpen) return;
+    const close = (e: MouseEvent) => { if (!moreRef.current?.contains(e.target as Node)) setMoreOpen(false); };
+    document.addEventListener('mousedown', close);
+    return () => document.removeEventListener('mousedown', close);
+  }, [moreOpen]);
   const data = useAsync(async () => {
     const [rows, prefRows] = await Promise.all([api.listConversations(), user ? api.myConversationPrefs(user.id) : Promise.resolve([])]);
     const people = await api.profilesByIds(rows.map((r) => r.other_user_id));
@@ -106,8 +124,8 @@ export default function ConversationList({ onOpen, query = '' }: { onOpen: (othe
 
   return (
     <div className="flex flex-col min-h-0 flex-1">
-      <div className="flex gap-2 px-3 py-2 overflow-x-auto scrollbar-hide whitespace-nowrap" role="tablist" aria-label="Filter chats">
-        {FILTERS.map((f) => {
+      <div className={`flex gap-2 px-3 py-2 whitespace-nowrap ${morePill ? '' : 'overflow-x-auto scrollbar-hide'}`} role="tablist" aria-label="Filter chats">
+        {FILTERS.filter((f) => !morePill || f.id !== 'archived' || filter === 'archived').map((f) => {
           const on = filter === f.id;
           const n = f.id === 'unread' || f.id === 'archived' ? count(f.id) : 0;
           return (
@@ -119,6 +137,22 @@ export default function ConversationList({ onOpen, query = '' }: { onOpen: (othe
             </button>
           );
         })}
+        {morePill && (
+          <div ref={moreRef} className="relative">
+            <button type="button" onClick={() => setMoreOpen((v) => !v)} aria-label="More chat filters" aria-haspopup="menu" aria-expanded={moreOpen}
+              className="flex-shrink-0 rounded-full px-2.5 py-1.5 text-xs font-semibold bg-wa-lightSecondary dark:bg-wa-darkSecondary text-wa-lightTextSecondary dark:text-wa-darkTextSecondary hover:text-wa-green">
+              <Plus className="w-3.5 h-3.5" />
+            </button>
+            {moreOpen && (
+              <div role="menu" className="absolute left-0 top-full mt-1 z-20 min-w-44 rounded-xl border border-wa-lightBorder dark:border-wa-darkBorder bg-wa-lightPanel dark:bg-wa-darkPanel shadow-xl py-1">
+                <button type="button" role="menuitem" onClick={() => { setFilter('archived'); setMoreOpen(false); }}
+                  className={`w-full flex items-center gap-2.5 px-4 py-2 text-sm text-left hover:bg-wa-lightSecondary dark:hover:bg-wa-darkSecondary ${bodyText}`}>
+                  <Archive className="w-4 h-4" />Archived{count('archived') > 0 && <span className={`ml-auto text-xs ${mutedText}`}>{count('archived')}</span>}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
       <div className="flex-1 overflow-y-auto overscroll-y-contain">
         {data.loading && !data.data ? (
@@ -137,21 +171,26 @@ export default function ConversationList({ onOpen, query = '' }: { onOpen: (othe
               const p: PublicProfile | undefined = data.data!.people[c.other_user_id];
               const pref = prefs[c.conversation_id];
               const name = p?.display_name ?? 'Pulse user';
+              const open = selectedId === c.other_user_id;
+              const muted = device.muted.includes(c.conversation_id);
+              const mineLast = c.last_sender_id === user?.id && c.last_kind === 'text';
               return (
-                <li key={c.conversation_id} className="group flex items-center hover:bg-wa-lightSecondary dark:hover:bg-wa-darkSecondary/60 transition-colors">
-                  <button onClick={() => onOpen(c.other_user_id)} className="flex items-center gap-3 flex-1 min-w-0 pl-4 py-3 text-left">
+                <li key={c.conversation_id} className={`group flex items-center transition-colors ${open ? 'bg-wa-lightSecondary dark:bg-wa-darkSecondary' : 'hover:bg-wa-lightSecondary dark:hover:bg-wa-darkSecondary/60'}`}>
+                  <button onClick={() => onOpen(c.other_user_id)} aria-current={open ? 'true' : undefined} className="flex items-center gap-3 flex-1 min-w-0 pl-4 py-3 text-left">
                     <Avatar name={p?.display_name ?? '?'} url={p?.avatar_url} size={48} />
                     <span className="min-w-0 flex-1">
                       <span className="flex items-center gap-1.5">
                         <span className={`text-sm font-semibold truncate ${bodyText}`}>{name}</span>
                         {pref?.is_favorite && <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400 flex-shrink-0" aria-label="Favorite" />}
                         {c.vanish_mode && <Ghost className="w-3.5 h-3.5 text-purple-500 flex-shrink-0" aria-label="Secret mode on" />}
-                        <span className={`ml-auto text-[11px] flex-shrink-0 ${c.unread_count > 0 ? 'text-wa-green font-semibold' : mutedText}`}>{timeAgo(c.last_message_at)}</span>
+                        <span className={`ml-auto text-[11px] flex-shrink-0 ${c.unread_count > 0 ? 'text-wa-green font-semibold' : mutedText}`}>{chatListTime(c.last_message_at)}</span>
                       </span>
                       <span className={`flex items-center gap-2 text-xs mt-0.5 ${c.unread_count > 0 ? `font-semibold ${bodyText}` : mutedText}`}>
+                        {mineLast && <CheckCheck className="w-4 h-4 flex-shrink-0 text-wa-lightTextSecondary dark:text-wa-darkTextSecondary" aria-label="Sent" />}
                         <span className="truncate flex-1">
-                          {c.last_vanish && c.last_kind === 'text' && '👻 '}<EmojiText text={preview(c)} />
+                          {c.last_vanish && c.last_kind === 'text' && '👻 '}<EmojiText text={mineLast ? (c.last_body ?? '') : preview(c)} />
                         </span>
+                        {muted && <BellOff className={`w-3.5 h-3.5 flex-shrink-0 ${mutedText}`} aria-label="Muted" />}
                         {c.unread_count > 0 && (
                           <span className="min-w-[1.25rem] h-5 px-1.5 rounded-full bg-wa-green text-white text-[11px] font-bold flex items-center justify-center">{c.unread_count}</span>
                         )}

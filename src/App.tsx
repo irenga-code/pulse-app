@@ -1,5 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
-import { Activity, Camera, Moon, Sun } from 'lucide-react';
+import { Camera, Moon, Sun } from 'lucide-react';
+import BrandLogo from '@/components/BrandLogo';
 import { ThemeProvider, useTheme } from '@/context/ThemeContext';
 import { SettingsProvider, useSettings } from '@/context/SettingsContext';
 import { ToastProvider } from '@/context/ToastContext';
@@ -41,12 +42,7 @@ function DesktopTopBar() {
   const { setThemePreference } = useSettings();
   return (
     <div className="hidden md:flex items-center gap-2 px-6 py-2.5 bg-wa-lightPanel dark:bg-wa-darkPanel border-b border-wa-lightBorder dark:border-wa-darkBorder">
-      <span className="flex items-center gap-2.5 mr-3" role="img" aria-label="Pulse">
-        <span className="flex items-center justify-center w-9 h-9 rounded-xl bg-emerald-500/10 ring-1 ring-emerald-400/40 shadow-[0_0_16px_rgba(52,211,153,0.35)]" aria-hidden="true">
-          <Activity className="w-5 h-5 text-emerald-400" strokeWidth={2.5} />
-        </span>
-        <span className="bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-400 bg-clip-text text-transparent font-black tracking-wider text-xl" aria-hidden="true">PULSE</span>
-      </span>
+      <span className="mr-3"><BrandLogo /></span>
       {liveCount > 0 && (
         <>
           <span className="relative flex h-2.5 w-2.5">
@@ -101,7 +97,7 @@ function MainApp({ sharedPostId }: { sharedPostId?: string }) {
   return (
     <>
       <div className="h-viewport w-full overflow-hidden bg-wa-light dark:bg-wa-dark flex flex-col md:flex-row transition-colors duration-300">
-        <LeftRail active={section} onSelect={go} onSettings={() => setSettingsOpen(true)} badges={badges} />
+        {desktop && <LeftRail active={section} onSelect={go} onSettings={() => setSettingsOpen(true)} badges={badges} />}
 
         {/* Main content area */}
         <div className="flex-1 flex flex-col min-w-0 min-h-0">

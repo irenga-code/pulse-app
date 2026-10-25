@@ -165,7 +165,7 @@ export default function ProfileTab({ onNavigate }: { onNavigate?: (id: SectionId
             </button>
           )}
 
-          <p className={`text-center text-xs mt-6 ${mutedText}`}>Pulse v1.0 · Made for Kampala</p>
+          <p className={`text-center text-xs mt-6 ${mutedText}`}>Pulse v1.0</p>
         </div>
       </div>
 
