@@ -237,11 +237,16 @@ export type ChatMessage = {
   read_at: string | null;
   /** When a vanish message (or an unread-for-24h one) disappears. */
   expires_at: string | null;
-  /** A photo / video snap (migration 15). */
+  /** A photo / video snap (migration 15) or a voice note (migration 16). */
   media_url?: string | null;
-  media_type?: 'image' | 'video' | null;
+  media_type?: 'image' | 'video' | 'audio' | null;
+  /** Voice notes only (migration 16): length and up to 64 waveform bars (0-100). */
+  media_duration_ms?: number | null;
+  media_waveform?: number[] | null;
 };
-export type MessageMedia = { media_url: string; media_type: 'image' | 'video' };
+export type MessageMedia =
+  | { media_url: string; media_type: 'image' | 'video' }
+  | { media_url: string; media_type: 'audio'; media_duration_ms: number; media_waveform: number[] };
 /** Your own chat list filters (conversation_participants, migration 15). */
 export type ConversationPrefs = { conversation_id: string; is_favorite: boolean; is_archived: boolean };
 

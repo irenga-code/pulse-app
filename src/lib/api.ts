@@ -41,9 +41,20 @@ const warnedMissing = new Set<string>();
 const isMissingColumn = (e: unknown) => ['42703', 'PGRST204'].includes((e as { code?: string })?.code ?? '');
 
 const MSG_COLS = 'id, conversation_id, sender_id, body, kind, ref_type, ref_id, vanish, created_at, read_at, expires_at';
-// chat snaps (migration 15); dropped for the rest of the session if the database does not have them yet
-let chatMediaCols = true;
-const msgCols = () => (chatMediaCols ? `${MSG_COLS}, media_url, media_type` : MSG_COLS);
+// chat snaps (migration 15) and voice notes (migration 16); each level is dropped for the rest of the session
+// if the database does not have those columns yet
+const MSG_MEDIA_LEVELS = [MSG_COLS, `${MSG_COLS}, media_url, media_type`, `${MSG_COLS}, media_url, media_type, media_duration_ms, media_waveform`];
+let msgMediaLevel = MSG_MEDIA_LEVELS.length - 1;
+const msgCols = () => MSG_MEDIA_LEVELS[msgMediaLevel];
+
+/** Voice notes are private: `<conversation>/<sender>/<file>` in the message-media bucket, played through signed URLs. */
+const VOICE_BUCKET = 'message-media';
+const voicePath = (url: string) => {
+  const m = /\/storage\/v1\/object\/(?:authenticated|sign|public)\/message-media\/([^?]+)/.exec(url);
+  return m ? decodeURIComponent(m[1]) : null;
+};
+const SIGNED_TTL_S = 6 * 3600;
+const signedCache = new Map<string, { url: string; until: number }>();
 
 /**
  * Like unwrap, but for reads of optional features: if the backing table or function does not exist yet
@@ -569,27 +580,56 @@ export function createApi(c: SupabaseClient) {
       const read = () => c.from('messages')
         .select(msgCols()).eq('conversation_id', conversationId).order('created_at', { ascending: false }).limit(limit);
       let res = await read();
-      if (res.error && chatMediaCols && isMissingColumn(res.error)) {
-        chatMediaCols = false;
+      while (res.error && msgMediaLevel > 0 && isMissingColumn(res.error)) {
+        msgMediaLevel--;
         res = await read();
       }
       return (unwrap(res) as unknown as ChatMessage[]).reverse();
     },
     /**
      * The database stamps sender, time, vanish flag and expiry; the client sends text, an optional post/status
-     * reference and an optional photo / video snap (migration 15).
+     * reference and an optional photo / video snap (migration 15) or voice note (migration 16).
      */
     async sendMessage(conversationId: string, body: string, ref?: MessageRef | null, media?: MessageMedia | null): Promise<ChatMessage> {
       const row: Record<string, unknown> = { conversation_id: conversationId, body: body.trim() };
       if (ref) { row.ref_type = ref.type; row.ref_id = ref.id; }
       if (media) { row.media_url = media.media_url; row.media_type = media.media_type; }
+      if (media?.media_type === 'audio') { row.media_duration_ms = Math.round(media.media_duration_ms); row.media_waveform = media.media_waveform; }
       const write = () => c.from('messages').insert(row).select(msgCols()).single();
       let res = await write();
-      if (res.error && isMissingColumn(res.error)) {
+      if (res.error && (isMissingColumn(res.error) || /media_type_ck/.test(res.error.message))) {
+        if (media?.media_type === 'audio') throw new ApiError('Voice messages need the latest database update (migration 16).', res.error.code);
         if (media) throw new ApiError('Sending snaps in chats needs the latest database update (migration 15).', res.error.code);
-        if (chatMediaCols) { chatMediaCols = false; res = await write(); }
+        while (res.error && msgMediaLevel > 0 && isMissingColumn(res.error)) { msgMediaLevel--; res = await write(); }
       }
       return unwrap(res) as unknown as ChatMessage;
+    },
+    /** Upload a recorded voice note into your folder of this chat; returns the (private) object URL to store on the message. */
+    async uploadVoiceNote(conversationId: string, userId: string, blob: Blob, ext: string) {
+      const path = `${conversationId}/${userId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+      // the bucket's mime allow-list compares the plain type ("audio/webm", not "audio/webm;codecs=opus")
+      const contentType = (blob.type || 'audio/webm').split(';')[0];
+      const body = blob.type === contentType ? blob : new Blob([blob], { type: contentType });
+      let lastError: { message: string } | null = null;
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const up = await c.storage.from(VOICE_BUCKET).upload(path, body, { contentType, upsert: false, cacheControl: '86400' });
+        if (!up.error) {
+          return c.storage.from(VOICE_BUCKET).getPublicUrl(path).data.publicUrl.replace('/object/public/', '/object/authenticated/');
+        }
+        if (/bucket not found/i.test(up.error.message)) throw new ApiError('Voice messages need the latest database update (migration 16).');
+        lastError = up.error;
+      }
+      throw new ApiError(lastError?.message ?? 'Upload failed');
+    },
+    /** A playable URL for a voice note (signed for 6 hours, cached; other URLs come back unchanged). */
+    async voiceNoteUrl(url: string) {
+      const path = voicePath(url);
+      if (!path) return url;
+      const hit = signedCache.get(path);
+      if (hit && hit.until > Date.now()) return hit.url;
+      const signed = unwrap(await c.storage.from(VOICE_BUCKET).createSignedUrl(path, SIGNED_TTL_S)) as { signedUrl: string };
+      signedCache.set(path, { url: signed.signedUrl, until: Date.now() + (SIGNED_TTL_S - 300) * 1000 });
+      return signed.signedUrl;
     },
     /** Favorites / Archived for your own chat list. Empty before migration 15. */
     async myConversationPrefs(userId: string) {

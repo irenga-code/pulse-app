@@ -2,7 +2,6 @@ import { useRef, useState } from 'react';
 import { Flag, Trash2, ShieldX, MapPin, Pencil, Loader2 } from 'lucide-react';
 import Avatar from '@/components/Avatar';
 import RoleBadge from '@/components/RoleBadge';
-import ReactionBar from '@/components/reactions/ReactionBar';
 import ReactionBurst from '@/components/reactions/ReactionBurst';
 import type { Burst } from '@/components/reactions/bursts';
 import PostMedia from '@/components/media/PostMedia';
@@ -91,37 +90,13 @@ export default function PostCard({ post, author, counts, mine, onReact, onDelete
           <Avatar name={post.user_name} url={post.as_venue ? null : author?.avatar_url} />
         </button>
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <button type="button" onClick={() => profileId && openProfile(profileId)} disabled={!profileId} className={`font-semibold text-sm ${profileId ? 'hover:underline' : ''} ${bodyText}`}>{post.user_name}</button>
-            {post.as_venue ? <RoleBadge official={post.is_official} /> : <RoleBadge accountType={author?.account_type} verified={author?.is_verified} official={post.is_official} />}
-            <span className={`text-xs ${mutedText}`}>· {timeAgo(post.created_at)}</span>
-          </div>
-          {post.venue_name && !post.as_venue && (
-            <span className="inline-flex items-center gap-1 text-xs text-wa-green font-medium mt-0.5">
-              <MapPin className="w-3 h-3" />
-              {post.venue_name}
-            </span>
-          )}
-          {draft !== null ? (
-            <div className="mt-1.5 space-y-2">
-              <textarea value={draft} onChange={(e) => setDraft(e.target.value.slice(0, 1000))} rows={3} aria-label="Post text" className={`${inputClass} resize-none`} autoFocus />
-              {editError && <ErrorNote message={editError} />}
-              <div className="flex items-center gap-2">
-                <button onClick={saveEdit} disabled={saving} className="inline-flex items-center gap-1.5 text-xs font-semibold text-white bg-wa-green rounded-lg px-3 py-1.5 disabled:opacity-50">
-                  {saving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}Save
-                </button>
-                <button onClick={() => { setDraft(null); setEditError(null); }} disabled={saving} className={`text-xs px-2 py-1.5 ${mutedText}`}>Cancel</button>
-                <span className={`text-[11px] ml-auto ${mutedText}`}>{draft.length}/1000</span>
-              </div>
+          <div className="flex items-start gap-2">
+            <div className="flex items-center gap-1.5 flex-wrap min-w-0 flex-1">
+              <button type="button" onClick={() => profileId && openProfile(profileId)} disabled={!profileId} className={`font-semibold text-sm ${profileId ? 'hover:underline' : ''} ${bodyText}`}>{post.user_name}</button>
+              {post.as_venue ? <RoleBadge official={post.is_official} /> : <RoleBadge accountType={author?.account_type} verified={author?.is_verified} official={post.is_official} />}
+              <span className={`text-xs ${mutedText}`}>· {timeAgo(post.created_at)}</span>
             </div>
-          ) : (
-            post.content && <p className={`text-sm mt-1.5 leading-relaxed whitespace-pre-wrap break-words ${bodyText}`}><EmojiText text={post.content} /></p>
-          )}
-          {post.media_url && <PostMedia post={post} className="mt-2.5" onDoubleTap={() => { if (!liked) onReact('heart'); }} />}
-
-          <div className="flex items-center gap-2 mt-3 flex-wrap">
-            <ReactionBar counts={counts} mine={mine} onReact={onReact} exclude={['heart']} />
-            <div className="ml-auto flex items-center gap-1">
+            <div className="flex items-center gap-0.5 -mt-1 -mr-1.5 flex-shrink-0">
               {confirming ? (
                 <>
                   <button onClick={() => (own ? onDelete() : onAdminRemove())} className="text-xs font-semibold text-wa-live px-2 py-1">
@@ -159,14 +134,40 @@ export default function PostCard({ post, author, counts, mine, onReact, onDelete
               )}
             </div>
           </div>
+          {post.venue_name && !post.as_venue && (
+            <span className="inline-flex items-center gap-1 text-xs text-wa-green font-medium mt-0.5">
+              <MapPin className="w-3 h-3" />
+              {post.venue_name}
+            </span>
+          )}
+          {draft !== null ? (
+            <div className="mt-1.5 space-y-2">
+              <textarea value={draft} onChange={(e) => setDraft(e.target.value.slice(0, 1000))} rows={3} aria-label="Post text" className={`${inputClass} resize-none`} autoFocus />
+              {editError && <ErrorNote message={editError} />}
+              <div className="flex items-center gap-2">
+                <button onClick={saveEdit} disabled={saving} className="inline-flex items-center gap-1.5 text-xs font-semibold text-white bg-wa-green rounded-lg px-3 py-1.5 disabled:opacity-50">
+                  {saving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}Save
+                </button>
+                <button onClick={() => { setDraft(null); setEditError(null); }} disabled={saving} className={`text-xs px-2 py-1.5 ${mutedText}`}>Cancel</button>
+                <span className={`text-[11px] ml-auto ${mutedText}`}>{draft.length}/1000</span>
+              </div>
+            </div>
+          ) : (
+            post.content && <p className={`text-sm mt-1.5 leading-relaxed whitespace-pre-wrap break-words ${bodyText}`}><EmojiText text={post.content} /></p>
+          )}
+          {post.media_url && <PostMedia post={post} className="mt-2.5" onDoubleTap={() => { if (!liked) onReact('heart'); }} />}
 
           <PostActions
-            commentCount={post.comments}
-            commentsOpen={showComments}
-            onToggleComments={() => setShowComments((v) => !v)}
+            replyCount={post.comments}
+            repliesOpen={showComments}
+            onReply={() => setShowComments((v) => !v)}
+            reposted={engagement?.reposted ?? false}
+            repostCount={engagement?.repostCount ?? post.reposts ?? 0}
+            onRepost={engagement?.onRepost}
             liked={liked}
             likeCount={counts.heart ?? 0}
             onLike={() => onReact('heart')}
+            viewCount={post.views ?? 0}
             saved={engagement?.saved ?? false}
             onSave={() => (engagement ? engagement.onSave() : undefined)}
             onShare={share}

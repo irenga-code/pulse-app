@@ -13,11 +13,15 @@ import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/context/ToastContext';
 import { useSocial } from '@/context/SocialContext';
 import { useQuickSnap } from '@/camera/QuickSnapContext';
+import VoiceNote from '@/components/social/VoiceNote';
+import { useVoiceComposer } from '@/components/social/VoiceComposer';
+import type { VoiceRecording } from '@/hooks/useVoiceRecorder';
 import type { ChatMessage, MessageRef, PublicProfile } from '@/lib/types';
 import { ChatSkeleton } from '@/components/Skeleton';
 
 let channelCounter = 0;
 const MAX = 2000;
+const VOICE_BODY = '🎤 Voice message';
 
 const isLive = (m: ChatMessage, now: number) => !m.expires_at || new Date(m.expires_at).getTime() > now;
 const byTime = (a: ChatMessage, b: ChatMessage) => a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id);
@@ -176,6 +180,17 @@ export default function ChatThread({ otherUserId, initialRef, onBack, onClose }:
     inputRef.current?.focus();
   };
 
+  const sendVoice = useCallback(async (rec: VoiceRecording) => {
+    const id = convRef.current;
+    if (!id || !me) return;
+    const url = await api.uploadVoiceNote(id, me, rec.blob, rec.ext);
+    const m = await api.sendMessage(id, VOICE_BODY, null, {
+      media_url: url, media_type: 'audio', media_duration_ms: rec.durationMs, media_waveform: rec.waveform,
+    });
+    setMessages((list) => (list.some((x) => x.id === m.id) ? list : [...list, m].sort(byTime)));
+  }, [me]);
+  const voice = useVoiceComposer({ disabled: !convId, secret: vanish, onSend: sendVoice });
+
   const toggleVanish = async () => {
     if (!convId) return;
     const next = !vanish;
@@ -240,13 +255,15 @@ export default function ChatThread({ otherUserId, initialRef, onBack, onClose }:
                   }`}
                 >
                   {m.ref_type && m.ref_id && <div className="mb-1.5"><RefPreview type={m.ref_type} id={m.ref_id} tone="bubble" /></div>}
-                  {m.media_url && (
+                  {m.media_url && m.media_type === 'audio' ? (
+                    <VoiceNote id={m.id} url={m.media_url} durationMs={m.media_duration_ms} waveform={m.media_waveform} mine={mine} tone={m.vanish ? 'secret' : 'normal'} />
+                  ) : m.media_url && (
                     m.media_type === 'video'
                       ? <video src={m.media_url} controls playsInline preload="metadata" aria-label="Video snap" className="-mx-1 mb-1 w-56 max-w-full aspect-[9/16] rounded-xl bg-black object-cover" />
                       : <img src={m.media_url} alt="Photo snap" loading="lazy" className="-mx-1 mb-1 w-56 max-w-full aspect-[9/16] rounded-xl bg-black object-cover" />
                   )}
                   {/* a snap without a caption carries a placeholder body ("📸 Snap"); the picture says it already */}
-                  {!(m.media_url && /^(📸|🎥) Snap$/u.test(m.body)) && <p className="whitespace-pre-wrap break-words"><EmojiText text={m.body} /></p>}
+                  {!(m.media_url && /^(📸|🎥) Snap$|^🎤 Voice message$/u.test(m.body)) && <p className="whitespace-pre-wrap break-words"><EmojiText text={m.body} /></p>}
                   <p className="mt-0.5 text-[10px] opacity-75 text-right flex items-center justify-end gap-1">
                     {m.vanish && <Ghost className="w-3 h-3" />}
                     {left !== null ? `vanishes in ${left}s` : m.vanish ? (mine ? 'vanishes after read' : 'vanishes once read') : ''}
@@ -263,35 +280,43 @@ export default function ChatThread({ otherUserId, initialRef, onBack, onClose }:
       <form onSubmit={send} className={`px-2 pt-2 pb-3 border-t ${secret ? 'border-purple-500/30 bg-zinc-900' : 'border-wa-lightBorder dark:border-wa-darkBorder bg-wa-lightPanel dark:bg-wa-darkPanel'}`} style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}>
         {ref && <div className="px-1 pb-2"><RefPreview type={ref.type} id={ref.id} onRemove={() => setRef(null)} /></div>}
         <div className="flex items-center gap-1">
-          <EmojiButton label="Add emoji to message" onPick={insertEmoji} />
-          <button
-            type="button"
-            disabled={!convId}
-            aria-label="Send a snap"
-            title="Quick-Snap: tap for photo, hold for video"
-            onClick={() => convId && openQuickSnap({
-              destination: { kind: 'chat', conversationId: convId, label: other?.display_name ?? 'this chat' },
-              onSent: () => { void syncMessages(); },
-            })}
-            className={`p-2 rounded-full disabled:opacity-40 ${secret ? 'text-zinc-300 hover:bg-white/10' : 'text-wa-lightTextSecondary dark:text-wa-darkTextSecondary hover:bg-black/5 dark:hover:bg-white/10'}`}
-          >
-            <Camera className="w-5 h-5" />
-          </button>
-          <input
-            ref={inputRef}
-            value={text}
-            onChange={(e) => setText(e.target.value.slice(0, MAX))}
-            placeholder={secret ? 'Secret message…' : 'Message'}
-            aria-label="Write a message"
-            disabled={!convId}
-            className={`flex-1 min-w-0 rounded-full px-4 py-2.5 text-sm focus:outline-none border ${
-              secret ? 'bg-zinc-800 border-purple-500/30 text-zinc-100 placeholder:text-zinc-500 focus:border-purple-400'
-                     : 'bg-wa-light dark:bg-wa-dark text-wa-lightText dark:text-wa-darkText border-wa-lightBorder dark:border-wa-darkBorder placeholder:text-wa-lightTextSecondary dark:placeholder:text-wa-darkTextSecondary focus:border-wa-green'
-            }`}
-          />
-          <button type="submit" disabled={sending || !text.trim() || !convId} aria-label="Send message" className={`p-2.5 rounded-full text-white disabled:opacity-40 transition-colors ${secret ? 'bg-purple-600 hover:bg-purple-500' : 'bg-wa-green hover:bg-wa-greenDark'}`}>
-            {sending ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
-          </button>
+          {voice.active ? voice.bar : (
+            <>
+              <EmojiButton label="Add emoji to message" onPick={insertEmoji} />
+              <button
+                type="button"
+                disabled={!convId}
+                aria-label="Send a snap"
+                title="Quick-Snap: tap for photo, hold for video"
+                onClick={() => convId && openQuickSnap({
+                  destination: { kind: 'chat', conversationId: convId, label: other?.display_name ?? 'this chat' },
+                  onSent: () => { void syncMessages(); },
+                })}
+                className={`p-2 rounded-full disabled:opacity-40 ${secret ? 'text-zinc-300 hover:bg-white/10' : 'text-wa-lightTextSecondary dark:text-wa-darkTextSecondary hover:bg-black/5 dark:hover:bg-white/10'}`}
+              >
+                <Camera className="w-5 h-5" />
+              </button>
+              <input
+                ref={inputRef}
+                value={text}
+                onChange={(e) => setText(e.target.value.slice(0, MAX))}
+                placeholder={secret ? 'Secret message…' : 'Message'}
+                aria-label="Write a message"
+                disabled={!convId}
+                className={`flex-1 min-w-0 rounded-full px-4 py-2.5 text-sm focus:outline-none border ${
+                  secret ? 'bg-zinc-800 border-purple-500/30 text-zinc-100 placeholder:text-zinc-500 focus:border-purple-400'
+                         : 'bg-wa-light dark:bg-wa-dark text-wa-lightText dark:text-wa-darkText border-wa-lightBorder dark:border-wa-darkBorder placeholder:text-wa-lightTextSecondary dark:placeholder:text-wa-darkTextSecondary focus:border-wa-green'
+                }`}
+              />
+            </>
+          )}
+          {text.trim() && !voice.active ? (
+            <button key="action" type="submit" disabled={sending || !convId} aria-label="Send message" className={`p-2.5 rounded-full text-white disabled:opacity-40 transition-colors ${secret ? 'bg-purple-600 hover:bg-purple-500' : 'bg-wa-green hover:bg-wa-greenDark'}`}>
+              {sending ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
+            </button>
+          ) : (
+            <button key="action" {...voice.micProps} className={voice.micClass}>{voice.micIcon}</button>
+          )}
         </div>
       </form>
     </ChatShell>
