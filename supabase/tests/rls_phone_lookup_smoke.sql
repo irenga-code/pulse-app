@@ -45,11 +45,11 @@ DECLARE
 BEGIN
   INSERT INTO auth.users (id, email, raw_user_meta_data) VALUES
     (me,      'pl.me@example.com',                  '{"display_name":"pl_me"}'),
-    (mapped,  '243962309533@pulse.internal.com',    '{"display_name":"pl_mapped"}'),
+    (mapped,  '243962309533@pulseapp.com',    '{"display_name":"pl_mapped"}'),
     (legacy,  '256700000001@pulse.local',           '{"display_name":"pl_legacy"}'),
     (outside, '256700000002@gmail.com',             '{"display_name":"pl_outside"}');
 
-  PERFORM pulse_test.ok((SELECT value FROM public.app_config WHERE key = 'phone_email_domains') = 'pulse.internal.com,pulse.local', 'mapping domains are configured');
+  PERFORM pulse_test.ok((SELECT value FROM public.app_config WHERE key = 'phone_email_domains') = 'pulseapp.com,pulse.internal.com,pulse.local', 'mapping domains are configured');
 
   PERFORM pulse_test.act_as(me);
   PERFORM pulse_test.ok(public.find_user_by_phone('+243 962 309 533') = mapped, 'finds a phone + password account by its number');
@@ -63,7 +63,7 @@ BEGIN
   PERFORM pulse_test.act_super();
   INSERT INTO auth.users (id, email, phone, phone_confirmed_at, raw_user_meta_data) VALUES
     (sms, NULL, '256788000000', now(), '{"display_name":"pl_sms"}'),
-    (squat, '256788000000@pulse.internal.com', NULL, NULL, '{"display_name":"pl_squat"}');
+    (squat, '256788000000@pulseapp.com', NULL, NULL, '{"display_name":"pl_squat"}');
   PERFORM pulse_test.act_as(me);
   PERFORM pulse_test.ok(public.find_user_by_phone('+256788000000') = sms, 'a number confirmed by SMS wins over an unverified one');
 
