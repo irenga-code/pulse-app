@@ -62,7 +62,7 @@ export default function CommunityTab() {
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 md:px-8 pb-28 md:pb-8">
-        <div className="max-w-2xl mx-auto space-y-3">
+        <div className="w-full max-w-2xl ml-0 mr-auto flex flex-col items-start text-left space-y-3 [&>*]:w-full">
           <StatusTray
             groups={statuses.groups}
             authors={statuses.authors}
@@ -77,18 +77,18 @@ export default function CommunityTab() {
           {feed.loading ? (
             <FeedSkeleton />
           ) : feed.error ? (
-            <div className="flex flex-col items-center justify-center py-16">
+            <div className="flex flex-col items-start py-16">
               <AlertCircle className="w-10 h-10 text-wa-live" />
-              <p className="text-sm text-wa-lightTextSecondary dark:text-wa-darkTextSecondary mt-3 text-center">
+              <p className="text-sm text-wa-lightTextSecondary dark:text-wa-darkTextSecondary mt-3">
                 Something went wrong. Please try again.
               </p>
               <button onClick={feed.reload} className="mt-3 text-xs font-semibold text-wa-green">Retry</button>
             </div>
           ) : posts.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16">
+            <div className="flex flex-col items-start py-16">
               <MessageCircle className="w-12 h-12 text-wa-quiet mb-3" />
               <p className="text-sm font-medium text-wa-lightTextSecondary dark:text-wa-darkTextSecondary">No live updates yet</p>
-              <p className="text-xs text-wa-lightTextSecondary dark:text-wa-darkTextSecondary mt-1 text-center max-w-xs">
+              <p className="text-xs text-wa-lightTextSecondary dark:text-wa-darkTextSecondary mt-1 max-w-xs">
                 Be the first to post about tonight's vibe.
               </p>
             </div>
