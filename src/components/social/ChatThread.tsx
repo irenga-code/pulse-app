@@ -19,6 +19,7 @@ import type { VoiceRecording } from '@/hooks/useVoiceRecorder';
 import type { ChatMessage, MessageRef, PublicProfile } from '@/lib/types';
 import { ChatSkeleton } from '@/components/Skeleton';
 import { CHAT_THEMES, getChatPrefs, subscribeChatPrefs } from '@/lib/chatPrefs';
+import { contactLabel, useContacts } from '@/lib/contacts';
 
 let channelCounter = 0;
 const MAX = 2000;
@@ -239,17 +240,20 @@ export default function ChatThread({ otherUserId, initialRef, onBack, onClose, e
     if (convId) onMeta?.({ conversationId: convId, vanish, other, toggleVanish: () => { void toggleRef.current(); } });
   }, [convId, vanish, other, onMeta]);
 
+  // your saved name for them, else the number you reached them on, else their Pulse name
+  const contacts = useContacts();
+  const label = contactLabel(contacts[otherUserId], other?.display_name);
   const Shell = embedded ? EmbeddedShell : ChatShell;
   return (
-    <Shell label={`Chat with ${other?.display_name ?? 'user'}`} onClose={onClose} secret={secret}>
+    <Shell label={`Chat with ${label.title}`} onClose={onClose} secret={secret}>
       <header className={`flex items-center gap-2 px-2 py-2.5 border-b ${secret ? 'border-purple-500/30 bg-zinc-900' : 'border-wa-lightBorder dark:border-wa-darkBorder bg-wa-lightPanel dark:bg-wa-darkPanel'}`}>
         {!embedded && <button onClick={onBack} aria-label="Back to messages" className="p-2 rounded-full hover:bg-black/10 dark:hover:bg-white/10"><ArrowLeft className="w-5 h-5" /></button>}
-        <button onClick={() => (onInfo ? onInfo() : openProfile(otherUserId))} aria-label={onInfo ? `Contact info for ${other?.display_name ?? 'this chat'}` : undefined}
+        <button onClick={() => (onInfo ? onInfo() : openProfile(otherUserId))} aria-label={onInfo ? `Contact info for ${label.title}` : undefined}
           className={`flex items-center gap-2.5 min-w-0 flex-1 text-left ${embedded ? 'pl-2' : ''}`}>
-          <Avatar name={other?.display_name ?? '?'} url={other?.avatar_url} size={36} />
+          <Avatar name={contacts[otherUserId]?.name ?? other?.display_name ?? '?'} url={other?.avatar_url} size={36} />
           <span className="min-w-0">
-            <span className="block text-sm font-semibold truncate">{other?.display_name ?? 'Pulse user'}</span>
-            <span className={`block text-[11px] ${sub}`}>{secret ? 'Secret mode: messages vanish after being read' : onInfo ? 'Click here for contact info' : 'Private chat'}</span>
+            <span className="block text-sm font-semibold truncate">{label.title}</span>
+            <span className={`block text-[11px] ${sub}`}>{secret ? 'Secret mode: messages vanish after being read' : label.subtitle ?? (onInfo ? 'Click here for contact info' : 'Private chat')}</span>
           </span>
         </button>
         {onSearch && (
@@ -338,7 +342,7 @@ export default function ChatThread({ otherUserId, initialRef, onBack, onClose, e
                 aria-label="Send a snap"
                 title="Quick-Snap: tap for photo, hold for video"
                 onClick={() => convId && openQuickSnap({
-                  destination: { kind: 'chat', conversationId: convId, label: other?.display_name ?? 'this chat' },
+                  destination: { kind: 'chat', conversationId: convId, label: label.title },
                   onSent: () => { void syncMessages(); },
                 })}
                 className={`p-2 rounded-full disabled:opacity-40 ${secret ? 'text-zinc-300 hover:bg-white/10' : 'text-wa-lightTextSecondary dark:text-wa-darkTextSecondary hover:bg-black/5 dark:hover:bg-white/10'}`}

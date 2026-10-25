@@ -5,7 +5,7 @@ export function authErrorMessage(e: unknown): string {
     return 'Your account was created, but Supabase is waiting for an email confirmation. For phone + password sign-up, turn off "Confirm email" in Supabase (Authentication > Providers > Email).';
   }
   if (/email_address_invalid|email address .* is invalid/i.test(msg)) {
-    return 'Supabase rejected the internal sign-in address for this number. Phone + password sign-up needs a different mapping domain.';
+    return 'Supabase did not accept the sign-in address for this number. Set VITE_PHONE_EMAIL_DOMAIN to a domain you own and try again.';
   }
   if (/phone already registered/i.test(msg)) return 'An account with this phone number already exists. Sign in instead.';
   if (/invalid login credentials/i.test(msg)) return 'Wrong phone number or password.';

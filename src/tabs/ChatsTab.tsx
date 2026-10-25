@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Search, MessageCirclePlus, Loader2, LogIn, MessageCircle, EllipsisVertical, Archive, Star, Lock } from 'lucide-react';
+import { Search, MessageCirclePlus, Loader2, LogIn, MessageCircle, EllipsisVertical, Archive, Star, Lock, Share2 } from 'lucide-react';
 import Modal from '@/components/Modal';
 import SectionHeader, { headerIconBtn } from '@/components/nav/SectionHeader';
 import ConversationList, { type ChatFilter } from '@/components/social/ConversationList';
@@ -8,7 +8,9 @@ import ContactInfoDrawer from '@/components/social/ContactInfoDrawer';
 import CountryPhoneInput, { usePhoneCountry } from '@/components/auth/CountryPhoneInput';
 import BrandLogo from '@/components/BrandLogo';
 import { useIsDesktop } from '@/hooks/useMediaQuery';
-import { joinE164 } from '@/lib/phone';
+import { joinE164, formatPhone } from '@/lib/phone';
+import { saveContact } from '@/lib/contacts';
+import { shareLink } from '@/lib/share';
 import { ErrorNote, inputClass, primaryBtn, ghostBtn, mutedText, bodyText } from '@/components/ui';
 import { api } from '@/lib/apiClient';
 import { friendlyError, isMissingSchema } from '@/lib/api';
@@ -19,6 +21,9 @@ import { useToast } from '@/context/ToastContext';
 /** Start a chat with whoever has confirmed this number on Pulse (the number is matched, never shown). */
 function NewChatByPhone({ onClose, initialPhone = '', onFound }: { onClose: () => void; initialPhone?: string; onFound?: (userId: string) => void }) {
   const { openChat } = useSocial();
+  const { user } = useAuth();
+  const { show } = useToast();
+  const [notOnPulse, setNotOnPulse] = useState<string | null>(null);
   const { country, setIso } = usePhoneCountry();
   const [phone, setPhone] = useState(initialPhone.replace(/^0+/, ''));
   const [busy, setBusy] = useState(false);
@@ -30,13 +35,21 @@ function NewChatByPhone({ onClose, initialPhone = '', onFound }: { onClose: () =
     if (!e164) return setError(`Enter a valid ${country.name} phone number.`);
     setBusy(true);
     setError(null);
+    setNotOnPulse(null);
     try {
       const id = await api.findUserByPhone(e164);
       if (!id) {
-        setError('No one on Pulse has confirmed that number yet.');
+        setNotOnPulse(e164);
         setBusy(false);
         return;
       }
+      if (id === user?.id) {
+        setError('That is your own number.');
+        setBusy(false);
+        return;
+      }
+      // you typed this number, so you can see it on this device (header, list, contact info)
+      saveContact(id, { phone: e164 });
       onClose();
       if (onFound) onFound(id); else openChat(id);
     } catch (err) {
@@ -49,8 +62,20 @@ function NewChatByPhone({ onClose, initialPhone = '', onFound }: { onClose: () =
     <Modal title="New chat" icon={MessageCirclePlus} onClose={onClose}>
       <form onSubmit={find} className="space-y-3" noValidate>
         <CountryPhoneInput country={country} onCountry={setIso} value={phone} onChange={setPhone} autoFocus />
-        <p className={`text-xs ${mutedText}`}>Pulse only finds people who confirmed their number. Their number is never shown to you.</p>
+        <p className={`text-xs ${mutedText}`}>Any local or international number. Only you see the number you type; it is saved on this device.</p>
         {error && <ErrorNote message={error} />}
+        {notOnPulse && (
+          <div className="rounded-xl px-3 py-3 bg-wa-lightSecondary dark:bg-wa-darkSecondary">
+            <p className={`text-sm ${bodyText}`}><b>{formatPhone(notOnPulse)}</b> is not on Pulse yet.</p>
+            <button type="button" className={`${ghostBtn} mt-2 w-full`}
+              onClick={async () => {
+                const r = await shareLink({ url: window.location.origin, title: 'Join me on Pulse', text: 'Chat with me on Pulse:' });
+                if (r === 'copied') show('Invite link copied');
+              }}>
+              <Share2 className="w-4 h-4" />Invite to Pulse
+            </button>
+          </div>
+        )}
         <button type="submit" disabled={busy} className={`${primaryBtn} w-full`}>
           {busy && <Loader2 className="w-4 h-4 animate-spin" />}Find and chat
         </button>

@@ -3,10 +3,11 @@ import {
   X, Pencil, Phone, Video, Search, Star, BellOff, Timer, ShieldAlert, Palette, Lock, Heart, ListPlus, Download, Eraser, Ban,
   ThumbsDown, Trash2, Check, Loader2,
 } from 'lucide-react';
+import { contactLabel, saveContact, useContacts } from '@/lib/contacts';
 import Avatar from '@/components/Avatar';
 import ReportModal from '@/components/community/ReportModal';
 import { Toggle } from '@/components/settings/SettingsUi';
-import { mutedText, bodyText } from '@/components/ui';
+import { inputClass, mutedText, bodyText } from '@/components/ui';
 import { api } from '@/lib/apiClient';
 import { friendlyError } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
@@ -62,7 +63,16 @@ export default function ContactInfoDrawer({ otherUserId, meta, favorite, onFavor
   }, [otherUserId]);
   const conv = meta?.conversationId ?? null;
   const other = meta?.other ?? null;
-  const name = other?.display_name ?? 'Pulse user';
+  const contacts = useContacts();
+  const label = contactLabel(contacts[otherUserId], other?.display_name);
+  const name = label.title;
+  const [editing, setEditing] = useState<string | null>(null);
+  const saveName = (e: React.FormEvent) => {
+    e.preventDefault();
+    saveContact(otherUserId, { name: (editing ?? '').slice(0, 40) });
+    setEditing(null);
+    show('Contact saved');
+  };
   const muted = !!conv && device.muted.includes(conv);
   const theme = (conv && device.themes[conv]) || 'default';
 
@@ -95,25 +105,40 @@ export default function ContactInfoDrawer({ otherUserId, meta, favorite, onFavor
       <header className={`flex items-center gap-6 px-6 h-[60px] flex-shrink-0 ${block}`}>
         <button type="button" onClick={onClose} aria-label="Close contact info" className={`p-1 -ml-1 rounded-full hover:bg-black/5 dark:hover:bg-white/10 ${mutedText}`}><X className="w-5 h-5" /></button>
         <h2 className={`flex-1 text-base font-medium ${bodyText}`}>Contact info</h2>
-        <span title={SOON} aria-disabled="true" className={`p-1 opacity-50 ${mutedText}`}><Pencil className="w-5 h-5" aria-label="Edit contact (coming soon)" /></span>
+        <button type="button" onClick={() => setEditing(editing === null ? contacts[otherUserId]?.name ?? other?.display_name ?? '' : null)}
+          aria-label="Edit contact name" title="Edit contact name" aria-pressed={editing !== null}
+          className={`p-1 rounded-full hover:bg-black/5 dark:hover:bg-white/10 ${editing !== null ? 'text-wa-green' : mutedText}`}><Pencil className="w-5 h-5" /></button>
       </header>
 
       <div className="flex-1 min-h-0 overflow-y-auto space-y-2.5 pb-6">
         <section className={`${block} flex flex-col items-center px-6 pt-7 pb-5 text-center`}>
-          <Avatar name={name} url={other?.avatar_url} size={200} />
-          <p className={`mt-4 text-2xl ${bodyText}`}>{name}</p>
-          <p className={`text-[15px] mt-1 ${mutedText}`}>Phone number private</p>
-          <div className="grid grid-cols-3 gap-3 w-full mt-5">
+          <Avatar name={contacts[otherUserId]?.name ?? other?.display_name ?? name} url={other?.avatar_url} size={200} />
+          {editing !== null ? (
+            <form onSubmit={saveName} className="mt-4 w-full flex gap-2">
+              <input value={editing} onChange={(e) => setEditing(e.target.value.slice(0, 40))} autoFocus aria-label="Contact name"
+                placeholder="Name for this contact" className={`${inputClass} text-center`} />
+              <button type="submit" aria-label="Save contact name" className="px-3 rounded-xl bg-wa-green text-white"><Check className="w-4 h-4" /></button>
+            </form>
+          ) : (
+            <p className={`mt-4 text-2xl break-words ${bodyText}`}>{name}</p>
+          )}
+          {/* the number you reached them on (only you know it); Pulse never reveals anyone's number */}
+          <p className={`text-[15px] mt-1 tabular-nums ${mutedText}`} data-testid="contact-phone">{label.phone ?? 'Phone number private'}</p>
+          {label.phone && other && label.title !== other.display_name && <p className={`text-xs mt-0.5 ${mutedText}`}>~{other.display_name} on Pulse</p>}
+          <div className="flex justify-center gap-7 w-full mt-5">
             {[
               { icon: Phone, label: 'Voice', soon: true },
               { icon: Video, label: 'Video', soon: true },
               { icon: Search, label: 'Search', soon: false, onClick: onSearch },
             ].map((a) => (
-              <button key={a.label} type="button" onClick={a.onClick} disabled={a.soon} title={a.soon ? `${a.label} calls: ${SOON.toLowerCase()}` : 'Search messages'}
-                aria-label={a.soon ? `${a.label} call (coming soon)` : 'Search messages'}
-                className="flex flex-col items-center gap-2 rounded-xl border border-wa-lightBorder dark:border-wa-darkBorder py-3.5 text-wa-green hover:bg-wa-green/5 disabled:opacity-50 disabled:hover:bg-transparent">
-                <a.icon className="w-5 h-5" /><span className={`text-xs ${bodyText}`}>{a.label}</span>
-              </button>
+              <span key={a.label} className="flex flex-col items-center gap-1.5">
+                <button type="button" onClick={a.onClick} disabled={a.soon} title={a.soon ? `${a.label} calls: ${SOON.toLowerCase()}` : 'Search messages'}
+                  aria-label={a.soon ? `${a.label} call (coming soon)` : 'Search messages'}
+                  className="w-14 h-14 rounded-full flex items-center justify-center bg-wa-green/10 text-wa-green ring-1 ring-wa-green/30 hover:bg-wa-green/20 transition-colors disabled:opacity-50 disabled:hover:bg-wa-green/10">
+                  <a.icon className="w-6 h-6" />
+                </button>
+                <span className={`text-xs ${bodyText}`}>{a.label}</span>
+              </span>
             ))}
           </div>
         </section>

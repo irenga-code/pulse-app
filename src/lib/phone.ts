@@ -34,13 +34,20 @@ export function joinE164(dial: string, input: string): string | null {
 
 /**
  * Development sign-in without an SMS provider: phone + password accounts are Supabase email accounts whose address is
- * derived from the number ("+256789175095" -> "256789175095@pulse.local"). The address is never shown in the UI.
+ * derived from the number ("+256789175095" -> "256789175095@pulse.internal.com"). The address is never shown in the UI.
+ * Sign-up and sign-in both use phoneToEmail, so they always agree on the domain.
+ * VITE_PHONE_EMAIL_DOMAIN overrides the domain (use one you own: its owner can receive mail for these addresses).
  * Set VITE_PHONE_AUTH=sms to use real SMS one-time codes instead (needs the Phone provider in Supabase).
  */
 export const PHONE_AUTH_MODE: 'mapped' | 'sms' = import.meta.env.VITE_PHONE_AUTH === 'sms' ? 'sms' : 'mapped';
-export const PULSE_LOCAL_DOMAIN = 'pulse.local';
-export const phoneToEmail = (e164: string) => `${e164.replace(/\D/g, '')}@${PULSE_LOCAL_DOMAIN}`;
-export const isPulseLocalEmail = (email: string | null | undefined) => !!email && email.toLowerCase().endsWith(`@${PULSE_LOCAL_DOMAIN}`);
-/** "256789175095@pulse.local" -> "+256789175095" */
+export const PHONE_EMAIL_DOMAIN: string = (import.meta.env.VITE_PHONE_EMAIL_DOMAIN || 'pulse.internal.com').trim().toLowerCase();
+// earlier development builds used this one; still recognised so it never shows on screen
+const LEGACY_DOMAINS = ['pulse.local'];
+export const phoneToEmail = (e164: string) => `${e164.replace(/\D/g, '')}@${PHONE_EMAIL_DOMAIN}`;
+export const isPulseLocalEmail = (email: string | null | undefined) => {
+  const domain = email?.toLowerCase().split('@')[1];
+  return !!domain && (domain === PHONE_EMAIL_DOMAIN || LEGACY_DOMAINS.includes(domain));
+};
+/** "256789175095@pulse.internal.com" -> "+256789175095" */
 export const phoneFromPulseEmail = (email: string | null | undefined) =>
   (isPulseLocalEmail(email) ? `+${email!.split('@')[0].replace(/\D/g, '')}` : null);

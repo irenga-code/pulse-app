@@ -9,6 +9,7 @@ import { api } from '@/lib/apiClient';
 import { friendlyError } from '@/lib/api';
 import { chatListTime } from '@/lib/time';
 import { getChatPrefs, subscribeChatPrefs } from '@/lib/chatPrefs';
+import { contactLabel, useContacts } from '@/lib/contacts';
 import { useAsync } from '@/hooks/useAsync';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/context/ToastContext';
@@ -31,10 +32,13 @@ type Prefs = Record<string, Pick<ConversationPrefs, 'is_favorite' | 'is_archived
 // eslint-disable-next-line react-refresh/only-export-components
 export function filterConversations(rows: ConversationSummary[], prefs: Prefs, filter: ChatFilter, query = '', names: Record<string, string> = {}) {
   const q = query.trim().toLowerCase();
+  // numbers match however they are typed ("0789 175 095" finds +256789175095)
+  const qDigits = q.replace(/\D/g, '').replace(/^0+/, '');
+  const matches = (hay: string) => hay.toLowerCase().includes(q) || (qDigits.length >= 3 && hay.replace(/\D/g, '').includes(qDigits));
   return rows.filter((c) => {
     const p = prefs[c.conversation_id];
     const archived = !!p?.is_archived;
-    if (q && !(names[c.other_user_id] ?? '').toLowerCase().includes(q)) return false;
+    if (q && !matches(names[c.other_user_id] ?? '')) return false;
     switch (filter) {
       case 'archived': return archived;
       case 'unread': return !archived && c.unread_count > 0;
@@ -61,6 +65,7 @@ export default function ConversationList({ onOpen, query = '', selectedId = null
   const [moreOpen, setMoreOpen] = useState(false);
   const moreRef = useRef<HTMLDivElement>(null);
   const device = useSyncExternalStore(subscribeChatPrefs, getChatPrefs, getChatPrefs);
+  const contacts = useContacts();
   useEffect(() => {
     if (!moreOpen) return;
     const close = (e: MouseEvent) => { if (!moreRef.current?.contains(e.target as Node)) setMoreOpen(false); };
@@ -87,10 +92,15 @@ export default function ConversationList({ onOpen, query = '', selectedId = null
   }, [refresh]);
 
   const prefs = useMemo<Prefs>(() => ({ ...(data.data?.prefs ?? {}), ...local }), [data.data, local]);
-  const names = useMemo(
-    () => Object.fromEntries(Object.entries(data.data?.people ?? {}).map(([id, p]) => [id, (p as PublicProfile).display_name])),
-    [data.data],
-  );
+  // search matches the saved name, the number you know them by (any formatting) and their Pulse name
+  const names = useMemo(() => {
+    const ids = new Set([...Object.keys(data.data?.people ?? {}), ...Object.keys(contacts)]);
+    return Object.fromEntries([...ids].map((id) => {
+      const p = (data.data?.people ?? {})[id] as PublicProfile | undefined;
+      const c = contacts[id];
+      return [id, [c?.name, p?.display_name, c?.phone, c?.phone?.replace(/\D/g, '')].filter(Boolean).join(' ')];
+    }));
+  }, [data.data, contacts]);
   const rows = data.data?.rows ?? [];
   const shown = filterConversations(rows, prefs, filter, query, names);
   const count = (f: ChatFilter) => filterConversations(rows, prefs, f).length;
@@ -170,14 +180,14 @@ export default function ConversationList({ onOpen, query = '', selectedId = null
             {shown.map((c) => {
               const p: PublicProfile | undefined = data.data!.people[c.other_user_id];
               const pref = prefs[c.conversation_id];
-              const name = p?.display_name ?? 'Pulse user';
+              const name = contactLabel(contacts[c.other_user_id], p?.display_name).title;
               const open = selectedId === c.other_user_id;
               const muted = device.muted.includes(c.conversation_id);
               const mineLast = c.last_sender_id === user?.id && c.last_kind === 'text';
               return (
                 <li key={c.conversation_id} className={`group flex items-center transition-colors ${open ? 'bg-wa-lightSecondary dark:bg-wa-darkSecondary' : 'hover:bg-wa-lightSecondary dark:hover:bg-wa-darkSecondary/60'}`}>
                   <button onClick={() => onOpen(c.other_user_id)} aria-current={open ? 'true' : undefined} className="flex items-center gap-3 flex-1 min-w-0 pl-4 py-3 text-left">
-                    <Avatar name={p?.display_name ?? '?'} url={p?.avatar_url} size={48} />
+                    <Avatar name={contacts[c.other_user_id]?.name ?? p?.display_name ?? '?'} url={p?.avatar_url} size={48} />
                     <span className="min-w-0 flex-1">
                       <span className="flex items-center gap-1.5">
                         <span className={`text-sm font-semibold truncate ${bodyText}`}>{name}</span>

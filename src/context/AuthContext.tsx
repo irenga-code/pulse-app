@@ -36,9 +36,9 @@ type AuthContextValue = {
   changeEmail: (email: string) => Promise<void>;
   /** Phone sign-in / sign-up: texts a one-time code (Supabase Auth SMS). A new number creates the account. */
   sendPhoneCode: (phone: string, displayName?: string) => Promise<void>;
-  /** Phone + password. Dev mapping: the account is "<digits>@pulse.local"; also works for accounts with a confirmed phone. */
+  /** Phone + password. Dev mapping: the account is phoneToEmail(phone); also works for accounts with a confirmed phone. */
   signInWithPhone: (phone: string, password: string) => Promise<void>;
-  /** Create a phone + password account (dev mapping to "<digits>@pulse.local"; no SMS). */
+  /** Create a phone + password account (dev mapping via phoneToEmail; no SMS). */
   signUpWithPhone: (phone: string, password: string, displayName: string) => Promise<void>;
   verifyPhoneCode: (phone: string, code: string) => Promise<void>;
   /** Add or change the number on a signed-in account (email accounts too): texts a code to the new number. */
