@@ -177,7 +177,9 @@ GRANT INSERT (channel_id, body, media_url, media_type), DELETE ON public.channel
 -- ============================================================================
 -- Vibe Check stories (live statuses + venue for the overlay)
 -- ============================================================================
-CREATE OR REPLACE VIEW public.vibe_check_stories WITH (security_invoker = true) AS
+-- a hand-made view with other columns cannot be replaced in place (it holds no data, so recreate it)
+DROP VIEW IF EXISTS public.vibe_check_stories;
+CREATE VIEW public.vibe_check_stories WITH (security_invoker = true) AS
 SELECT s.id, s.user_id, s.media_url, s.media_type, s.caption, s.venue_id,
        v.name AS venue_name, v.location AS venue_location, s.created_at, s.expires_at
 FROM public.statuses s
@@ -204,6 +206,15 @@ REVOKE ALL ON public.profile_phones FROM anon, authenticated;
 GRANT SELECT ON public.profile_phones TO authenticated;
 
 /** Digits only ("+256 700-000 000" -> "256700000000"), the form Supabase Auth stores. */
+-- hand-made versions with another parameter name or return type cannot be replaced in place
+DROP FUNCTION IF EXISTS public.find_user_by_phone(text);
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+             WHERE n.nspname = 'public' AND p.proname = 'normalize_phone' AND pg_get_function_identity_arguments(p.oid) = 'p text') IS NOT TRUE THEN
+    DROP FUNCTION IF EXISTS public.normalize_phone(text);
+  END IF;
+END $$;
 CREATE OR REPLACE FUNCTION public.normalize_phone(p text)
 RETURNS text LANGUAGE sql IMMUTABLE AS $$ SELECT nullif(regexp_replace(coalesce(p, ''), '[^0-9]', '', 'g'), '') $$;
 
@@ -240,7 +251,7 @@ ON CONFLICT DO NOTHING;
 UPDATE public.profiles p SET phone_verified = true
 WHERE EXISTS (SELECT 1 FROM public.profile_phones pp WHERE pp.user_id = p.id) AND NOT p.phone_verified;
 
-CREATE OR REPLACE FUNCTION public.find_user_by_phone(p_phone text)
+CREATE FUNCTION public.find_user_by_phone(p_phone text)
 RETURNS uuid LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public AS $$
 DECLARE found uuid;
 BEGIN

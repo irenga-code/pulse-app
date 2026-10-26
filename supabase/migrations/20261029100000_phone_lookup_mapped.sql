@@ -1,7 +1,8 @@
 /*
 # Pulse backend 17 — find people by phone number, including phone + password accounts
 
-Idempotent. Apply after migration 15 (it replaces find_user_by_phone, same signature and grants).
+Idempotent. Apply after migration 15. It replaces any existing find_user_by_phone(text) (including a hand-made one
+with another parameter name or return type) and does not depend on normalize_phone.
 
 Phone + password sign-up (development, no SMS provider) stores the account as an email address made from the number,
 e.g. "+256789175095" -> "256789175095@pulseapp.com". Those numbers are not in profile_phones (that table only
@@ -24,11 +25,15 @@ ON CONFLICT (key) DO NOTHING;
 UPDATE public.app_config SET value = 'pulseapp.com,' || value
 WHERE key = 'phone_email_domains' AND NOT ('pulseapp.com' = ANY (string_to_array(replace(value, ' ', ''), ',')));
 
-CREATE OR REPLACE FUNCTION public.find_user_by_phone(p_phone text)
+-- a hand-made version (e.g. find_user_by_phone(phone_input) returning rows, callable signed out) cannot be replaced
+-- in place: drop it first
+DROP FUNCTION IF EXISTS public.find_user_by_phone(text);
+
+CREATE FUNCTION public.find_user_by_phone(p_phone text)
 RETURNS uuid LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public AS $$
 DECLARE
   found uuid;
-  digits text := public.normalize_phone(p_phone);
+  digits text := nullif(regexp_replace(coalesce(p_phone, ''), '[^0-9]', '', 'g'), '');
   domains text[];
 BEGIN
   IF auth.uid() IS NULL THEN RAISE EXCEPTION 'sign in required' USING ERRCODE = '28000'; END IF;

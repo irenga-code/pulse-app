@@ -47,6 +47,12 @@ const MSG_MEDIA_LEVELS = [MSG_COLS, `${MSG_COLS}, media_url, media_type`, `${MSG
 let msgMediaLevel = MSG_MEDIA_LEVELS.length - 1;
 const msgCols = () => MSG_MEDIA_LEVELS[msgMediaLevel];
 
+// Profiles are read column by column, never with "*": private columns (a phone number, a real name) can be hidden from
+// the API (migration 18), and "*" would then fail. phone_verified arrives with migration 15.
+const PROFILE_BASE = 'id, display_name, avatar_url, bio, account_type, is_verified, status, created_at';
+let profilePhoneFlag = true;
+const profileCols = () => (profilePhoneFlag ? `${PROFILE_BASE}, phone_verified` : PROFILE_BASE);
+
 /** Voice notes are private: `<conversation>/<sender>/<file>` in the message-media bucket, played through signed URLs. */
 const VOICE_BUCKET = 'message-media';
 const voicePath = (url: string) => {
@@ -279,10 +285,16 @@ export function createApi(c: SupabaseClient) {
 
     // ----------------------------------------------- profile & preferences
     async getProfile(userId: string) {
-      return unwrap(await c.from('profiles').select('*').eq('id', userId).maybeSingle()) as Profile | null;
+      const read = () => c.from('profiles').select(profileCols()).eq('id', userId).maybeSingle();
+      let res = await read();
+      if (res.error && profilePhoneFlag && isMissingColumn(res.error)) { profilePhoneFlag = false; res = await read(); }
+      return unwrap(res) as unknown as Profile | null;
     },
     async updateProfile(userId: string, patch: { display_name?: string; bio?: string | null; avatar_url?: string | null }) {
-      const rows = unwrap(await c.from('profiles').update(patch).eq('id', userId).select()) as Profile[];
+      const write = () => c.from('profiles').update(patch).eq('id', userId).select(profileCols());
+      let res = await write();
+      if (res.error && profilePhoneFlag && isMissingColumn(res.error)) { profilePhoneFlag = false; res = await write(); }
+      const rows = unwrap(res) as unknown as Profile[];
       if (rows.length === 0) throw new ApiError('Profile not found');
       return rows[0];
     },
@@ -676,9 +688,14 @@ export function createApi(c: SupabaseClient) {
     },
     async adminSearchUsers(query: string) {
       const escaped = query.trim().replace(/[\\%_]/g, (m) => '\\' + m);
-      let q = c.from('profiles').select('*').order('created_at', { ascending: false }).limit(30);
-      if (escaped) q = q.ilike('display_name', `%${escaped}%`);
-      return unwrap(await q) as Profile[];
+      const list = () => {
+        let q = c.from('profiles').select(profileCols()).order('created_at', { ascending: false }).limit(30);
+        if (escaped) q = q.ilike('display_name', `%${escaped}%`);
+        return q;
+      };
+      let res = await list();
+      if (res.error && profilePhoneFlag && isMissingColumn(res.error)) { profilePhoneFlag = false; res = await list(); }
+      return unwrap(res) as unknown as Profile[];
     },
     async adminListVerifications(status: 'pending' | 'all' = 'pending') {
       let q = c.from('verification_requests').select('*');

@@ -1,4 +1,4 @@
--- Pulse: full database upgrade (every migration in supabase/migrations, in order). Generated 2026-10-29.
+-- Pulse: full database upgrade (every migration in supabase/migrations, in order). Generated 2026-10-26.
 -- Safe to run more than once. Paste into the Supabase SQL Editor and Run.
 
 -- ============================================================================
@@ -76,7 +76,6 @@ SELECT * FROM (VALUES
 ) AS v(name, location, status, image_url)
 WHERE NOT EXISTS (SELECT 1 FROM venues LIMIT 1);
 
-
 -- ============================================================================
 -- >>> 20261002200435_create_posts_table.sql
 -- ============================================================================
@@ -137,7 +136,6 @@ CREATE POLICY "anon_delete_posts"
 ON posts FOR DELETE
 TO anon, authenticated USING (true);
 
-
 -- ============================================================================
 -- >>> 20261003120000_enable_realtime_venues.sql
 -- ============================================================================
@@ -158,7 +156,6 @@ BEGIN
     ALTER PUBLICATION supabase_realtime ADD TABLE public.venues;
   END IF;
 END $$;
-
 
 -- ============================================================================
 -- >>> 20261003125900_reconcile_live_schema.sql
@@ -456,7 +453,6 @@ BEGIN
   END IF;
 END $$;
 
-
 -- ============================================================================
 -- >>> 20261003130000_fix_venue_locations.sql
 -- ============================================================================
@@ -516,7 +512,6 @@ BEGIN
     END IF;
   END LOOP;
 END $$;
-
 
 -- ============================================================================
 -- >>> 20261003131000_profile_saved_venues_notifications.sql
@@ -641,7 +636,6 @@ BEGIN
     ALTER PUBLICATION supabase_realtime ADD TABLE public.notifications;
   END IF;
 END $$;
-
 
 -- ============================================================================
 -- >>> 20261011100000_backend_identity_and_venues.sql
@@ -1287,7 +1281,6 @@ GRANT EXECUTE ON FUNCTION public.admin_review_verification(uuid, boolean, text) 
 GRANT EXECUTE ON FUNCTION public.delete_my_account() TO authenticated;
 GRANT EXECUTE ON FUNCTION public.is_admin(), public.is_active_user(), public.manages_venue(uuid) TO anon, authenticated;
 
-
 -- ============================================================================
 -- >>> 20261011100500_reconcile_legacy_tables.sql
 -- ============================================================================
@@ -1432,7 +1425,6 @@ BEGIN
     ALTER TABLE public.reviews ADD CONSTRAINT reviews_status_check CHECK (status IN ('visible', 'removed')) NOT VALID;
   END IF;
 END $$;
-
 
 -- ============================================================================
 -- >>> 20261011101000_backend_community.sql
@@ -2078,7 +2070,6 @@ BEGIN
   END LOOP;
 END $$;
 
-
 -- ============================================================================
 -- >>> 20261011110000_backend_lockdown.sql
 -- ============================================================================
@@ -2237,7 +2228,6 @@ CREATE POLICY saved_delete_own ON public.saved_venues FOR DELETE TO authenticate
 REVOKE ALL ON public.saved_venues FROM anon, authenticated;
 GRANT SELECT, DELETE ON public.saved_venues TO authenticated;
 GRANT INSERT (venue_id) ON public.saved_venues TO authenticated;
-
 
 -- ============================================================================
 -- >>> 20261014100000_backend_reactions_and_snaps.sql
@@ -2547,7 +2537,6 @@ BEGIN
     ALTER PUBLICATION supabase_realtime ADD TABLE public.venue_reactions;
   END IF;
 END $$;
-
 
 -- ============================================================================
 -- >>> 20261017100000_backend_engagement_statuses_messages.sql
@@ -3131,7 +3120,6 @@ BEGIN
   END LOOP;
 END $$;
 
-
 -- ============================================================================
 -- >>> 20261019100000_verification_roles.sql
 -- ============================================================================
@@ -3196,7 +3184,6 @@ END $$;
 
 NOTIFY pgrst, 'reload schema';
 
-
 -- ============================================================================
 -- >>> 20261019110000_venue_is_live.sql
 -- ============================================================================
@@ -3242,10 +3229,6 @@ BEGIN
   END IF;
 END $$;
 
-NOTIFY pgrst, 'reload schema';
-
-
--- Make the API see the new tables/functions right away
 NOTIFY pgrst, 'reload schema';
 
 -- ============================================================================
@@ -3907,7 +3890,9 @@ GRANT INSERT (channel_id, body, media_url, media_type), DELETE ON public.channel
 -- ============================================================================
 -- Vibe Check stories (live statuses + venue for the overlay)
 -- ============================================================================
-CREATE OR REPLACE VIEW public.vibe_check_stories WITH (security_invoker = true) AS
+-- a hand-made view with other columns cannot be replaced in place (it holds no data, so recreate it)
+DROP VIEW IF EXISTS public.vibe_check_stories;
+CREATE VIEW public.vibe_check_stories WITH (security_invoker = true) AS
 SELECT s.id, s.user_id, s.media_url, s.media_type, s.caption, s.venue_id,
        v.name AS venue_name, v.location AS venue_location, s.created_at, s.expires_at
 FROM public.statuses s
@@ -3934,6 +3919,15 @@ REVOKE ALL ON public.profile_phones FROM anon, authenticated;
 GRANT SELECT ON public.profile_phones TO authenticated;
 
 /** Digits only ("+256 700-000 000" -> "256700000000"), the form Supabase Auth stores. */
+-- hand-made versions with another parameter name or return type cannot be replaced in place
+DROP FUNCTION IF EXISTS public.find_user_by_phone(text);
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+             WHERE n.nspname = 'public' AND p.proname = 'normalize_phone' AND pg_get_function_identity_arguments(p.oid) = 'p text') IS NOT TRUE THEN
+    DROP FUNCTION IF EXISTS public.normalize_phone(text);
+  END IF;
+END $$;
 CREATE OR REPLACE FUNCTION public.normalize_phone(p text)
 RETURNS text LANGUAGE sql IMMUTABLE AS $$ SELECT nullif(regexp_replace(coalesce(p, ''), '[^0-9]', '', 'g'), '') $$;
 
@@ -3970,7 +3964,7 @@ ON CONFLICT DO NOTHING;
 UPDATE public.profiles p SET phone_verified = true
 WHERE EXISTS (SELECT 1 FROM public.profile_phones pp WHERE pp.user_id = p.id) AND NOT p.phone_verified;
 
-CREATE OR REPLACE FUNCTION public.find_user_by_phone(p_phone text)
+CREATE FUNCTION public.find_user_by_phone(p_phone text)
 RETURNS uuid LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public AS $$
 DECLARE found uuid;
 BEGIN
@@ -4115,7 +4109,8 @@ NOTIFY pgrst, 'reload schema';
 /*
 # Pulse backend 17 — find people by phone number, including phone + password accounts
 
-Idempotent. Apply after migration 15 (it replaces find_user_by_phone, same signature and grants).
+Idempotent. Apply after migration 15. It replaces any existing find_user_by_phone(text) (including a hand-made one
+with another parameter name or return type) and does not depend on normalize_phone.
 
 Phone + password sign-up (development, no SMS provider) stores the account as an email address made from the number,
 e.g. "+256789175095" -> "256789175095@pulseapp.com". Those numbers are not in profile_phones (that table only
@@ -4138,11 +4133,15 @@ ON CONFLICT (key) DO NOTHING;
 UPDATE public.app_config SET value = 'pulseapp.com,' || value
 WHERE key = 'phone_email_domains' AND NOT ('pulseapp.com' = ANY (string_to_array(replace(value, ' ', ''), ',')));
 
-CREATE OR REPLACE FUNCTION public.find_user_by_phone(p_phone text)
+-- a hand-made version (e.g. find_user_by_phone(phone_input) returning rows, callable signed out) cannot be replaced
+-- in place: drop it first
+DROP FUNCTION IF EXISTS public.find_user_by_phone(text);
+
+CREATE FUNCTION public.find_user_by_phone(p_phone text)
 RETURNS uuid LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public AS $$
 DECLARE
   found uuid;
-  digits text := public.normalize_phone(p_phone);
+  digits text := nullif(regexp_replace(coalesce(p_phone, ''), '[^0-9]', '', 'g'), '');
   domains text[];
 BEGIN
   IF auth.uid() IS NULL THEN RAISE EXCEPTION 'sign in required' USING ERRCODE = '28000'; END IF;
@@ -4171,5 +4170,38 @@ END $$;
 
 REVOKE EXECUTE ON FUNCTION public.find_user_by_phone(text) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.find_user_by_phone(text) TO authenticated;
+
+NOTIFY pgrst, 'reload schema';
+
+-- ============================================================================
+-- >>> 20261030100000_hide_private_profile_columns.sql
+-- ============================================================================
+/*
+# Pulse backend 18 — keep phone numbers and real names out of the public profiles API
+
+Idempotent. Apply after migration 15. No data is changed or deleted.
+
+`profiles` is readable by everyone (signed out included) so names and photos can be shown. Some databases also have
+hand-added columns such as `phone`, `phone_number` or `full_name` on it, which made those values public.
+Pulse never reads them (numbers live privately in profile_phones / the account), so this switches profiles to
+column-level read access: every column except those private ones stays readable.
+
+Re-run this after adding columns to profiles: new columns only become readable once granted here.
+*/
+DO $$
+DECLARE cols text; c text;
+BEGIN
+  SELECT string_agg(quote_ident(column_name), ', ' ORDER BY ordinal_position) INTO cols
+  FROM information_schema.columns
+  WHERE table_schema = 'public' AND table_name = 'profiles'
+    AND column_name NOT IN ('phone', 'phone_number', 'full_name');
+  -- PUBLIC too: a grant to PUBLIC would otherwise keep every column readable
+  REVOKE SELECT ON public.profiles FROM PUBLIC, anon, authenticated;
+  FOR c IN SELECT column_name FROM information_schema.columns
+           WHERE table_schema = 'public' AND table_name = 'profiles' AND column_name IN ('phone', 'phone_number', 'full_name') LOOP
+    EXECUTE format('REVOKE SELECT (%I) ON public.profiles FROM PUBLIC, anon, authenticated', c);
+  END LOOP;
+  EXECUTE format('GRANT SELECT (%s) ON public.profiles TO anon, authenticated', cols);
+END $$;
 
 NOTIFY pgrst, 'reload schema';

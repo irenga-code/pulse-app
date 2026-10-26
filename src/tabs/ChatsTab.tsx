@@ -13,7 +13,7 @@ import { saveContact } from '@/lib/contacts';
 import { shareLink } from '@/lib/share';
 import { ErrorNote, inputClass, primaryBtn, ghostBtn, mutedText, bodyText } from '@/components/ui';
 import { api } from '@/lib/apiClient';
-import { friendlyError, isMissingSchema } from '@/lib/api';
+import { friendlyError } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { useSocial } from '@/context/SocialContext';
 import { useToast } from '@/context/ToastContext';
@@ -53,7 +53,7 @@ function NewChatByPhone({ onClose, initialPhone = '', onFound }: { onClose: () =
       onClose();
       if (onFound) onFound(id); else openChat(id);
     } catch (err) {
-      setError(isMissingSchema(err) ? 'Chat by phone number needs the latest database update (migration 15).' : friendlyError(err));
+      setError(friendlyError(err));
       setBusy(false);
     }
   };
