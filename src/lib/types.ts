@@ -143,7 +143,7 @@ export type AppNotification = {
   created_at: string;
 };
 
-export type ReportTarget = 'post' | 'comment' | 'user' | 'venue' | 'event' | 'review' | 'status';
+export type ReportTarget = 'post' | 'comment' | 'user' | 'venue' | 'event' | 'review' | 'status' | 'message';
 export type ReportReason = 'spam' | 'harassment' | 'hate' | 'violence' | 'sexual' | 'scam' | 'misinformation' | 'other';
 export const REPORT_REASONS: { value: ReportReason; label: string }[] = [
   { value: 'spam', label: 'Spam' },
@@ -243,10 +243,15 @@ export type ChatMessage = {
   /** Voice notes only (migration 16): length and up to 64 waveform bars (0-100). */
   media_duration_ms?: number | null;
   media_waveform?: number[] | null;
+  /** Migration 19: the message this one replies to (same chat), and whether it was forwarded. */
+  reply_to_id?: string | null;
+  is_forwarded?: boolean;
 };
 export type MessageMedia =
   | { media_url: string; media_type: 'image' | 'video' }
   | { media_url: string; media_type: 'audio'; media_duration_ms: number; media_waveform: number[] };
+/** A reaction on a chat message (migration 19): one per person per message. */
+export type MessageReaction = { message_id: string; user_id: string; emoji: string };
 /** Your own chat list filters (conversation_participants, migration 15). */
 export type ConversationPrefs = { conversation_id: string; is_favorite: boolean; is_archived: boolean };
 

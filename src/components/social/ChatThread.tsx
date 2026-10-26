@@ -1,8 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
-import { ArrowLeft, X, Send, Ghost, Loader2, Camera, Search } from 'lucide-react';
+import { ArrowLeft, X, Send, Ghost, Loader2, Camera, Search, Pin } from 'lucide-react';
 import Avatar from '@/components/Avatar';
 import ChatShell from '@/components/social/ChatShell';
 import RefPreview from '@/components/social/RefPreview';
+import ReportModal from '@/components/community/ReportModal';
+import MessageBubble, { messagePreview, messageText } from '@/components/social/chat/MessageBubble';
+import { DeleteMessageModal, ForwardModal, MessageInfoModal, ReplyBar, type MessageAction } from '@/components/social/chat/MessageActions';
+import { useMessageExtras } from '@/hooks/useMessageExtras';
 import EmojiButton from '@/components/emoji/EmojiPicker';
 import { EmojiText } from '@/components/emoji/EmojiImg';
 import { useEmojiInsert } from '@/components/emoji/useEmojiInsert';
@@ -13,13 +17,12 @@ import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/context/ToastContext';
 import { useSocial } from '@/context/SocialContext';
 import { useQuickSnap } from '@/camera/QuickSnapContext';
-import VoiceNote from '@/components/social/VoiceNote';
 import { useVoiceComposer } from '@/components/social/VoiceComposer';
 import type { VoiceRecording } from '@/hooks/useVoiceRecorder';
 import type { ChatMessage, MessageRef, PublicProfile } from '@/lib/types';
 import { ChatSkeleton } from '@/components/Skeleton';
 import { CHAT_THEMES, getChatPrefs, subscribeChatPrefs } from '@/lib/chatPrefs';
-import { contactLabel, useContacts } from '@/lib/contacts';
+import { appendToContactNote, contactLabel, useContacts } from '@/lib/contacts';
 
 let channelCounter = 0;
 const MAX = 2000;
@@ -67,6 +70,14 @@ export default function ChatThread({ otherUserId, initialRef, onBack, onClose, e
   const [sending, setSending] = useState(false);
   const [ref, setRef] = useState<MessageRef | null>(initialRef);
   const [now, setNow] = useState(() => Date.now());
+  // message actions (migration 19)
+  const [pinnedId, setPinnedId] = useState<string | null>(null);
+  const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
+  const [deleting, setDeleting] = useState<ChatMessage | null>(null);
+  const [infoFor, setInfoFor] = useState<ChatMessage | null>(null);
+  const [forwarding, setForwarding] = useState<ChatMessage | null>(null);
+  const [reporting, setReporting] = useState<ChatMessage | null>(null);
+  const [flash, setFlash] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const readTimer = useRef<number | undefined>(undefined);
@@ -141,6 +152,7 @@ export default function ChatThread({ otherUserId, initialRef, onBack, onClose, e
         if (!alive) return;
         setMessages(rows);
         setVanish(!!conv?.vanish_mode);
+        setPinnedId(conv?.pinned_message_id ?? null);
         setLoading(false);
         markRead();
       })
@@ -155,7 +167,9 @@ export default function ChatThread({ otherUserId, initialRef, onBack, onClose, e
       })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'messages', filter: `conversation_id=eq.${convId}` }, (payload) => upsert(payload.new as ChatMessage))
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'conversations', filter: `id=eq.${convId}` }, (payload) => {
-        setVanish(!!(payload.new as { vanish_mode?: boolean }).vanish_mode);
+        const c = payload.new as { vanish_mode?: boolean; pinned_message_id?: string | null };
+        setVanish(!!c.vanish_mode);
+        if ('pinned_message_id' in c) setPinnedId(c.pinned_message_id ?? null);
       })
       .subscribe();
 
@@ -185,10 +199,13 @@ export default function ChatThread({ otherUserId, initialRef, onBack, onClose, e
   const clearedAt = convId ? device.clearedAt[convId] ?? null : null;
   const themeClass = CHAT_THEMES.find((t) => t.id === (convId ? device.themes[convId] : undefined))?.className ?? '';
   const q = search?.trim().toLowerCase() ?? '';
+  const messageIds = useMemo(() => messages.filter((m) => m.kind !== 'system').map((m) => m.id), [messages]);
+  const extras = useMessageExtras(messageIds, me);
   const visible = useMemo(
-    () => messages.filter((m) => isLive(m, now) && (!clearedAt || m.created_at > clearedAt) && (!q || m.body.toLowerCase().includes(q))),
-    [messages, now, clearedAt, q],
+    () => messages.filter((m) => isLive(m, now) && !extras.hidden.has(m.id) && (!clearedAt || m.created_at > clearedAt) && (!q || m.body.toLowerCase().includes(q))),
+    [messages, now, clearedAt, q, extras.hidden],
   );
+  const byId = useMemo(() => new Map(messages.map((m) => [m.id, m])), [messages]);
   useEffect(() => { endRef.current?.scrollIntoView?.({ block: 'end' }); }, [visible.length, loading]);
 
   const send = async (e: React.FormEvent) => {
@@ -197,10 +214,11 @@ export default function ChatThread({ otherUserId, initialRef, onBack, onClose, e
     if (!body || !convId || sending) return;
     setSending(true);
     try {
-      const m = await api.sendMessage(convId, body, ref);
+      const m = await api.sendMessage(convId, body, ref, null, { replyToId: replyTo?.id ?? null });
       setMessages((list) => (list.some((x) => x.id === m.id) ? list : [...list, m].sort(byTime)));
       setText('');
       setRef(null);
+      setReplyTo(null);
     } catch (err) {
       show(friendlyError(err), 'error');
     }
@@ -228,6 +246,43 @@ export default function ChatThread({ otherUserId, initialRef, onBack, onClose, e
     } catch (err) {
       setVanish(!next);
       show(friendlyError(err), 'error');
+    }
+  };
+
+  const jumpTo = useCallback((id: string) => {
+    document.getElementById(`msg-${id}`)?.scrollIntoView?.({ block: 'center', behavior: 'smooth' });
+    setFlash(id);
+    window.setTimeout(() => setFlash((f) => (f === id ? null : f)), 1600);
+  }, []);
+
+  const togglePin = async (m: ChatMessage) => {
+    if (!convId) return;
+    const before = pinnedId;
+    const next = pinnedId === m.id ? null : m.id;
+    setPinnedId(next);
+    try {
+      await api.setPinnedMessage(convId, next);
+      show(next ? 'Message pinned' : 'Message unpinned');
+    } catch (err) {
+      setPinnedId(before);
+      show(friendlyError(err), 'error');
+    }
+  };
+
+  const onAction = (m: ChatMessage, a: MessageAction) => {
+    switch (a) {
+      case 'info': setInfoFor(m); break;
+      case 'reply': setReplyTo(m); inputRef.current?.focus(); break;
+      case 'copy':
+        void navigator.clipboard?.writeText(messageText(m)).then(() => show('Message copied'), () => show('Could not copy. Select the text instead.', 'error'));
+        break;
+      case 'forward': setForwarding(m); break;
+      case 'pin': void togglePin(m); break;
+      case 'star': void extras.toggleStar(m.id); break;
+      case 'note': appendToContactNote(otherUserId, messageText(m)); show('Added to your note about this contact'); break;
+      case 'report': setReporting(m); break;
+      case 'delete': setDeleting(m); break;
+      default: break;
     }
   };
 
@@ -283,7 +338,17 @@ export default function ChatThread({ otherUserId, initialRef, onBack, onClose, e
           <button onClick={() => onSearch(null)} aria-label="Close search" className="p-1 rounded-full hover:bg-black/10 dark:hover:bg-white/10"><X className="w-4 h-4" /></button>
         </div>
       )}
-      <div className={`flex-1 overflow-y-auto px-3 py-3 space-y-1.5 ${secret ? '' : themeClass}`} aria-live="polite" data-testid="chat-messages">
+      {pinnedId && (
+        <div className={`flex items-center gap-2 px-3 py-2 border-b text-sm ${secret ? 'border-purple-500/30 bg-zinc-900' : 'border-wa-lightBorder dark:border-wa-darkBorder bg-wa-lightPanel dark:bg-wa-darkPanel'}`} data-testid="pinned-banner">
+          <Pin className="w-4 h-4 text-wa-green flex-shrink-0" />
+          <button type="button" onClick={() => jumpTo(pinnedId)} className="flex-1 min-w-0 text-left truncate" aria-label="Go to pinned message">
+            {byId.get(pinnedId) ? messagePreview(byId.get(pinnedId)!) : 'Pinned message'}
+          </button>
+          <button type="button" onClick={() => { const m = byId.get(pinnedId); if (m) void togglePin(m); else if (convId) void api.setPinnedMessage(convId, null).then(() => setPinnedId(null)); }}
+            aria-label="Unpin message" className={`p-1 rounded-full hover:bg-black/10 dark:hover:bg-white/10 ${sub}`}><X className="w-4 h-4" /></button>
+        </div>
+      )}
+      <div className={`flex-1 overflow-y-auto px-3 py-3 space-y-1.5 ${secret ? '' : `chat-wallpaper ${themeClass}`}`} aria-live="polite" data-testid="chat-messages">
         {loading ? (
           <ChatSkeleton />
         ) : error ? (
@@ -297,33 +362,13 @@ export default function ChatThread({ otherUserId, initialRef, onBack, onClose, e
             }
             const mine = m.sender_id === me;
             const left = secondsLeft(m, now);
+            const reply = m.reply_to_id ? byId.get(m.reply_to_id) : undefined;
             return (
-              <div key={m.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
-                <div
-                  data-testid="chat-bubble"
-                  className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm leading-snug shadow-sm ${
-                    mine
-                      ? m.vanish ? 'bg-purple-600 text-white rounded-br-md' : 'bg-wa-green text-white rounded-br-md'
-                      : m.vanish ? 'bg-zinc-800 text-zinc-100 rounded-bl-md' : 'bg-wa-lightPanel dark:bg-wa-darkSecondary text-wa-lightText dark:text-wa-darkText rounded-bl-md'
-                  }`}
-                >
-                  {m.ref_type && m.ref_id && <div className="mb-1.5"><RefPreview type={m.ref_type} id={m.ref_id} tone="bubble" /></div>}
-                  {m.media_url && m.media_type === 'audio' ? (
-                    <VoiceNote id={m.id} url={m.media_url} durationMs={m.media_duration_ms} waveform={m.media_waveform} mine={mine} tone={m.vanish ? 'secret' : 'normal'} />
-                  ) : m.media_url && (
-                    m.media_type === 'video'
-                      ? <video src={m.media_url} controls playsInline preload="metadata" aria-label="Video snap" className="-mx-1 mb-1 w-56 max-w-full aspect-[9/16] rounded-xl bg-black object-cover" />
-                      : <img src={m.media_url} alt="Photo snap" loading="lazy" className="-mx-1 mb-1 w-56 max-w-full aspect-[9/16] rounded-xl bg-black object-cover" />
-                  )}
-                  {/* a snap without a caption carries a placeholder body ("📸 Snap"); the picture says it already */}
-                  {!(m.media_url && /^(📸|🎥) Snap$|^🎤 Voice message$/u.test(m.body)) && <p className="whitespace-pre-wrap break-words"><EmojiText text={m.body} /></p>}
-                  <p className="mt-0.5 text-[10px] opacity-75 text-right flex items-center justify-end gap-1">
-                    {m.vanish && <Ghost className="w-3 h-3" />}
-                    {left !== null ? `vanishes in ${left}s` : m.vanish ? (mine ? 'vanishes after read' : 'vanishes once read') : ''}
-                    {mine && !m.vanish && m.read_at ? 'Seen' : ''}
-                  </p>
-                </div>
-              </div>
+              <MessageBubble key={m.id} m={m} mine={mine}
+                statusLine={<>{left !== null ? `vanishes in ${left}s` : m.vanish ? (mine ? 'vanishes after read' : 'vanishes once read') : ''}{mine && !m.vanish && m.read_at ? 'Seen' : ''}</>}
+                replyTo={reply} replyName={reply ? (reply.sender_id === me ? 'You' : label.title) : undefined}
+                reactions={extras.summary[m.id]} myReaction={extras.myReaction(m.id)} starred={extras.starred.has(m.id)} pinned={pinnedId === m.id}
+                highlighted={flash === m.id} onReact={(e) => { void extras.react(m.id, e); }} onAction={(a) => onAction(m, a)} onJump={jumpTo} />
             );
           })
         )}
@@ -332,6 +377,7 @@ export default function ChatThread({ otherUserId, initialRef, onBack, onClose, e
 
       <form onSubmit={send} className={`px-2 pt-2 pb-3 border-t ${secret ? 'border-purple-500/30 bg-zinc-900' : 'border-wa-lightBorder dark:border-wa-darkBorder bg-wa-lightPanel dark:bg-wa-darkPanel'}`} style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}>
         {ref && <div className="px-1 pb-2"><RefPreview type={ref.type} id={ref.id} onRemove={() => setRef(null)} /></div>}
+        {replyTo && <ReplyBar name={replyTo.sender_id === me ? 'yourself' : label.title} text={messagePreview(replyTo)} onCancel={() => setReplyTo(null)} />}
         <div className="flex items-center gap-1">
           {voice.active ? voice.bar : (
             <>
@@ -372,6 +418,21 @@ export default function ChatThread({ otherUserId, initialRef, onBack, onClose, e
           )}
         </div>
       </form>
+      {deleting && (
+        <DeleteMessageModal canDeleteForEveryone={deleting.sender_id === me} onClose={() => setDeleting(null)}
+          onEveryone={async () => {
+            await api.deleteMessage(deleting.id);
+            setMessages((list) => list.filter((x) => x.id !== deleting.id));
+            show('Message deleted for everyone');
+          }}
+          onMe={async () => { await extras.hideForMe(deleting.id); show('Message deleted for you'); }} />
+      )}
+      {infoFor && <MessageInfoModal message={infoFor} mine={infoFor.sender_id === me} onClose={() => setInfoFor(null)} />}
+      {forwarding && convId && (
+        <ForwardModal message={forwarding} currentConversationId={convId} onClose={() => setForwarding(null)}
+          onDone={(n) => show(`Forwarded to ${n} chat${n === 1 ? '' : 's'}`)} />
+      )}
+      {reporting && <ReportModal targetType="message" targetId={reporting.id} onClose={() => setReporting(null)} />}
     </Shell>
   );
 }

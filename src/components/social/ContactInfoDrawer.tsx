@@ -3,7 +3,9 @@ import {
   X, Pencil, Phone, Video, Search, Star, BellOff, Timer, ShieldAlert, Palette, Lock, Heart, ListPlus, Download, Eraser, Ban,
   ThumbsDown, Trash2, Check, Loader2,
 } from 'lucide-react';
-import { contactLabel, saveContact, useContacts } from '@/lib/contacts';
+import { contactLabel, saveContact, useContacts, NOTE_MAX } from '@/lib/contacts';
+import { formatDateTime } from '@/lib/time';
+import type { ChatMessage } from '@/lib/types';
 import Avatar from '@/components/Avatar';
 import ReportModal from '@/components/community/ReportModal';
 import { Toggle } from '@/components/settings/SettingsUi';
@@ -54,6 +56,14 @@ export default function ContactInfoDrawer({ otherUserId, meta, favorite, onFavor
   const [confirm, setConfirm] = useState<'clear' | 'delete' | null>(null);
   const [reporting, setReporting] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [stars, setStars] = useState<Pick<ChatMessage, 'id' | 'body' | 'sender_id' | 'created_at'>[] | null>(null);
+  const [showStars, setShowStars] = useState(false);
+  const loadStars = async () => {
+    if (showStars) { setShowStars(false); return; }
+    setShowStars(true);
+    setStars(null);
+    try { setStars(meta ? await api.starredMessages(meta.conversationId) : []); } catch (e) { setStars([]); show(friendlyError(e), 'error'); }
+  };
   const [about, setAbout] = useState<string | null | undefined>(undefined);
   useEffect(() => {
     let alive = true;
@@ -150,8 +160,30 @@ export default function ContactInfoDrawer({ otherUserId, meta, favorite, onFavor
           </section>
         )}
 
+        <section className={`${block} px-6 py-4`}>
+          <label htmlFor="contact-note" className={`block text-sm ${mutedText}`}>Notes</label>
+          <textarea id="contact-note" value={contacts[otherUserId]?.note ?? ''} rows={3}
+            onChange={(e) => saveContact(otherUserId, { note: e.target.value.slice(0, NOTE_MAX) })}
+            placeholder="Private notes about this contact. Use “Add text to note” on a message to add it here."
+            className={`${inputClass} mt-1.5 resize-y text-sm`} />
+          <p className={`text-[11px] mt-1 ${mutedText}`}>Only you can see this. Saved on this device.</p>
+        </section>
+
         <section className={block}>
-          <Row icon={Star} label="Starred messages" soon />
+          <Row icon={Star} label="Starred messages" onClick={loadStars} hint={showStars && stars ? `${stars.length} starred` : undefined} />
+          {showStars && (
+            <ul className="px-6 pb-3 space-y-2" aria-label="Starred messages">
+              {stars === null ? <li className={`text-sm ${mutedText}`}>Loading…</li>
+                : stars.length === 0 ? <li className={`text-sm ${mutedText}`}>No starred messages. Star one from its ⌄ menu.</li>
+                : stars.map((m) => (
+                  <li key={m.id} className="rounded-lg px-3 py-2 bg-black/[0.03] dark:bg-white/5">
+                    <p className={`text-xs font-semibold ${m.sender_id === user?.id ? 'text-wa-green' : bodyText}`}>{m.sender_id === user?.id ? 'You' : name}</p>
+                    <p className={`text-sm whitespace-pre-wrap break-words ${bodyText}`}>{m.body}</p>
+                    <p className={`text-[11px] mt-0.5 ${mutedText}`}>{formatDateTime(m.created_at)}</p>
+                  </li>
+                ))}
+            </ul>
+          )}
           <Row icon={BellOff} label="Mute notifications" hint="No sound or pop-ups for this chat on this device"
             trailing={<Toggle checked={muted} disabled={!conv} label="Mute notifications" onChange={(on) => { if (conv) { setChatMuted(conv, on); show(on ? 'Chat muted' : 'Chat unmuted'); } }} />} />
           <Row icon={Timer} label="Disappearing messages" hint={meta?.vanish ? 'On: messages vanish after they are read' : 'Off'}

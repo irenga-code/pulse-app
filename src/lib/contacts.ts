@@ -6,7 +6,7 @@ import { formatPhone } from '@/lib/phone';
  * name you saved for them. Pulse never shows anyone's number to people who did not already have it, so a number
  * appears here only because you typed it in.
  */
-export type Contact = { phone?: string; name?: string };
+export type Contact = { phone?: string; name?: string; /** Your private notes about them ("Add text to note"). */ note?: string };
 type Book = Record<string, Contact>;
 
 const KEY = 'pulse:contacts';
@@ -38,13 +38,23 @@ export function subscribeContacts(fn: () => void) {
 }
 export const useContacts = () => useSyncExternalStore(subscribeContacts, getContacts, getContacts);
 
-/** Merge into a contact; an empty name removes the saved name. */
+export const NOTE_MAX = 2000;
+
+/** Merge into a contact; an empty name or note removes it. */
 export function saveContact(userId: string, patch: Contact) {
   const cur = book[userId] ?? {};
   const next: Contact = { ...cur, ...patch };
   if (patch.name !== undefined && !patch.name.trim()) delete next.name;
   else if (next.name) next.name = next.name.trim();
+  if (patch.note !== undefined && !patch.note.trim()) delete next.note;
+  else if (next.note) next.note = next.note.slice(0, NOTE_MAX);
   save({ ...book, [userId]: next });
+}
+
+/** "Add text to note": append a message's text to your private note about this person. */
+export function appendToContactNote(userId: string, text: string) {
+  const cur = book[userId]?.note?.trim();
+  saveContact(userId, { note: cur ? `${cur}\n${text.trim()}` : text.trim() });
 }
 
 /**

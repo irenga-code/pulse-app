@@ -10,7 +10,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type {
   Venue, VenueStatus, Post, Comment, ReactionKind, ReactionCounts, ReactionType, NewPostInput, Profile, PublicProfile, Preferences,
   AppNotification, ReportTarget, ReportReason, ReportRow, VerificationRequest, ModerationLogRow, AccountStatus, AccountType,
-  ProfileStats, Status, NewStatusInput, ChatMessage, ConversationSummary, MessageRef, MessageMedia, ConversationPrefs, VenueChannel, ChannelMessage, VerificationRole, ManagedVenue, VenueProfilePatch, StaffCandidate, VenueStaffRow,
+  ProfileStats, Status, NewStatusInput, ChatMessage, ConversationSummary, MessageRef, MessageMedia, ConversationPrefs, VenueChannel, ChannelMessage, VerificationRole, ManagedVenue, VenueProfilePatch, StaffCandidate, VenueStaffRow, MessageReaction,
 } from './types';
 
 export class ApiError extends Error {
@@ -41,9 +41,15 @@ const warnedMissing = new Set<string>();
 const isMissingColumn = (e: unknown) => ['42703', 'PGRST204'].includes((e as { code?: string })?.code ?? '');
 
 const MSG_COLS = 'id, conversation_id, sender_id, body, kind, ref_type, ref_id, vanish, created_at, read_at, expires_at';
-// chat snaps (migration 15) and voice notes (migration 16); each level is dropped for the rest of the session
+// chat snaps (migration 15), voice notes (migration 16), replies (migration 19); each level is dropped for the rest of the session
 // if the database does not have those columns yet
-const MSG_MEDIA_LEVELS = [MSG_COLS, `${MSG_COLS}, media_url, media_type`, `${MSG_COLS}, media_url, media_type, media_duration_ms, media_waveform`];
+const MSG_MEDIA_LEVELS = [
+  MSG_COLS,
+  `${MSG_COLS}, media_url, media_type`,
+  `${MSG_COLS}, media_url, media_type, media_duration_ms, media_waveform`,
+  // replies and forwarding (migration 19)
+  `${MSG_COLS}, media_url, media_type, media_duration_ms, media_waveform, reply_to_id, is_forwarded`,
+];
 let msgMediaLevel = MSG_MEDIA_LEVELS.length - 1;
 const msgCols = () => MSG_MEDIA_LEVELS[msgMediaLevel];
 
@@ -585,7 +591,69 @@ export function createApi(c: SupabaseClient) {
       return unwrapOr(await c.rpc('list_conversations'), []) as ConversationSummary[];
     },
     async getConversation(id: string) {
-      return unwrap(await c.from('conversations').select('id, vanish_mode').eq('id', id).maybeSingle()) as { id: string; vanish_mode: boolean } | null;
+      type Conv = { id: string; vanish_mode: boolean; pinned_message_id?: string | null };
+      const res = await c.from('conversations').select('id, vanish_mode, pinned_message_id').eq('id', id).maybeSingle();
+      // pinned messages arrive with migration 19
+      if (res.error && isMissingColumn(res.error)) return unwrap(await c.from('conversations').select('id, vanish_mode').eq('id', id).maybeSingle()) as Conv | null;
+      return unwrap(res) as Conv | null;
+    },
+    /** Reactions, your stars and your "deleted for me" for these messages (empty before migration 19). */
+    async messageExtras(messageIds: string[]) {
+      if (messageIds.length === 0) return { reactions: [] as MessageReaction[], starred: [] as string[], hidden: [] as string[] };
+      const [r, s, h] = await Promise.all([
+        c.from('message_reactions').select('message_id, user_id, emoji').in('message_id', messageIds),
+        c.from('message_stars').select('message_id').in('message_id', messageIds),
+        c.from('message_hidden').select('message_id').in('message_id', messageIds),
+      ]);
+      return {
+        reactions: unwrapOr(r, []) as MessageReaction[],
+        starred: (unwrapOr(s, []) as { message_id: string }[]).map((x) => x.message_id),
+        hidden: (unwrapOr(h, []) as { message_id: string }[]).map((x) => x.message_id),
+      };
+    },
+    /** One reaction per person per message: set, change, or (null) take it back. */
+    async setMessageReaction(messageId: string, userId: string, emoji: string | null) {
+      if (emoji === null) {
+        unwrap(await c.from('message_reactions').delete().eq('message_id', messageId).eq('user_id', userId));
+        return;
+      }
+      const ins = await c.from('message_reactions').insert({ message_id: messageId, emoji });
+      if (ins.error?.code === '23505') {
+        unwrap(await c.from('message_reactions').update({ emoji }).eq('message_id', messageId).eq('user_id', userId));
+        return;
+      }
+      if (ins.error && isMissingSchema(ins.error)) throw new ApiError('Reactions need the latest database update (migration 19).', ins.error.code);
+      unwrap(ins);
+    },
+    async setMessageStar(messageId: string, userId: string, on: boolean) {
+      const res = on
+        ? await c.from('message_stars').insert({ message_id: messageId })
+        : await c.from('message_stars').delete().eq('message_id', messageId).eq('user_id', userId);
+      if (res.error && isMissingSchema(res.error)) throw new ApiError('Starred messages need the latest database update (migration 19).', res.error.code);
+      if (res.error && res.error.code !== '23505') unwrap(res);
+    },
+    /** Delete for me: hidden for you only. */
+    async hideMessage(messageId: string) {
+      const res = await c.from('message_hidden').insert({ message_id: messageId });
+      if (res.error && isMissingSchema(res.error)) throw new ApiError('Delete for me needs the latest database update (migration 19).', res.error.code);
+      if (res.error && res.error.code !== '23505') unwrap(res);
+    },
+    /** Delete for everyone: only your own messages. */
+    async deleteMessage(messageId: string) {
+      const rows = unwrap(await c.from('messages').delete().eq('id', messageId).select('id')) as unknown[];
+      if (rows.length === 0) throw new ApiError('You can only delete your own messages for everyone.', '42501');
+    },
+    async setPinnedMessage(conversationId: string, messageId: string | null) {
+      const res = await c.rpc('set_pinned_message', { p_conv: conversationId, p_message: messageId });
+      if (res.error && isMissingSchema(res.error)) throw new ApiError('Pinning needs the latest database update (migration 19).', res.error.code);
+      unwrap(res);
+    },
+    /** Your starred messages in one chat, newest first. */
+    async starredMessages(conversationId: string) {
+      const res = await c.from('message_stars').select('message_id, created_at, messages!inner(id, body, sender_id, created_at, conversation_id)')
+        .eq('messages.conversation_id', conversationId).order('created_at', { ascending: false });
+      type Row = { message_id: string; messages: Pick<ChatMessage, 'id' | 'body' | 'sender_id' | 'created_at'> };
+      return (unwrapOr(res, []) as unknown as Row[]).map((r) => r.messages);
     },
     /** Latest messages of a conversation, oldest first. Expired vanish messages are already hidden by the database. */
     async listMessages(conversationId: string, limit = 100): Promise<ChatMessage[]> {
@@ -602,14 +670,18 @@ export function createApi(c: SupabaseClient) {
      * The database stamps sender, time, vanish flag and expiry; the client sends text, an optional post/status
      * reference and an optional photo / video snap (migration 15) or voice note (migration 16).
      */
-    async sendMessage(conversationId: string, body: string, ref?: MessageRef | null, media?: MessageMedia | null): Promise<ChatMessage> {
+    async sendMessage(conversationId: string, body: string, ref?: MessageRef | null, media?: MessageMedia | null,
+      opts: { replyToId?: string | null; forwarded?: boolean } = {}): Promise<ChatMessage> {
       const row: Record<string, unknown> = { conversation_id: conversationId, body: body.trim() };
+      if (opts.replyToId) row.reply_to_id = opts.replyToId;
+      if (opts.forwarded) row.is_forwarded = true;
       if (ref) { row.ref_type = ref.type; row.ref_id = ref.id; }
       if (media) { row.media_url = media.media_url; row.media_type = media.media_type; }
       if (media?.media_type === 'audio') { row.media_duration_ms = Math.round(media.media_duration_ms); row.media_waveform = media.media_waveform; }
       const write = () => c.from('messages').insert(row).select(msgCols()).single();
       let res = await write();
       if (res.error && (isMissingColumn(res.error) || /media_type_ck/.test(res.error.message))) {
+        if (opts.replyToId || opts.forwarded) throw new ApiError('Replies and forwarding need the latest database update (migration 19).', res.error.code);
         if (media?.media_type === 'audio') throw new ApiError('Voice messages need the latest database update (migration 16).', res.error.code);
         if (media) throw new ApiError('Sending snaps in chats needs the latest database update (migration 15).', res.error.code);
         while (res.error && msgMediaLevel > 0 && isMissingColumn(res.error)) { msgMediaLevel--; res = await write(); }
