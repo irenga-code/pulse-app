@@ -74,28 +74,31 @@
   .animate-section-in { animation: none; }
 }
 
-/* Chat wallpaper: the faded brown parchment doodle scene (assets/brown_wallpaper_v3_faded_soft.png, 1024x585, not a
-   tile) covers the visible chat area and stays put while messages scroll over it. Two gradients on top give the oily
-   parchment look: a warm sheen (soft-light) and a soft darkened edge (overlay). The picture itself is multiplied
-   onto the canvas colour, so a near-white canvas leaves it as drawn and a chat theme picked in Contact info (a
-   Tailwind bg-* class) tints it. In dark mode the picture is soft-lit onto the deep canvas, so only a faint warm
-   doodle shows behind the bubbles. :where() keeps the canvas colour at zero specificity so the theme class wins. */
+/* Chat wallpaper: the cream doodle scene (assets/wallpaper_whatsapp_bolder.png, 1024x585, not a tile) covers the
+   visible chat area and stays put while messages scroll over it. Three layers on top give the oily parchment look at
+   low strength: a warm sheen (soft-light), a soft darkened edge (overlay) and a thin cream wash that lowers the
+   picture's contrast so it sits quietly behind the bubbles. The picture is multiplied onto the canvas colour, so a
+   near-white canvas leaves it as drawn and a chat theme picked in Contact info (a Tailwind bg-* class) tints it. In
+   dark mode the picture is soft-lit onto the deep canvas, so only a faint warm doodle shows. :where() keeps the
+   canvas colour at zero specificity so the theme class wins. */
 :where(.chat-wallpaper) { background-color: #fffaf3; }
 :where(.dark .chat-wallpaper) { background-color: #0b141a; }
 .chat-wallpaper {
   background-image:
-    radial-gradient(ellipse 80% 60% at 30% 20%, rgb(255 246 228 / 0.6), transparent 70%),
-    radial-gradient(ellipse at center, transparent 55%, rgb(110 76 42 / 0.22) 100%),
-    url('./assets/brown_wallpaper_v3_faded_soft.png');
-  background-size: 100% 100%, 100% 100%, cover;
+    radial-gradient(ellipse 80% 60% at 30% 20%, rgb(255 246 228 / 0.5), transparent 70%),
+    radial-gradient(ellipse at center, transparent 55%, rgb(110 76 42 / 0.18) 100%),
+    linear-gradient(rgb(255 251 244 / 0.2), rgb(255 251 244 / 0.2)),
+    url('./assets/wallpaper_whatsapp_bolder.png');
+  background-size: 100% 100%, 100% 100%, 100% 100%, cover;
   background-position: center;
   background-repeat: no-repeat;
-  background-blend-mode: soft-light, overlay, multiply;
+  background-blend-mode: soft-light, overlay, normal, multiply;
 }
 .dark .chat-wallpaper {
   background-image:
     radial-gradient(ellipse 80% 60% at 30% 20%, rgb(255 236 200 / 0.08), transparent 70%),
     radial-gradient(ellipse at center, transparent 50%, rgb(0 0 0 / 0.35) 100%),
-    url('./assets/brown_wallpaper_v3_faded_soft.png');
+    url('./assets/wallpaper_whatsapp_bolder.png');
+  background-size: 100% 100%, 100% 100%, cover;
   background-blend-mode: soft-light, normal, soft-light;
 }
