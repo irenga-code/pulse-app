@@ -38,10 +38,12 @@ export default function MessageBubble({ m, mine, statusLine, replyTo, replyName,
   };
   const endPress = () => window.clearTimeout(press.current);
 
+  // sent bubbles are a soft tint of the accent (index.css .bubble-out), not the bright brand colour
   const bubble = mine
-    ? m.vanish ? 'bg-purple-600 text-white rounded-br-md' : 'bg-wa-green text-white rounded-br-md'
+    ? m.vanish ? 'bg-purple-600 text-white rounded-br-md' : 'bubble-out rounded-br-md'
     : m.vanish ? 'bg-zinc-800 text-zinc-100 rounded-bl-md' : 'bg-wa-lightPanel dark:bg-wa-darkSecondary text-wa-lightText dark:text-wa-darkText rounded-bl-md';
-  const onColor = mine || m.vanish;
+  // white-on-colour details only on the strong secret-mode bubbles; soft bubbles use the normal (readable) styling
+  const onColor = m.vanish;
 
   return (
     <div id={`msg-${m.id}`} className={`group flex items-center gap-1 ${mine ? 'justify-end' : 'justify-start'} ${reactions?.length ? 'mb-3' : ''}`}>
@@ -71,11 +73,11 @@ export default function MessageBubble({ m, mine, statusLine, replyTo, replyName,
         {m.is_forwarded && <p className="flex items-center gap-1 text-[11px] italic opacity-75 mb-0.5"><Forward className="w-3 h-3" />Forwarded</p>}
         {m.reply_to_id && (
           <button type="button" onClick={() => replyTo && onJump(replyTo.id)} disabled={!replyTo} data-testid="reply-quote"
-            className={`block w-full text-left mb-1.5 rounded-lg overflow-hidden ${onColor ? 'bg-black/15' : 'bg-black/5 dark:bg-white/5'}`}>
+            className={`block w-full text-left mb-1.5 rounded-lg overflow-hidden ${onColor ? 'bg-black/15' : mine ? 'bubble-quote' : 'bg-black/5 dark:bg-white/5'}`}>
             <span className="flex">
-              <span className={`w-1 flex-shrink-0 ${onColor ? 'bg-white/70' : 'bg-wa-green'}`} />
+              <span className={`w-1 flex-shrink-0 ${onColor ? 'bg-white/70' : 'bg-wa-green dark:bg-wa-greenLight'}`} />
               <span className="px-2 py-1 min-w-0">
-                <span className={`block text-xs font-semibold ${onColor ? '' : 'text-wa-green'}`}>{replyTo ? replyName : 'Message'}</span>
+                <span className={`block text-xs font-semibold ${onColor ? '' : 'text-wa-green dark:text-wa-greenLight'}`}>{replyTo ? replyName : 'Message'}</span>
                 <span className="block text-xs truncate opacity-80">{replyTo ? messagePreview(replyTo) : 'This message is no longer available'}</span>
               </span>
             </span>

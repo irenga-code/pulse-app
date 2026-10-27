@@ -1,10 +1,11 @@
-import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useContext, useMemo, useRef, useState, type ReactNode } from 'react';
+import { stableContext } from '@/lib/stableContext';
 import { CheckCircle2, AlertCircle } from 'lucide-react';
 
 type Toast = { id: number; message: string; kind: 'success' | 'error' };
 type ToastContextValue = { show: (message: string, kind?: Toast['kind']) => void };
 
-const ToastContext = createContext<ToastContextValue | undefined>(undefined);
+const ToastContext = stableContext<ToastContextValue | undefined>('toast', undefined);
 
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);

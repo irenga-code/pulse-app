@@ -1,4 +1,5 @@
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
+import { stableContext } from '@/lib/stableContext';
 
 type Theme = 'light' | 'dark';
 export type ThemePreference = Theme | 'system';
@@ -30,7 +31,7 @@ type ThemeContextValue = {
   activeAccent: Exclude<Accent, 'auto'>;
 };
 
-const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
+const ThemeContext = stableContext<ThemeContextValue | undefined>('theme', undefined);
 
 const read = (key: string) => { try { return localStorage.getItem(key); } catch { return null; } };
 const write = (key: string, value: string) => { try { localStorage.setItem(key, value); } catch { /* storage unavailable */ } };

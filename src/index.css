@@ -74,6 +74,22 @@
   .animate-section-in { animation: none; }
 }
 
+/* Sent chat bubbles (WhatsApp style): buttons, tabs and headers keep the bold accent; the bubble you send is a soft
+   tint of it. Every accent has its own pair, chosen for readable text (light: dark text on a ~20% tint, at least
+   12:1 contrast; dark: light text on a deep muted shade, at least 6:1). Quoted replies inside are a shade darker. */
+:root, :root[data-accent='emerald'] { --bubble-bg-light: #cff1e6; --bubble-quote-light: #c3e3d8; --bubble-bg-dark: #0d4f3f; --bubble-quote-dark: #0a3e31; }
+:root[data-accent='blue'] { --bubble-bg-light: #d3e0fb; --bubble-quote-light: #c6d3ec; --bubble-bg-dark: #143065; --bubble-quote-dark: #10254f; }
+:root[data-accent='navy'] { --bubble-bg-light: #d9d7f4; --bubble-quote-light: #cccae5; --bubble-bg-dark: #1f2159; --bubble-quote-dark: #181a45; }
+:root[data-accent='violet'] { --bubble-bg-light: #e8defd; --bubble-quote-light: #dad1ee; --bubble-bg-dark: #392e69; --bubble-quote-dark: #2c2452; }
+:root[data-accent='amber'] { --bubble-bg-light: #fdecce; --bubble-quote-light: #eedec2; --bubble-bg-dark: #5f4615; --bubble-quote-dark: #4a3710; }
+:root[data-accent='yellow'] { --bubble-bg-light: #fef5d0; --bubble-quote-light: #efe6c4; --bubble-bg-dark: #615618; --bubble-quote-dark: #4c4313; }
+:root[data-accent='orange'] { --bubble-bg-light: #fee3d0; --bubble-quote-light: #efd5c4; --bubble-bg-dark: #613619; --bubble-quote-dark: #4c2a14; }
+:root[data-accent='hotpink'] { --bubble-bg-light: #fbdaeb; --bubble-quote-light: #eccddd; --bubble-bg-dark: #5c2748; --bubble-quote-dark: #481e38; }
+:root[data-accent='softpink'] { --bubble-bg-light: #fee3e7; --bubble-quote-light: #efd5d9; --bubble-bg-dark: #613541; --bubble-quote-dark: #4c2933; }
+.bubble-out { background-color: var(--bubble-bg-light); color: #111b21; --bubble-quote: var(--bubble-quote-light); }
+.dark .bubble-out { background-color: var(--bubble-bg-dark); color: #e9edef; --bubble-quote: var(--bubble-quote-dark); }
+.bubble-quote { background-color: var(--bubble-quote); border: 1px solid rgb(var(--wa-green) / 0.25); }
+
 /* Chat wallpaper: the cream doodle scene (assets/wallpaper_whatsapp_bolder.png, 1024x585, not a tile) covers the
    visible chat area and stays put while messages scroll over it. Three layers on top give the oily parchment look at
    low strength: a warm sheen (soft-light), a soft darkened edge (overlay) and a thin cream wash that lowers the

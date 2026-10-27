@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { Ghost, MessageCircle, Star, Archive, ArchiveRestore, Users, CheckCheck, BellOff, Plus } from 'lucide-react';
+import { Ghost, MessageCircle, Star, Archive, Users, CheckCheck, BellOff, Plus, Pin, ChevronDown, Loader2 } from 'lucide-react';
+import Modal from '@/components/Modal';
+import ChatListMenu, { type ChatListAction } from '@/components/social/chat/ChatListMenu';
 import Avatar from '@/components/Avatar';
 import { EmojiText } from '@/components/emoji/EmojiImg';
 import { ErrorNote, mutedText, bodyText } from '@/components/ui';
@@ -8,7 +10,7 @@ import { supabase } from '@/lib/supabase';
 import { api } from '@/lib/apiClient';
 import { friendlyError } from '@/lib/api';
 import { chatListTime } from '@/lib/time';
-import { getChatPrefs, subscribeChatPrefs } from '@/lib/chatPrefs';
+import { clearChat, deleteChat, getChatPrefs, isMutedIn, muteChat, subscribeChatPrefs, unmuteChat } from '@/lib/chatPrefs';
 import { contactLabel, useContacts } from '@/lib/contacts';
 import { useAsync } from '@/hooks/useAsync';
 import { useAuth } from '@/context/AuthContext';
@@ -26,27 +28,38 @@ const FILTERS: { id: ChatFilter; label: string }[] = [
 ];
 
 let channelCounter = 0;
-type Prefs = Record<string, Pick<ConversationPrefs, 'is_favorite' | 'is_archived'>>;
+type Prefs = Record<string, Pick<ConversationPrefs, 'is_favorite' | 'is_archived' | 'is_pinned' | 'pinned_at' | 'marked_unread'>>;
+const isUnread = (c: ConversationSummary, p?: Prefs[string]) => c.unread_count > 0 || !!p?.marked_unread;
+const LONG_PRESS_MS = 450;
 
-/** Pure filter, exported for tests. Archived chats only show under Archived (WhatsApp behaviour). */
+/**
+ * Pure filter + order, exported for tests. Archived chats only show under Archived; a chat you deleted on this device
+ * stays out until a newer message arrives; pinned chats come first (most recently pinned on top).
+ */
 // eslint-disable-next-line react-refresh/only-export-components
-export function filterConversations(rows: ConversationSummary[], prefs: Prefs, filter: ChatFilter, query = '', names: Record<string, string> = {}) {
+export function filterConversations(rows: ConversationSummary[], prefs: Prefs, filter: ChatFilter, query = '', names: Record<string, string> = {},
+  deletedAt: Record<string, string> = {}) {
   const q = query.trim().toLowerCase();
   // numbers match however they are typed ("0789 175 095" finds +256789175095)
   const qDigits = q.replace(/\D/g, '').replace(/^0+/, '');
   const matches = (hay: string) => hay.toLowerCase().includes(q) || (qDigits.length >= 3 && hay.replace(/\D/g, '').includes(qDigits));
-  return rows.filter((c) => {
+  const kept = rows.filter((c) => {
     const p = prefs[c.conversation_id];
     const archived = !!p?.is_archived;
+    const gone = deletedAt[c.conversation_id];
+    if (gone && (!c.last_message_at || c.last_message_at <= gone)) return false;
     if (q && !matches(names[c.other_user_id] ?? '')) return false;
     switch (filter) {
       case 'archived': return archived;
-      case 'unread': return !archived && c.unread_count > 0;
+      case 'unread': return !archived && isUnread(c, p);
       case 'favorites': return !!p?.is_favorite;
       case 'groups': return false; // group chats are not built yet
       default: return !archived;
     }
   });
+  const pin = (c: ConversationSummary) => (prefs[c.conversation_id]?.is_pinned ? prefs[c.conversation_id]?.pinned_at ?? '1' : '');
+  // stable sort: pinned first (newest pin on top), everything else keeps the server's newest-message order
+  return kept.map((c, i) => ({ c, i })).sort((a, b) => (pin(b.c) > pin(a.c) ? 1 : pin(b.c) < pin(a.c) ? -1 : a.i - b.i)).map((x) => x.c);
 }
 
 /**
@@ -73,10 +86,16 @@ export default function ConversationList({ onOpen, query = '', selectedId = null
     return () => document.removeEventListener('mousedown', close);
   }, [moreOpen]);
   const data = useAsync(async () => {
-    const [rows, prefRows] = await Promise.all([api.listConversations(), user ? api.myConversationPrefs(user.id) : Promise.resolve([])]);
+    const [rows, prefRows, blocked] = await Promise.all([
+      api.listConversations(),
+      user ? api.myConversationPrefs(user.id) : Promise.resolve([]),
+      user ? Promise.resolve().then(() => api.myBlockedIds(user.id)).catch(() => [] as string[]) : Promise.resolve([] as string[]),
+    ]);
     const people = await api.profilesByIds(rows.map((r) => r.other_user_id));
-    const prefs: Prefs = Object.fromEntries(prefRows.map((p) => [p.conversation_id, { is_favorite: p.is_favorite, is_archived: p.is_archived }]));
-    return { rows, people, prefs };
+    const prefs: Prefs = Object.fromEntries(prefRows.map((p) => [p.conversation_id, {
+      is_favorite: p.is_favorite, is_archived: p.is_archived, is_pinned: !!p.is_pinned, pinned_at: p.pinned_at ?? null, marked_unread: !!p.marked_unread,
+    }]));
+    return { rows, people, prefs, blocked };
   }, [], user ? memUserKey(user.id, 'inbox') : null); // message previews stay in memory only (vanish mode)
   const { reload } = data;
   // optimistic Favorite / Archive changes until the next reload confirms them
@@ -102,10 +121,17 @@ export default function ConversationList({ onOpen, query = '', selectedId = null
     }));
   }, [data.data, contacts]);
   const rows = data.data?.rows ?? [];
-  const shown = filterConversations(rows, prefs, filter, query, names);
-  const count = (f: ChatFilter) => filterConversations(rows, prefs, f).length;
+  const shown = filterConversations(rows, prefs, filter, query, names, device.deletedAt);
+  const count = (f: ChatFilter) => filterConversations(rows, prefs, f, '', {}, device.deletedAt).length;
+  // chat context menu (⌄ / right-click / long-press) and the confirmations it opens
+  const [menuFor, setMenuFor] = useState<string | null>(null);
+  const [confirm, setConfirm] = useState<{ kind: 'block' | 'clear' | 'delete'; c: ConversationSummary; name: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [blockedLocal, setBlockedLocal] = useState<Record<string, boolean>>({});
+  const isBlocked = (id: string) => blockedLocal[id] ?? (data.data?.blocked ?? []).includes(id);
+  const press = useRef<number | undefined>(undefined);
 
-  const setPref = async (c: ConversationSummary, patch: Partial<Pick<ConversationPrefs, 'is_favorite' | 'is_archived'>>, done: string) => {
+  const setPref = async (c: ConversationSummary, patch: Partial<Pick<ConversationPrefs, 'is_favorite' | 'is_archived' | 'is_pinned' | 'marked_unread'>>, done: string) => {
     if (!user) return;
     const before = prefs[c.conversation_id] ?? { is_favorite: false, is_archived: false };
     setLocal((l) => ({ ...l, [c.conversation_id]: { ...before, ...patch } }));
@@ -116,6 +142,42 @@ export default function ConversationList({ onOpen, query = '', selectedId = null
       setLocal((l) => ({ ...l, [c.conversation_id]: before }));
       show(friendlyError(e), 'error');
     }
+  };
+
+  const runAction = async (c: ConversationSummary, name: string, a: ChatListAction) => {
+    const pref = prefs[c.conversation_id];
+    switch (a.kind) {
+      case 'archive': return setPref(c, { is_archived: !pref?.is_archived }, pref?.is_archived ? 'Chat unarchived' : 'Chat archived');
+      case 'mute': muteChat(c.conversation_id, a.ms); return show(a.ms === 'always' ? 'Chat muted' : 'Chat muted for a while');
+      case 'unmute': unmuteChat(c.conversation_id); return show('Chat unmuted');
+      case 'pin': return setPref(c, { is_pinned: !pref?.is_pinned }, pref?.is_pinned ? 'Chat unpinned' : 'Chat pinned');
+      case 'unread': return setPref(c, { marked_unread: true }, 'Marked as unread');
+      case 'read':
+        await api.markConversationRead(c.conversation_id).catch(() => undefined);
+        if (pref?.marked_unread) await setPref(c, { marked_unread: false }, 'Marked as read');
+        else { show('Marked as read'); refresh(); }
+        return;
+      case 'favorite': return setPref(c, { is_favorite: !pref?.is_favorite }, pref?.is_favorite ? 'Removed from favorites' : 'Added to favorites');
+      case 'block': case 'clear': case 'delete': return setConfirm({ kind: a.kind, c, name });
+    }
+  };
+
+  const confirmAction = async () => {
+    if (!confirm || !user) return;
+    const { kind, c, name } = confirm;
+    if (kind === 'clear') { clearChat(c.conversation_id); show('Chat cleared'); setConfirm(null); return; }
+    if (kind === 'delete') { deleteChat(c.conversation_id); show('Chat deleted'); setConfirm(null); return; }
+    const next = !isBlocked(c.other_user_id);
+    setBusy(true);
+    try {
+      await api.setBlocked(user.id, c.other_user_id, next);
+      setBlockedLocal((b) => ({ ...b, [c.other_user_id]: next }));
+      show(next ? `${name} blocked` : `${name} unblocked`);
+      setConfirm(null);
+    } catch (e) {
+      show(friendlyError(e), 'error');
+    }
+    setBusy(false);
   };
 
   const preview = (c: ConversationSummary) => {
@@ -182,10 +244,15 @@ export default function ConversationList({ onOpen, query = '', selectedId = null
               const pref = prefs[c.conversation_id];
               const name = contactLabel(contacts[c.other_user_id], p?.display_name).title;
               const open = selectedId === c.other_user_id;
-              const muted = device.muted.includes(c.conversation_id);
+              const muted = isMutedIn(device, c.conversation_id);
+              const unread = isUnread(c, pref);
               const mineLast = c.last_sender_id === user?.id && c.last_kind === 'text';
               return (
-                <li key={c.conversation_id} className={`group flex items-center transition-colors ${open ? 'bg-wa-lightSecondary dark:bg-wa-darkSecondary' : 'hover:bg-wa-lightSecondary dark:hover:bg-wa-darkSecondary/60'}`}>
+                <li key={c.conversation_id}
+                  onContextMenu={(e) => { e.preventDefault(); setMenuFor(c.conversation_id); }}
+                  onTouchStart={() => { press.current = window.setTimeout(() => setMenuFor(c.conversation_id), LONG_PRESS_MS); }}
+                  onTouchEnd={() => window.clearTimeout(press.current)} onTouchMove={() => window.clearTimeout(press.current)}
+                  className={`group relative flex items-center transition-colors ${open ? 'bg-wa-lightSecondary dark:bg-wa-darkSecondary' : 'hover:bg-wa-lightSecondary dark:hover:bg-wa-darkSecondary/60'}`}>
                   <button onClick={() => onOpen(c.other_user_id)} aria-current={open ? 'true' : undefined} className="flex items-center gap-3 flex-1 min-w-0 pl-4 py-3 text-left">
                     <Avatar name={contacts[c.other_user_id]?.name ?? p?.display_name ?? '?'} url={p?.avatar_url} size={48} />
                     <span className="min-w-0 flex-1">
@@ -193,43 +260,60 @@ export default function ConversationList({ onOpen, query = '', selectedId = null
                         <span className={`text-sm font-semibold truncate ${bodyText}`}>{name}</span>
                         {pref?.is_favorite && <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400 flex-shrink-0" aria-label="Favorite" />}
                         {c.vanish_mode && <Ghost className="w-3.5 h-3.5 text-purple-500 flex-shrink-0" aria-label="Secret mode on" />}
-                        <span className={`ml-auto text-[11px] flex-shrink-0 ${c.unread_count > 0 ? 'text-wa-green font-semibold' : mutedText}`}>{chatListTime(c.last_message_at)}</span>
+                        <span className={`ml-auto text-[11px] flex-shrink-0 ${unread ? 'text-wa-green font-semibold' : mutedText}`}>{chatListTime(c.last_message_at)}</span>
                       </span>
-                      <span className={`flex items-center gap-2 text-xs mt-0.5 ${c.unread_count > 0 ? `font-semibold ${bodyText}` : mutedText}`}>
+                      <span className={`flex items-center gap-2 text-xs mt-0.5 ${unread ? `font-semibold ${bodyText}` : mutedText}`}>
                         {mineLast && <CheckCheck className="w-4 h-4 flex-shrink-0 text-wa-lightTextSecondary dark:text-wa-darkTextSecondary" aria-label="Sent" />}
                         <span className="truncate flex-1">
                           {c.last_vanish && c.last_kind === 'text' && '👻 '}<EmojiText text={mineLast ? (c.last_body ?? '') : preview(c)} />
                         </span>
                         {muted && <BellOff className={`w-3.5 h-3.5 flex-shrink-0 ${mutedText}`} aria-label="Muted" />}
-                        {c.unread_count > 0 && (
+                        {pref?.is_pinned && <Pin className={`w-3.5 h-3.5 flex-shrink-0 ${mutedText}`} aria-label="Pinned" />}
+                        {c.unread_count > 0 ? (
                           <span className="min-w-[1.25rem] h-5 px-1.5 rounded-full bg-wa-green text-white text-[11px] font-bold flex items-center justify-center">{c.unread_count}</span>
-                        )}
+                        ) : pref?.marked_unread && <span className="w-3 h-3 rounded-full bg-wa-green flex-shrink-0" aria-label="Marked as unread" />}
                       </span>
                     </span>
                   </button>
-                  <span className="flex items-center gap-0.5 pr-2 pl-1 md:opacity-0 md:group-hover:opacity-100 md:focus-within:opacity-100 transition-opacity">
-                    <button
-                      onClick={() => setPref(c, { is_favorite: !pref?.is_favorite }, pref?.is_favorite ? 'Removed from favorites' : 'Added to favorites')}
-                      aria-label={pref?.is_favorite ? `Remove ${name} from favorites` : `Add ${name} to favorites`}
-                      aria-pressed={!!pref?.is_favorite}
-                      className={`p-1.5 rounded-full hover:bg-black/5 dark:hover:bg-white/10 ${pref?.is_favorite ? 'text-amber-400' : mutedText}`}
-                    >
-                      <Star className={`w-4 h-4 ${pref?.is_favorite ? 'fill-amber-400' : ''}`} />
-                    </button>
-                    <button
-                      onClick={() => setPref(c, { is_archived: !pref?.is_archived }, pref?.is_archived ? 'Chat unarchived' : 'Chat archived')}
-                      aria-label={pref?.is_archived ? `Unarchive ${name}` : `Archive ${name}`}
-                      className={`p-1.5 rounded-full hover:bg-black/5 dark:hover:bg-white/10 ${mutedText}`}
-                    >
-                      {pref?.is_archived ? <ArchiveRestore className="w-4 h-4" /> : <Archive className="w-4 h-4" />}
+                  <span className="flex items-center pr-2 pl-1 md:opacity-0 md:group-hover:opacity-100 md:focus-within:opacity-100 transition-opacity">
+                    <button onClick={() => setMenuFor(menuFor === c.conversation_id ? null : c.conversation_id)}
+                      aria-label={`Chat options for ${name}`} aria-haspopup="menu" aria-expanded={menuFor === c.conversation_id}
+                      className={`p-1.5 rounded-full hover:bg-black/5 dark:hover:bg-white/10 ${mutedText}`}>
+                      <ChevronDown className="w-4 h-4" />
                     </button>
                   </span>
+                  {menuFor === c.conversation_id && (
+                    <ChatListMenu archived={!!pref?.is_archived} muted={muted} pinned={!!pref?.is_pinned} unread={unread} favorite={!!pref?.is_favorite}
+                      blocked={isBlocked(c.other_user_id)} onClose={() => setMenuFor(null)} onAction={(a) => { void runAction(c, name, a); }} />
+                  )}
                 </li>
               );
             })}
           </ul>
         )}
       </div>
+      {confirm && (
+        <Modal title={confirm.kind === 'block' ? `${isBlocked(confirm.c.other_user_id) ? 'Unblock' : 'Block'} ${confirm.name}?` : confirm.kind === 'clear' ? 'Clear this chat?' : 'Delete this chat?'}
+          onClose={() => setConfirm(null)}>
+          <p className={`text-sm ${mutedText}`}>
+            {confirm.kind === 'block'
+              ? isBlocked(confirm.c.other_user_id)
+                ? `${confirm.name} will be able to message you again.`
+                : `Neither of you can message the other until you unblock. ${confirm.name} is not told; their messages just do not go through.`
+              : confirm.kind === 'clear'
+                ? `Messages disappear from this device only; ${confirm.name} still has them.`
+                : `The chat leaves your list on this device until a new message arrives; ${confirm.name} still has the messages.`}
+          </p>
+          <div className="mt-5 flex justify-end gap-2">
+            <button type="button" onClick={() => setConfirm(null)} className="px-4 py-2 rounded-full text-sm font-semibold text-wa-green hover:bg-wa-green/10">Cancel</button>
+            <button type="button" onClick={confirmAction} disabled={busy}
+              className="px-4 py-2 rounded-full text-sm font-semibold bg-wa-live text-white hover:opacity-90 disabled:opacity-50 flex items-center gap-2">
+              {busy && <Loader2 className="w-4 h-4 animate-spin" />}
+              {confirm.kind === 'block' ? (isBlocked(confirm.c.other_user_id) ? 'Unblock' : 'Block') : confirm.kind === 'clear' ? 'Clear chat' : 'Delete chat'}
+            </button>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }

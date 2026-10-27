@@ -87,7 +87,16 @@ function unwrapOr<T>(res: Res<T>, fallback: T): T {
 export function friendlyError(e: unknown): string {
   const err = e as { message?: string; code?: string };
   const msg = err?.message ?? 'Something went wrong';
+  // our own "needs migration N" messages say exactly what is missing
+  if (/database update \(migration \d+\)/i.test(msg)) return msg;
   if (isMissingSchema(err) || isMissingColumn(err)) return 'This feature is not available yet.';
+  // why a chat message was refused (messages triggers and policies)
+  if (/recipient unavailable/i.test(msg)) return 'You cannot message this person right now.';
+  if (/only pin up to 3 chats/i.test(msg)) return 'You can only pin up to 3 chats.';
+  if (/conversation not found/i.test(msg)) return 'This chat no longer exists.';
+  if (/only reply to a message of this chat/i.test(msg)) return 'The message you replied to is not in this chat any more.';
+  if (/message-media folder|upload it before sending/i.test(msg)) return 'The voice message did not upload. Please record it again.';
+  if (/row-level security policy for table "messages"/i.test(msg)) return 'You cannot send messages in this chat.';
   if (err?.code === '23505') return 'That already exists.';
   if (/slow down/i.test(msg)) return 'You are doing that too fast. Please wait a few minutes.';
   if (/own post-media folder|not found in storage/i.test(msg)) return 'Upload failed. Please try again.';
@@ -656,9 +665,13 @@ export function createApi(c: SupabaseClient) {
       return (unwrapOr(res, []) as unknown as Row[]).map((r) => r.messages);
     },
     /** Latest messages of a conversation, oldest first. Expired vanish messages are already hidden by the database. */
-    async listMessages(conversationId: string, limit = 100): Promise<ChatMessage[]> {
-      const read = () => c.from('messages')
-        .select(msgCols()).eq('conversation_id', conversationId).order('created_at', { ascending: false }).limit(limit);
+    /** `before`: only messages older than this time (loading earlier history page by page). */
+    async listMessages(conversationId: string, limit = 100, before?: string): Promise<ChatMessage[]> {
+      const read = () => {
+        let q = c.from('messages').select(msgCols()).eq('conversation_id', conversationId);
+        if (before) q = q.lt('created_at', before);
+        return q.order('created_at', { ascending: false }).limit(limit);
+      };
       let res = await read();
       while (res.error && msgMediaLevel > 0 && isMissingColumn(res.error)) {
         msgMediaLevel--;
@@ -717,15 +730,32 @@ export function createApi(c: SupabaseClient) {
     },
     /** Favorites / Archived for your own chat list. Empty before migration 15. */
     async myConversationPrefs(userId: string) {
-      const res = await c.from('conversation_participants').select('conversation_id, is_favorite, is_archived').eq('user_id', userId);
+      const read = (cols: string) => c.from('conversation_participants').select(cols).eq('user_id', userId);
+      let res = await read('conversation_id, is_favorite, is_archived, is_pinned, pinned_at, marked_unread');
+      // pinned / marked unread arrive with migration 20; favorites / archived with migration 15
+      if (res.error && isMissingColumn(res.error)) res = await read('conversation_id, is_favorite, is_archived');
       if (res.error && isMissingColumn(res.error)) return [] as ConversationPrefs[];
-      return unwrapOr(res, []) as ConversationPrefs[];
+      return unwrapOr(res, []) as unknown as ConversationPrefs[];
     },
-    async setConversationPrefs(conversationId: string, userId: string, patch: Partial<Pick<ConversationPrefs, 'is_favorite' | 'is_archived'>>) {
-      const rows = unwrap(
-        await c.from('conversation_participants').update(patch).eq('conversation_id', conversationId).eq('user_id', userId).select('conversation_id')
-      ) as unknown[];
+    async setConversationPrefs(conversationId: string, userId: string,
+      patch: Partial<Pick<ConversationPrefs, 'is_favorite' | 'is_archived' | 'is_pinned' | 'marked_unread'>>) {
+      const res = await c.from('conversation_participants').update(patch).eq('conversation_id', conversationId).eq('user_id', userId).select('conversation_id');
+      if (res.error && isMissingColumn(res.error) && ('is_pinned' in patch || 'marked_unread' in patch)) {
+        throw new ApiError('Pinning chats and Mark as unread need the latest database update (migration 20).', res.error.code);
+      }
+      const rows = unwrap(res) as unknown[];
       if (rows.length === 0) throw new ApiError('Could not update this chat.', '42501');
+    },
+    /** People you blocked (only you can see this). Empty before migration 20. */
+    async myBlockedIds(userId: string) {
+      return (unwrapOr(await c.from('user_blocks').select('blocked_id').eq('blocker_id', userId), []) as { blocked_id: string }[]).map((r) => r.blocked_id);
+    },
+    async setBlocked(userId: string, otherId: string, blocked: boolean) {
+      const res = blocked
+        ? await c.from('user_blocks').insert({ blocked_id: otherId })
+        : await c.from('user_blocks').delete().eq('blocker_id', userId).eq('blocked_id', otherId);
+      if (res.error && isMissingSchema(res.error)) throw new ApiError('Blocking needs the latest database update (migration 20).', res.error.code);
+      if (res.error && res.error.code !== '23505') unwrap(res);
     },
     /** Start a chat by phone number (exact match, any formatting). Returns the profile id or null; never the number. */
     async findUserByPhone(phone: string) {

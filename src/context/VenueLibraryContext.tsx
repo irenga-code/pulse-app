@@ -1,4 +1,5 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { stableContext } from '@/lib/stableContext';
 import { api } from '@/lib/apiClient';
 import { readCache, userKey, writeCache } from '@/lib/cache';
 import { friendlyError } from '@/lib/api';
@@ -20,7 +21,7 @@ type Value = {
   toggleFollow: (venueId: string) => Promise<void>;
 };
 
-const Ctx = createContext<Value | undefined>(undefined);
+const Ctx = stableContext<Value | undefined>('venue-library', undefined);
 
 type Snapshot = { saved: SavedEntry[]; following: string[] };
 const libraryKey = (userId: string) => userKey(userId, 'venue-library');

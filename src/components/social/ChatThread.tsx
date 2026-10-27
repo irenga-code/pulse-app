@@ -1,11 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
-import { ArrowLeft, X, Send, Ghost, Loader2, Camera, Search, Pin } from 'lucide-react';
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { ArrowLeft, X, Send, Loader2, Search, Pin, Video, Phone, EllipsisVertical, Paperclip } from 'lucide-react';
 import Avatar from '@/components/Avatar';
 import ChatShell from '@/components/social/ChatShell';
 import RefPreview from '@/components/social/RefPreview';
 import ReportModal from '@/components/community/ReportModal';
 import MessageBubble, { messagePreview, messageText } from '@/components/social/chat/MessageBubble';
 import { DeleteMessageModal, ForwardModal, MessageInfoModal, ReplyBar, type MessageAction } from '@/components/social/chat/MessageActions';
+import ChatHeaderMenu, { ConfirmChatModal, type ChatHeaderAction } from '@/components/social/chat/ChatHeaderMenu';
 import { useMessageExtras } from '@/hooks/useMessageExtras';
 import EmojiButton from '@/components/emoji/EmojiPicker';
 import { EmojiText } from '@/components/emoji/EmojiImg';
@@ -13,6 +14,8 @@ import { useEmojiInsert } from '@/components/emoji/useEmojiInsert';
 import { supabase } from '@/lib/supabase';
 import { api } from '@/lib/apiClient';
 import { friendlyError } from '@/lib/api';
+import { withTimeout } from '@/lib/withTimeout';
+import { chatDayLabel, dayKey } from '@/lib/time';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/context/ToastContext';
 import { useSocial } from '@/context/SocialContext';
@@ -21,12 +24,21 @@ import { useVoiceComposer } from '@/components/social/VoiceComposer';
 import type { VoiceRecording } from '@/hooks/useVoiceRecorder';
 import type { ChatMessage, MessageRef, PublicProfile } from '@/lib/types';
 import { ChatSkeleton } from '@/components/Skeleton';
-import { CHAT_THEMES, getChatPrefs, subscribeChatPrefs } from '@/lib/chatPrefs';
+import { CHAT_THEMES, clearChat, deleteChat, getChatPrefs, isMutedIn, muteChat, setChatTheme, subscribeChatPrefs, unmuteChat } from '@/lib/chatPrefs';
+import { exportChat } from '@/lib/exportChat';
 import { appendToContactNote, contactLabel, useContacts } from '@/lib/contacts';
 
 let channelCounter = 0;
 const MAX = 2000;
 const VOICE_BODY = '🎤 Voice message';
+/** The send button never spins longer than this; the request may still land (Realtime then shows it). */
+const SEND_TIMEOUT_MS = 15_000;
+/** First screen of history, then older pages of this size. */
+const FIRST_PAGE = 100;
+const OLDER_PAGE = 50;
+/** WhatsApp's floating date / info pill. */
+const PILL = 'bg-white/90 dark:bg-zinc-800/90 shadow-sm rounded-full px-3 py-1 text-xs text-gray-600 dark:text-zinc-300';
+const SEND_TIMEOUT_TEXT = 'Sending is taking too long. Check your connection; the message may still arrive, so look before sending it again.';
 
 const isLive = (m: ChatMessage, now: number) => !m.expires_at || new Date(m.expires_at).getTime() > now;
 const byTime = (a: ChatMessage, b: ChatMessage) => a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id);
@@ -58,6 +70,8 @@ export default function ChatThread({ otherUserId, initialRef, onBack, onClose, e
   const { user } = useAuth();
   const { show } = useToast();
   const { refreshUnread, openProfile } = useSocial();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const noCalls = () => show('Voice and video calls are not available in Pulse yet.');
   const { openQuickSnap } = useQuickSnap();
   const me = user?.id ?? '';
   const [convId, setConvId] = useState<string | null>(null);
@@ -78,8 +92,20 @@ export default function ChatThread({ otherUserId, initialRef, onBack, onClose, e
   const [forwarding, setForwarding] = useState<ChatMessage | null>(null);
   const [reporting, setReporting] = useState<ChatMessage | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
+  const [blocked, setBlocked] = useState(false);
+  const [favorite, setFavorite] = useState(false);
+  const [confirm, setConfirm] = useState<'block' | 'clear' | 'delete' | null>(null);
+  const [reportingUser, setReportingUser] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  // older history (paged) and the floating day badge
+  const [hasOlder, setHasOlder] = useState(false);
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const keepScroll = useRef<{ height: number; top: number } | null>(null);
+  const [stickyDay, setStickyDay] = useState<string | null>(null);
+  const [stickyShown, setStickyShown] = useState(false);
+  const stickyTimer = useRef<number | undefined>(undefined);
   const readTimer = useRef<number | undefined>(undefined);
   const convRef = useRef<string | null>(null);
   const insertEmoji = useEmojiInsert(inputRef, text, setText, MAX);
@@ -112,8 +138,10 @@ export default function ChatThread({ otherUserId, initialRef, onBack, onClose, e
       setMessages((list) => {
         const fresh = new Map(rows.map((m) => [m.id, m]));
         const seen = new Set<string>();
-        // keep messages we just sent that the server has not returned yet; everything else comes from the server
-        const merged = [...list.filter((m) => !fresh.has(m.id) && Date.now() - new Date(m.created_at).getTime() < 15_000), ...rows];
+        // keep older pages loaded on demand and messages we just sent that the server has not returned yet;
+        // everything inside the fresh window comes from the server
+        const oldestFresh = rows.length >= FIRST_PAGE ? rows[0].created_at : '';
+        const merged = [...list.filter((m) => !fresh.has(m.id) && ((oldestFresh && m.created_at < oldestFresh) || Date.now() - new Date(m.created_at).getTime() < 15_000)), ...rows];
         return merged.filter((m) => (seen.has(m.id) ? false : (seen.add(m.id), true))).sort(byTime);
       });
     } catch { /* keep what is on screen */ }
@@ -151,10 +179,16 @@ export default function ChatThread({ otherUserId, initialRef, onBack, onClose, e
       .then(([rows, conv]) => {
         if (!alive) return;
         setMessages(rows);
+        setHasOlder(rows.length >= FIRST_PAGE);
         setVanish(!!conv?.vanish_mode);
         setPinnedId(conv?.pinned_message_id ?? null);
         setLoading(false);
         markRead();
+        // opening the chat undoes "Mark as unread" (no-op before migration 20)
+        // best effort: neither may break loading the chat
+        if (me) Promise.resolve().then(() => api.setConversationPrefs(convId, me, { marked_unread: false })).catch(() => undefined);
+        if (me) Promise.resolve().then(() => api.myBlockedIds(me)).then((ids) => { if (alive) setBlocked(ids.includes(otherUserId)); }).catch(() => undefined);
+        if (me) Promise.resolve().then(() => api.myConversationPrefs(me)).then((rows) => { if (alive) setFavorite(!!rows.find((r) => r.conversation_id === convId)?.is_favorite); }).catch(() => undefined);
       })
       .catch((e) => { if (alive) { setError(friendlyError(e)); setLoading(false); } });
 
@@ -183,7 +217,7 @@ export default function ChatThread({ otherUserId, initialRef, onBack, onClose, e
       document.removeEventListener('visibilitychange', onVisible);
       supabase.removeChannel(channel);
     };
-  }, [convId, me, markRead, markReadSoon, syncMessages]);
+  }, [convId, me, otherUserId, markRead, markReadSoon, syncMessages]);
 
   // 3. vanish countdown: only runs while something is counting down
   const counting = useMemo(() => messages.some((m) => m.expires_at && m.read_at), [messages]);
@@ -206,7 +240,59 @@ export default function ChatThread({ otherUserId, initialRef, onBack, onClose, e
     [messages, now, clearedAt, q, extras.hidden],
   );
   const byId = useMemo(() => new Map(messages.map((m) => [m.id, m])), [messages]);
-  useEffect(() => { endRef.current?.scrollIntoView?.({ block: 'end' }); }, [visible.length, loading]);
+  // follow the newest message (not when older history is added at the top)
+  const lastVisibleId = visible[visible.length - 1]?.id;
+  useEffect(() => { endRef.current?.scrollIntoView?.({ block: 'end' }); }, [lastVisibleId, loading]);
+
+  /** Load the page of history before the oldest message on screen, keeping the reader's place. */
+  const loadOlder = useCallback(async () => {
+    const id = convRef.current;
+    const oldest = messages[0];
+    if (!id || !oldest || loadingOlder || !hasOlder) return;
+    setLoadingOlder(true);
+    try {
+      const rows = await api.listMessages(id, OLDER_PAGE, oldest.created_at);
+      const el = listRef.current;
+      if (el) keepScroll.current = { height: el.scrollHeight, top: el.scrollTop };
+      setMessages((list) => {
+        const have = new Set(list.map((m) => m.id));
+        return [...rows.filter((m) => !have.has(m.id)), ...list].sort(byTime);
+      });
+      setHasOlder(rows.length >= OLDER_PAGE);
+    } catch (err) {
+      show(friendlyError(err), 'error');
+    } finally {
+      setLoadingOlder(false);
+    }
+  }, [messages, loadingOlder, hasOlder, show]);
+
+  // after older messages are added above, stay on the same message instead of jumping
+  useLayoutEffect(() => {
+    const el = listRef.current;
+    const kept = keepScroll.current;
+    if (!el || !kept) return;
+    el.scrollTop = el.scrollHeight - kept.height + kept.top;
+    keepScroll.current = null;
+  }, [messages]);
+
+  /** Floating day badge: the day of the messages at the top of the view; fades out shortly after scrolling stops. */
+  const onListScroll = () => {
+    const el = listRef.current;
+    if (!el) return;
+    const top = el.getBoundingClientRect().top;
+    let label: string | null = null;
+    for (const sep of el.querySelectorAll<HTMLElement>('[data-day-label]')) {
+      if (sep.getBoundingClientRect().top - top <= 40) label = sep.dataset.dayLabel ?? null;
+      else break;
+    }
+    label = label ?? el.querySelector<HTMLElement>('[data-day-label]')?.dataset.dayLabel ?? null;
+    setStickyDay(label);
+    setStickyShown(true);
+    window.clearTimeout(stickyTimer.current);
+    stickyTimer.current = window.setTimeout(() => setStickyShown(false), 1500);
+    if (el.scrollTop < 80) void loadOlder();
+  };
+  useEffect(() => () => window.clearTimeout(stickyTimer.current), []);
 
   const send = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -214,25 +300,28 @@ export default function ChatThread({ otherUserId, initialRef, onBack, onClose, e
     if (!body || !convId || sending) return;
     setSending(true);
     try {
-      const m = await api.sendMessage(convId, body, ref, null, { replyToId: replyTo?.id ?? null });
+      const m = await withTimeout(api.sendMessage(convId, body, ref, null, { replyToId: replyTo?.id ?? null }), SEND_TIMEOUT_MS, SEND_TIMEOUT_TEXT);
       setMessages((list) => (list.some((x) => x.id === m.id) ? list : [...list, m].sort(byTime)));
       setText('');
       setRef(null);
       setReplyTo(null);
     } catch (err) {
+      // the text stays in the box so nothing is lost; the console keeps the full database error
+      console.error('[pulse] message failed to send', err);
       show(friendlyError(err), 'error');
+    } finally {
+      setSending(false);
+      inputRef.current?.focus();
     }
-    setSending(false);
-    inputRef.current?.focus();
   };
 
   const sendVoice = useCallback(async (rec: VoiceRecording) => {
     const id = convRef.current;
     if (!id || !me) return;
-    const url = await api.uploadVoiceNote(id, me, rec.blob, rec.ext);
-    const m = await api.sendMessage(id, VOICE_BODY, null, {
+    const url = await withTimeout(api.uploadVoiceNote(id, me, rec.blob, rec.ext), 60_000, 'Uploading the voice message is taking too long. Check your connection and try again.');
+    const m = await withTimeout(api.sendMessage(id, VOICE_BODY, null, {
       media_url: url, media_type: 'audio', media_duration_ms: rec.durationMs, media_waveform: rec.waveform,
-    });
+    }), SEND_TIMEOUT_MS, SEND_TIMEOUT_TEXT);
     setMessages((list) => (list.some((x) => x.id === m.id) ? list : [...list, m].sort(byTime)));
   }, [me]);
   const voice = useVoiceComposer({ disabled: !convId, secret: vanish, onSend: sendVoice });
@@ -287,6 +376,34 @@ export default function ChatThread({ otherUserId, initialRef, onBack, onClose, e
   };
 
   const secret = vanish;
+
+  // the header's ⋮ menu
+  const onMenu = async (a: ChatHeaderAction) => {
+    switch (a.kind) {
+      case 'info': return onInfo ? onInfo() : openProfile(otherUserId);
+      case 'close': return onClose();
+      case 'report': return setReportingUser(true);
+      case 'block': case 'clear': case 'delete': return setConfirm(a.kind);
+    }
+    if (!convId) return;
+    switch (a.kind) {
+      case 'mute': muteChat(convId, a.ms); return show(a.ms === 'always' ? 'Chat muted' : 'Chat muted for a while');
+      case 'unmute': unmuteChat(convId); return show('Chat unmuted');
+      case 'vanish': return toggleVanish();
+      case 'theme': return setChatTheme(convId, a.theme);
+      case 'favorite': {
+        const on = !favorite;
+        setFavorite(on);
+        try {
+          await api.setConversationPrefs(convId, me, { is_favorite: on });
+          show(on ? 'Added to favorites' : 'Removed from favorites');
+        } catch (e) { setFavorite(!on); show(friendlyError(e), 'error'); }
+        return;
+      }
+      case 'export':
+        try { await exportChat(convId, label.title, me, device.clearedAt[convId]); show('Chat exported'); } catch (e) { show(friendlyError(e), 'error'); }
+    }
+  };
   const sub = secret ? 'text-zinc-400' : 'text-wa-lightTextSecondary dark:text-wa-darkTextSecondary';
 
   const toggleRef = useRef(toggleVanish);
@@ -311,23 +428,24 @@ export default function ChatThread({ otherUserId, initialRef, onBack, onClose, e
             <span className={`block text-[11px] ${sub}`}>{secret ? 'Secret mode: messages vanish after being read' : label.subtitle ?? (onInfo ? 'Click here for contact info' : 'Private chat')}</span>
           </span>
         </button>
+        <button onClick={noCalls} aria-label="Video call" title="Video call" className="p-2 rounded-full hover:bg-black/10 dark:hover:bg-white/10"><Video className="w-5 h-5" /></button>
+        <button onClick={noCalls} aria-label="Voice call" title="Voice call" className="p-2 rounded-full hover:bg-black/10 dark:hover:bg-white/10"><Phone className="w-5 h-5" /></button>
         {onSearch && (
           <button onClick={() => onSearch(search === null ? '' : null)} aria-pressed={search !== null} aria-label="Search in this chat" title="Search"
             className={`p-2 rounded-full transition-colors ${search !== null ? 'bg-black/10 dark:bg-white/10' : 'hover:bg-black/10 dark:hover:bg-white/10'}`}>
             <Search className="w-5 h-5" />
           </button>
         )}
-        <button
-          onClick={toggleVanish}
-          disabled={!convId}
-          aria-pressed={secret}
-          aria-label={secret ? 'Turn off secret mode' : 'Turn on secret mode'}
-          title="Secret mode"
-          className={`p-2 rounded-full transition-colors ${secret ? 'bg-purple-600 text-white' : 'hover:bg-black/10 dark:hover:bg-white/10'}`}
-        >
-          <Ghost className="w-5 h-5" />
-        </button>
-        <button onClick={onClose} aria-label="Close chat" className="p-2 rounded-full hover:bg-black/10 dark:hover:bg-white/10"><X className="w-5 h-5" /></button>
+        <span className="relative">
+          <button onClick={() => setMenuOpen((v) => !v)} aria-label="Menu" aria-haspopup="menu" aria-expanded={menuOpen} title="Menu"
+            className={`p-2 rounded-full transition-colors ${menuOpen ? 'bg-black/10 dark:bg-white/10' : 'hover:bg-black/10 dark:hover:bg-white/10'}`}>
+            <EllipsisVertical className="w-5 h-5" />
+          </button>
+          {menuOpen && (
+            <ChatHeaderMenu ready={!!convId} muted={isMutedIn(device, convId)} vanish={vanish} theme={(convId && device.themes[convId]) || 'default'}
+              favorite={favorite} blocked={blocked} onClose={() => setMenuOpen(false)} onAction={(a) => { void onMenu(a); }} />
+          )}
+        </span>
       </header>
 
       {search !== null && onSearch && (
@@ -348,7 +466,22 @@ export default function ChatThread({ otherUserId, initialRef, onBack, onClose, e
             aria-label="Unpin message" className={`p-1 rounded-full hover:bg-black/10 dark:hover:bg-white/10 ${sub}`}><X className="w-4 h-4" /></button>
         </div>
       )}
-      <div className={`flex-1 overflow-y-auto px-3 py-3 space-y-1.5 ${secret ? '' : `chat-wallpaper ${themeClass}`}`} aria-live="polite" data-testid="chat-messages">
+      <div className="relative flex-1 min-h-0 flex flex-col">
+      {stickyDay && visible.length > 0 && (
+        <div aria-hidden={!stickyShown} data-testid="sticky-day"
+          className={`absolute top-2 left-1/2 -translate-x-1/2 z-20 pointer-events-none transition-opacity duration-300 ${PILL} ${stickyShown ? 'opacity-100' : 'opacity-0'}`}>
+          {stickyDay}
+        </div>
+      )}
+      <div ref={listRef} onScroll={onListScroll}
+        className={`flex-1 overflow-y-auto px-3 py-3 space-y-1.5 ${secret ? '' : `chat-wallpaper ${themeClass}`}`} aria-live="polite" data-testid="chat-messages">
+        {!loading && !error && hasOlder && (
+          <div className="flex justify-center pb-1">
+            <button type="button" onClick={() => void loadOlder()} disabled={loadingOlder} className={`${PILL} flex items-center gap-1.5 hover:bg-white dark:hover:bg-zinc-800 disabled:opacity-70`}>
+              {loadingOlder ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Loading older messages…</> : 'Click here to get older messages'}
+            </button>
+          </div>
+        )}
         {loading ? (
           <ChatSkeleton />
         ) : error ? (
@@ -356,45 +489,59 @@ export default function ChatThread({ otherUserId, initialRef, onBack, onClose, e
         ) : visible.length === 0 ? (
           <p className={`text-center text-xs py-10 ${sub}`}>{q ? 'No messages match.' : clearedAt && messages.length > 0 ? 'Chat cleared on this device.' : 'Say hi 👋 Messages here are private between the two of you.'}</p>
         ) : (
-          visible.map((m) => {
+          visible.map((m, i) => {
+            // WhatsApp's day pill above the first message of each day (also what the floating badge reads)
+            const day = dayKey(m.created_at);
+            const sep = i === 0 || dayKey(visible[i - 1].created_at) !== day
+              ? <div key={`day-${day}`} className="flex justify-center py-1.5" data-day-label={chatDayLabel(m.created_at)}><span className={PILL}>{chatDayLabel(m.created_at)}</span></div>
+              : null;
             if (m.kind === 'system') {
-              return <p key={m.id} className={`text-center text-[11px] py-1.5 px-4 ${sub}`}><EmojiText text={m.body} /></p>;
+              return <Fragment key={m.id}>{sep}<p className={`text-center text-[11px] py-1.5 px-4 ${sub}`}><EmojiText text={m.body} /></p></Fragment>;
             }
             const mine = m.sender_id === me;
             const left = secondsLeft(m, now);
             const reply = m.reply_to_id ? byId.get(m.reply_to_id) : undefined;
             return (
-              <MessageBubble key={m.id} m={m} mine={mine}
+              <Fragment key={m.id}>{sep}<MessageBubble m={m} mine={mine}
                 statusLine={<>{left !== null ? `vanishes in ${left}s` : m.vanish ? (mine ? 'vanishes after read' : 'vanishes once read') : ''}{mine && !m.vanish && m.read_at ? 'Seen' : ''}</>}
                 replyTo={reply} replyName={reply ? (reply.sender_id === me ? 'You' : label.title) : undefined}
                 reactions={extras.summary[m.id]} myReaction={extras.myReaction(m.id)} starred={extras.starred.has(m.id)} pinned={pinnedId === m.id}
-                highlighted={flash === m.id} onReact={(e) => { void extras.react(m.id, e); }} onAction={(a) => onAction(m, a)} onJump={jumpTo} />
+                highlighted={flash === m.id} onReact={(e) => { void extras.react(m.id, e); }} onAction={(a) => onAction(m, a)} onJump={jumpTo} /></Fragment>
             );
           })
         )}
         <div ref={endRef} />
       </div>
+      </div>
 
       <form onSubmit={send} className={`px-2 pt-2 pb-3 border-t ${secret ? 'border-purple-500/30 bg-zinc-900' : 'border-wa-lightBorder dark:border-wa-darkBorder bg-wa-lightPanel dark:bg-wa-darkPanel'}`} style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}>
         {ref && <div className="px-1 pb-2"><RefPreview type={ref.type} id={ref.id} onRemove={() => setRef(null)} /></div>}
+        {blocked && (
+          <div className={`flex items-center justify-center gap-2 px-3 py-2 mb-2 rounded-xl text-sm ${secret ? 'bg-zinc-800 text-zinc-300' : 'bg-wa-lightSecondary dark:bg-wa-darkSecondary'}`} data-testid="blocked-bar">
+            <span>You blocked this contact.</span>
+            <button type="button" className="font-semibold text-wa-green" onClick={async () => {
+              try { await api.setBlocked(me, otherUserId, false); setBlocked(false); show(`${label.title} unblocked`); } catch (err) { show(friendlyError(err), 'error'); }
+            }}>Unblock</button>
+          </div>
+        )}
         {replyTo && <ReplyBar name={replyTo.sender_id === me ? 'yourself' : label.title} text={messagePreview(replyTo)} onCancel={() => setReplyTo(null)} />}
         <div className="flex items-center gap-1">
           {voice.active ? voice.bar : (
             <>
-              <EmojiButton label="Add emoji to message" onPick={insertEmoji} />
               <button
                 type="button"
                 disabled={!convId}
-                aria-label="Send a snap"
-                title="Quick-Snap: tap for photo, hold for video"
+                aria-label="Attach a photo or video"
+                title="Attach: tap for photo, hold for video"
                 onClick={() => convId && openQuickSnap({
                   destination: { kind: 'chat', conversationId: convId, label: label.title },
                   onSent: () => { void syncMessages(); },
                 })}
                 className={`p-2 rounded-full disabled:opacity-40 ${secret ? 'text-zinc-300 hover:bg-white/10' : 'text-wa-lightTextSecondary dark:text-wa-darkTextSecondary hover:bg-black/5 dark:hover:bg-white/10'}`}
               >
-                <Camera className="w-5 h-5" />
+                <Paperclip className="w-5 h-5" />
               </button>
+              <EmojiButton label="Add emoji to message" onPick={insertEmoji} />
               <input
                 ref={inputRef}
                 value={text}
@@ -433,6 +580,23 @@ export default function ChatThread({ otherUserId, initialRef, onBack, onClose, e
           onDone={(n) => show(`Forwarded to ${n} chat${n === 1 ? '' : 's'}`)} />
       )}
       {reporting && <ReportModal targetType="message" targetId={reporting.id} onClose={() => setReporting(null)} />}
+      {reportingUser && <ReportModal targetType="user" targetId={otherUserId} onClose={() => setReportingUser(false)} />}
+      {confirm && (
+        <ConfirmChatModal kind={confirm} name={label.title} blocked={blocked} onClose={() => setConfirm(null)} onConfirm={async () => {
+          if (confirm === 'block') {
+            await api.setBlocked(me, otherUserId, !blocked);
+            show(blocked ? `${label.title} unblocked` : `${label.title} blocked`);
+            setBlocked(!blocked);
+          } else if (convId && confirm === 'clear') {
+            clearChat(convId);
+            show('Chat cleared');
+          } else if (convId) {
+            deleteChat(convId);
+            show('Chat deleted');
+            onClose();
+          }
+        }} />
+      )}
     </Shell>
   );
 }

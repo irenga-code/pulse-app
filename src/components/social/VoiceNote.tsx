@@ -25,8 +25,8 @@ function resample(wave: number[] | null | undefined, seed: string): number[] {
 let playing: HTMLAudioElement | null = null;
 
 /** A voice note in a chat bubble: play / pause, waveform that fills as it plays (tap to seek), time and 1x / 1.5x / 2x. */
-export default function VoiceNote({ id, url, durationMs, waveform, mine, tone = 'normal' }: {
-  id: string; url: string; durationMs?: number | null; waveform?: number[] | null; mine: boolean; tone?: 'normal' | 'secret';
+export default function VoiceNote({ id, url, durationMs, waveform, tone = 'normal' }: {
+  id: string; url: string; durationMs?: number | null; waveform?: number[] | null; /** Sent by you (styling is the same on the soft sent bubble). */ mine: boolean; tone?: 'normal' | 'secret';
 }) {
   const audio = useRef<HTMLAudioElement | null>(null);
   const raf = useRef<number | undefined>(undefined);
@@ -125,7 +125,8 @@ export default function VoiceNote({ id, url, durationMs, waveform, mine, tone = 
   };
 
   const progress = total ? Math.min(1, pos / total) : 0;
-  const onColor = mine || tone === 'secret';
+  // white details only on the strong secret-mode bubbles; sent bubbles are a soft tint with dark text
+  const onColor = tone === 'secret';
   const played = onColor ? 'bg-white' : 'bg-wa-green';
   const unplayed = onColor ? 'bg-white/40' : 'bg-wa-lightTextSecondary/40 dark:bg-wa-darkTextSecondary/40';
   const showTime = isPlaying || pos > 0 ? pos : total;

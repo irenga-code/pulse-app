@@ -1,4 +1,5 @@
-import { createContext, lazy, Suspense, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
+import { lazy, Suspense, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
+import { stableContext } from '@/lib/stableContext';
 import { useAuth } from '@/context/AuthContext';
 import type { SnapDestination } from '@/camera/useSnapDispatch';
 
@@ -12,7 +13,7 @@ type QuickSnapOptions = {
   onSent?: (sent: SnapDestination[]) => void;
 };
 
-const QuickSnapContext = createContext<{ openQuickSnap: (opts?: QuickSnapOptions) => void }>({ openQuickSnap: () => undefined });
+const QuickSnapContext = stableContext<{ openQuickSnap: (opts?: QuickSnapOptions) => void }>('quick-snap', { openQuickSnap: () => undefined });
 
 /** One app-wide Quick-Snap camera: the header, the rail and chat composers all open it. */
 export function QuickSnapProvider({ children }: { children: ReactNode }) {

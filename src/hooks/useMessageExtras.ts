@@ -23,10 +23,17 @@ export function useMessageExtras(messageIds: string[], me: string) {
   const idsRef = useRef(messageIds);
   idsRef.current = messageIds;
 
+  // only the newest load may apply, and never one that started before a change made on this screen
+  // (otherwise an older answer could briefly undo a reaction you just tapped)
+  const request = useRef(0);
+  const changes = useRef(0);
   const load = useCallback(async () => {
     const ids = idsRef.current;
+    const req = ++request.current;
+    const changesAtStart = changes.current;
     try {
       const x = await api.messageExtras(ids);
+      if (req !== request.current || changes.current !== changesAtStart) return;
       setReactions(x.reactions);
       setStarred(new Set(x.starred));
       setHidden(new Set(x.hidden));
@@ -69,17 +76,20 @@ export function useMessageExtras(messageIds: string[], me: string) {
     const before = reactions;
     const current = before.find((r) => r.message_id === messageId && r.user_id === me)?.emoji ?? null;
     const next = current === emoji ? null : emoji;
+    changes.current++;
     setReactions([...before.filter((r) => !(r.message_id === messageId && r.user_id === me)), ...(next ? [{ message_id: messageId, user_id: me, emoji: next }] : [])]);
     try {
       await api.setMessageReaction(messageId, me, next);
+      void load(); // confirm against the server now that the change is saved
     } catch (e) {
       setReactions(before);
       show(friendlyError(e), 'error');
     }
-  }, [reactions, me, show]);
+  }, [reactions, me, show, load]);
 
   const toggleStar = useCallback(async (messageId: string) => {
     const on = !starred.has(messageId);
+    changes.current++;
     setStarred((s) => { const n = new Set(s); if (on) n.add(messageId); else n.delete(messageId); return n; });
     try {
       await api.setMessageStar(messageId, me, on);
@@ -91,6 +101,7 @@ export function useMessageExtras(messageIds: string[], me: string) {
   }, [starred, me, show]);
 
   const hideForMe = useCallback(async (messageId: string) => {
+    changes.current++;
     setHidden((s) => new Set(s).add(messageId));
     try {
       await api.hideMessage(messageId);

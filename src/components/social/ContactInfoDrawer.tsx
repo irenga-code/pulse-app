@@ -12,10 +12,11 @@ import { Toggle } from '@/components/settings/SettingsUi';
 import { inputClass, mutedText, bodyText } from '@/components/ui';
 import { api } from '@/lib/apiClient';
 import { friendlyError } from '@/lib/api';
+import { exportChat as downloadChat } from '@/lib/exportChat';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/context/ToastContext';
 import {
-  CHAT_THEMES, clearChat, getChatPrefs, setChatMuted, setChatTheme, subscribeChatPrefs,
+  CHAT_THEMES, clearChat, deleteChat, getChatPrefs, isMutedIn, setChatMuted, setChatTheme, subscribeChatPrefs,
 } from '@/lib/chatPrefs';
 import type { ChatMeta } from '@/components/social/ChatThread';
 
@@ -45,15 +46,22 @@ function Row({ icon: Icon, label, hint, trailing, onClick, danger, soon }: {
 const block = 'bg-wa-lightPanel dark:bg-wa-darkPanel';
 
 /** WhatsApp Web "Contact info": who you are talking to, chat options, and destructive actions at the bottom. */
-export default function ContactInfoDrawer({ otherUserId, meta, favorite, onFavorite, onSearch, onClose, onDeleted }: {
+export default function ContactInfoDrawer({ otherUserId, meta, favorite, onFavorite, onSearch, onClose, onDeleted, onBlockedChange }: {
   otherUserId: string; meta: ChatMeta | null; favorite: boolean; onFavorite: (on: boolean) => Promise<void>;
-  onSearch: () => void; onClose: () => void; onDeleted: () => void;
+  onSearch: () => void; onClose: () => void; onDeleted: () => void; onBlockedChange?: (blocked: boolean) => void;
 }) {
   const { user } = useAuth();
   const { show } = useToast();
   const device = useSyncExternalStore(subscribeChatPrefs, getChatPrefs, getChatPrefs);
   const [themes, setThemes] = useState(false);
-  const [confirm, setConfirm] = useState<'clear' | 'delete' | null>(null);
+  const [confirm, setConfirm] = useState<'clear' | 'delete' | 'block' | null>(null);
+  const [blocked, setBlocked] = useState(false);
+  useEffect(() => {
+    if (!user) return;
+    let alive = true;
+    Promise.resolve().then(() => api.myBlockedIds(user.id)).then((ids) => { if (alive) setBlocked(ids.includes(otherUserId)); }).catch(() => undefined);
+    return () => { alive = false; };
+  }, [user, otherUserId]);
   const [reporting, setReporting] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [stars, setStars] = useState<Pick<ChatMessage, 'id' | 'body' | 'sender_id' | 'created_at'>[] | null>(null);
@@ -83,26 +91,14 @@ export default function ContactInfoDrawer({ otherUserId, meta, favorite, onFavor
     setEditing(null);
     show('Contact saved');
   };
-  const muted = !!conv && device.muted.includes(conv);
+  const muted = isMutedIn(device, conv);
   const theme = (conv && device.themes[conv]) || 'default';
 
   const exportChat = async () => {
     if (!conv) return;
     setExporting(true);
     try {
-      const rows = await api.listMessages(conv, 1000);
-      const cleared = device.clearedAt[conv];
-      const lines = rows.filter((m) => !cleared || m.created_at > cleared).map((m) => {
-        const who = m.kind === 'system' ? 'Pulse' : m.sender_id === user?.id ? 'You' : name;
-        const media = m.media_type === 'audio' ? ' [voice message]' : m.media_url ? ` [${m.media_type}: ${m.media_url}]` : '';
-        return `[${new Date(m.created_at).toLocaleString()}] ${who}: ${m.body}${media}`;
-      });
-      const blob = new Blob([`Pulse chat with ${name}\n\n${lines.join('\n')}\n`], { type: 'text/plain;charset=utf-8' });
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = `Pulse chat with ${name.replace(/[^\w\- ]+/g, '')}.txt`;
-      a.click();
-      window.setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+      await downloadChat(conv, name, user?.id, device.clearedAt[conv]);
       show('Chat exported');
     } catch (e) {
       show(friendlyError(e), 'error');
@@ -216,31 +212,46 @@ export default function ContactInfoDrawer({ otherUserId, meta, favorite, onFavor
           {confirm ? (
             <div className="px-6 py-4 space-y-3">
               <p className={`text-sm ${bodyText}`}>
-                {confirm === 'clear'
-                  ? `Clear this chat? Messages disappear from this device only; ${name} still has them.`
-                  : `Delete this chat? It is cleared on this device and moved to Archived; ${name} still has the messages.`}
+                {confirm === 'block'
+                  ? blocked ? `Unblock ${name}? You can message each other again.` : `Block ${name}? Neither of you can message the other until you unblock. ${name} is not told.`
+                  : confirm === 'clear'
+                    ? `Clear this chat? Messages disappear from this device only; ${name} still has them.`
+                    : `Delete this chat? It leaves your list on this device until a new message arrives; ${name} still has the messages.`}
               </p>
               <div className="flex gap-2 justify-end">
                 <button type="button" onClick={() => setConfirm(null)} className={`px-4 py-2 rounded-full text-sm font-semibold text-wa-green hover:bg-wa-green/10`}>Cancel</button>
                 <button type="button" className="px-4 py-2 rounded-full text-sm font-semibold bg-wa-live text-white hover:opacity-90"
                   onClick={async () => {
+                    if (confirm === 'block') {
+                      if (!user) return;
+                      try {
+                        await api.setBlocked(user.id, otherUserId, !blocked);
+                        show(blocked ? `${name} unblocked` : `${name} blocked`);
+                        setBlocked(!blocked);
+                        onBlockedChange?.(!blocked);
+                      } catch (e) { show(friendlyError(e), 'error'); }
+                      setConfirm(null);
+                      return;
+                    }
                     if (!conv) return;
-                    clearChat(conv);
                     if (confirm === 'delete') {
-                      try { if (user) await api.setConversationPrefs(conv, user.id, { is_archived: true }); } catch (e) { show(friendlyError(e), 'error'); }
+                      deleteChat(conv);
                       show('Chat deleted');
                       onDeleted();
-                    } else show('Chat cleared');
+                    } else {
+                      clearChat(conv);
+                      show('Chat cleared');
+                    }
                     setConfirm(null);
                   }}>
-                  {confirm === 'clear' ? 'Clear chat' : 'Delete chat'}
+                  {confirm === 'block' ? (blocked ? 'Unblock' : 'Block') : confirm === 'clear' ? 'Clear chat' : 'Delete chat'}
                 </button>
               </div>
             </div>
           ) : (
             <>
               <Row icon={Eraser} label="Clear chat" danger onClick={() => setConfirm('clear')} />
-              <Row icon={Ban} label={`Block ${name}`} danger soon />
+              <Row icon={Ban} label={`${blocked ? 'Unblock' : 'Block'} ${name}`} danger onClick={() => setConfirm('block')} />
               <Row icon={ThumbsDown} label={`Report ${name}`} danger onClick={() => setReporting(true)} />
               <Row icon={Trash2} label="Delete chat" danger onClick={() => setConfirm('delete')} />
             </>

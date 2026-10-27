@@ -1,4 +1,5 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { stableContext } from '@/lib/stableContext';
 import { api } from '@/lib/apiClient';
 import { friendlyError } from '@/lib/api';
 import type { Preferences } from '@/lib/types';
@@ -29,7 +30,7 @@ type SettingsContextValue = {
   setThemePreference: (theme: ThemePreference) => void;
 };
 
-const SettingsContext = createContext<SettingsContextValue | undefined>(undefined);
+const SettingsContext = stableContext<SettingsContextValue | undefined>('settings', undefined);
 
 function loadLocal(): Settings {
   try {

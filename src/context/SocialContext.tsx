@@ -1,4 +1,5 @@
-import { createContext, lazy, Suspense, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { lazy, Suspense, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { stableContext } from '@/lib/stableContext';
 import { supabase } from '@/lib/supabase';
 import { api } from '@/lib/apiClient';
 import { useAuth } from '@/context/AuthContext';
@@ -23,7 +24,7 @@ type SocialValue = {
 };
 
 const noop = () => undefined;
-const SocialContext = createContext<SocialValue>({ openProfile: noop, openChat: noop, openInbox: noop, unread: 0, refreshUnread: noop });
+const SocialContext = stableContext<SocialValue>('social', { openProfile: noop, openChat: noop, openInbox: noop, unread: 0, refreshUnread: noop });
 
 let channelCounter = 0;
 

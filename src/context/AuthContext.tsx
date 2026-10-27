@@ -1,4 +1,5 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { stableContext } from '@/lib/stableContext';
 import type { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import { api } from '@/lib/apiClient';
@@ -48,7 +49,7 @@ type AuthContextValue = {
   refreshProfile: () => Promise<void>;
 };
 
-const AuthContext = createContext<AuthContextValue | undefined>(undefined);
+const AuthContext = stableContext<AuthContextValue | undefined>('auth', undefined);
 
 type CachedAccount = { profile: Profile | null; isAdmin: boolean };
 const accountKey = (id: string) => userKey(id, 'account');

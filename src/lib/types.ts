@@ -253,7 +253,11 @@ export type MessageMedia =
 /** A reaction on a chat message (migration 19): one per person per message. */
 export type MessageReaction = { message_id: string; user_id: string; emoji: string };
 /** Your own chat list filters (conversation_participants, migration 15). */
-export type ConversationPrefs = { conversation_id: string; is_favorite: boolean; is_archived: boolean };
+export type ConversationPrefs = {
+  conversation_id: string; is_favorite: boolean; is_archived: boolean;
+  /** Migration 20: pinned on top of your list (max 3), and "Mark as unread". */
+  is_pinned?: boolean; pinned_at?: string | null; marked_unread?: boolean;
+};
 
 // ---------------------------------------------------------------- venue channels (migration 15)
 export type VenueChannel = {

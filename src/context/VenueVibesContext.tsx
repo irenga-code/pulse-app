@@ -1,4 +1,5 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { stableContext } from '@/lib/stableContext';
 import { supabase } from '@/lib/supabase';
 import { api } from '@/lib/apiClient';
 import { friendlyError } from '@/lib/api';
@@ -16,7 +17,7 @@ type Value = {
   react: (venueId: string, kind: ReactionKind) => Promise<void>;
 };
 
-const Ctx = createContext<Value | undefined>(undefined);
+const Ctx = stableContext<Value | undefined>('venue-vibes', undefined);
 const NONE: ReactionCounts = {};
 type Row = { venue_id?: string; user_id?: string; kind?: string };
 

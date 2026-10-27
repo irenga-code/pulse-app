@@ -43,18 +43,19 @@ export function useVoiceComposer({ disabled, secret, onSend }: {
   const finish = useCallback(async () => {
     setSending(true);
     setLocked(false);
-    const rec = await recorder.stop();
-    if (!rec || rec.durationMs < MIN_MS) {
-      setSending(false);
-      show('Too short. Hold the mic to record, release to send.', 'error');
-      return;
-    }
     try {
+      const rec = await recorder.stop();
+      if (!rec || rec.durationMs < MIN_MS) {
+        show('Too short. Hold the mic to record, release to send.', 'error');
+        return;
+      }
       await onSend(rec);
     } catch (e) {
+      console.error('[pulse] voice message failed to send', e);
       show(friendlyError(e), 'error');
+    } finally {
+      setSending(false);
     }
-    setSending(false);
   }, [recorder, onSend, show]);
   finishRef.current = () => { void finish(); };
 

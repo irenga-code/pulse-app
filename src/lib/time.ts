@@ -32,3 +32,20 @@ export function chatListTime(iso: string | null | undefined, now = new Date()): 
   if (days < 7) return d.toLocaleDateString('en-US', { weekday: 'long' });
   return d.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
+
+/** Local calendar day of a timestamp, e.g. "2026-10-26" (for grouping chat messages by day). */
+export function dayKey(iso: string): string {
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+/** WhatsApp chat day label: "Today", "Yesterday", else the date in the reader's format (e.g. "10/3/2026"). */
+export function chatDayLabel(iso: string, now = new Date()): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const day = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const days = Math.round((day(now) - day(d)) / 86_400_000);
+  if (days === 0) return 'Today';
+  if (days === 1) return 'Yesterday';
+  return d.toLocaleDateString(undefined, { day: 'numeric', month: 'numeric', year: 'numeric' });
+}
