@@ -1,5 +1,5 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
-import { ArrowLeft, X, Send, Loader2, Search, Pin, Video, Phone, EllipsisVertical, Paperclip } from 'lucide-react';
+import { ArrowLeft, X, Send, Loader2, Search, Pin, Video, Phone, EllipsisVertical, Paperclip, Star, Copy, Trash2, Check } from 'lucide-react';
 import Avatar from '@/components/Avatar';
 import ChatShell from '@/components/social/ChatShell';
 import RefPreview from '@/components/social/RefPreview';
@@ -96,6 +96,9 @@ export default function ChatThread({ otherUserId, initialRef, onBack, onClose, e
   const [favorite, setFavorite] = useState(false);
   const [confirm, setConfirm] = useState<'block' | 'clear' | 'delete' | null>(null);
   const [reportingUser, setReportingUser] = useState(false);
+  // "Select messages": ids picked, or null when not selecting
+  const [selected, setSelected] = useState<Set<string> | null>(null);
+  const [deletingSelected, setDeletingSelected] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -377,6 +380,34 @@ export default function ChatThread({ otherUserId, initialRef, onBack, onClose, e
 
   const secret = vanish;
 
+  // "Select messages": pick bubbles, then star, copy or delete them for yourself in one go
+  const toggleSelected = (id: string) => setSelected((s) => {
+    if (!s) return s;
+    const n = new Set(s);
+    if (n.has(id)) n.delete(id); else n.add(id);
+    return n;
+  });
+  const pickedInOrder = () => visible.filter((m) => selected?.has(m.id));
+  const copySelected = () => {
+    const picked = pickedInOrder();
+    const out = picked.length === 1 ? messageText(picked[0])
+      : picked.map((m) => `[${new Date(m.created_at).toLocaleString()}] ${m.sender_id === me ? 'You' : label.title}: ${messageText(m)}`).join('\n');
+    void navigator.clipboard?.writeText(out).then(
+      () => { show(picked.length === 1 ? 'Message copied' : `${picked.length} messages copied`); setSelected(null); },
+      () => show('Could not copy. Select the text instead.', 'error'));
+  };
+  const starSelected = async () => {
+    const ids = pickedInOrder().map((m) => m.id);
+    // like WhatsApp: star them all, or unstar them all when every one is already starred
+    const on = !ids.every((id) => extras.starred.has(id));
+    try {
+      await Promise.all(ids.filter((id) => extras.starred.has(id) !== on).map((id) => api.setMessageStar(id, me, on)));
+      show(`${ids.length} message${ids.length === 1 ? '' : 's'} ${on ? 'starred' : 'unstarred'}`);
+      setSelected(null);
+    } catch (e) { show(friendlyError(e), 'error'); }
+    void extras.reload();
+  };
+
   // the header's ⋮ menu
   const onMenu = async (a: ChatHeaderAction) => {
     switch (a.kind) {
@@ -384,6 +415,9 @@ export default function ChatThread({ otherUserId, initialRef, onBack, onClose, e
       case 'close': return onClose();
       case 'report': return setReportingUser(true);
       case 'block': case 'clear': case 'delete': return setConfirm(a.kind);
+      case 'select': return setSelected(new Set());
+      case 'list': return show('Chat lists are not available in Pulse yet. Use Favorites to group chats for now.');
+      case 'callLink': case 'groupCall': return noCalls();
     }
     if (!convId) return;
     switch (a.kind) {
@@ -418,6 +452,18 @@ export default function ChatThread({ otherUserId, initialRef, onBack, onClose, e
   const Shell = embedded ? EmbeddedShell : ChatShell;
   return (
     <Shell label={`Chat with ${label.title}`} onClose={onClose} secret={secret}>
+      {selected ? (
+        <header className={`flex items-center gap-2 px-2 py-2.5 border-b ${secret ? 'border-purple-500/30 bg-zinc-900' : 'border-wa-lightBorder dark:border-wa-darkBorder bg-wa-lightPanel dark:bg-wa-darkPanel'}`} data-testid="select-bar">
+          <button onClick={() => setSelected(null)} aria-label="Cancel selection" className="p-2 rounded-full hover:bg-black/10 dark:hover:bg-white/10"><X className="w-5 h-5" /></button>
+          <span className="flex-1 text-sm font-semibold" aria-live="polite">{selected.size} selected</span>
+          <button onClick={() => void starSelected()} disabled={!selected.size} aria-label="Star selected messages" title="Star"
+            className="p-2 rounded-full hover:bg-black/10 dark:hover:bg-white/10 disabled:opacity-40"><Star className="w-5 h-5" /></button>
+          <button onClick={copySelected} disabled={!selected.size} aria-label="Copy selected messages" title="Copy"
+            className="p-2 rounded-full hover:bg-black/10 dark:hover:bg-white/10 disabled:opacity-40"><Copy className="w-5 h-5" /></button>
+          <button onClick={() => setDeletingSelected(true)} disabled={!selected.size} aria-label="Delete selected messages" title="Delete"
+            className="p-2 rounded-full hover:bg-black/10 dark:hover:bg-white/10 disabled:opacity-40"><Trash2 className="w-5 h-5" /></button>
+        </header>
+      ) : (
       <header className={`flex items-center gap-2 px-2 py-2.5 border-b ${secret ? 'border-purple-500/30 bg-zinc-900' : 'border-wa-lightBorder dark:border-wa-darkBorder bg-wa-lightPanel dark:bg-wa-darkPanel'}`}>
         {!embedded && <button onClick={onBack} aria-label="Back to messages" className="p-2 rounded-full hover:bg-black/10 dark:hover:bg-white/10"><ArrowLeft className="w-5 h-5" /></button>}
         <button onClick={() => (onInfo ? onInfo() : openProfile(otherUserId))} aria-label={onInfo ? `Contact info for ${label.title}` : undefined}
@@ -442,11 +488,12 @@ export default function ChatThread({ otherUserId, initialRef, onBack, onClose, e
             <EllipsisVertical className="w-5 h-5" />
           </button>
           {menuOpen && (
-            <ChatHeaderMenu ready={!!convId} muted={isMutedIn(device, convId)} vanish={vanish} theme={(convId && device.themes[convId]) || 'default'}
+            <ChatHeaderMenu muted={isMutedIn(device, convId)} vanish={vanish} theme={(convId && device.themes[convId]) || 'default'}
               favorite={favorite} blocked={blocked} onClose={() => setMenuOpen(false)} onAction={(a) => { void onMenu(a); }} />
           )}
         </span>
       </header>
+      )}
 
       {search !== null && onSearch && (
         <div className={`flex items-center gap-2 px-3 py-2 border-b ${secret ? 'border-purple-500/30 bg-zinc-900' : 'border-wa-lightBorder dark:border-wa-darkBorder bg-wa-lightPanel dark:bg-wa-darkPanel'}`}>
@@ -501,12 +548,26 @@ export default function ChatThread({ otherUserId, initialRef, onBack, onClose, e
             const mine = m.sender_id === me;
             const left = secondsLeft(m, now);
             const reply = m.reply_to_id ? byId.get(m.reply_to_id) : undefined;
-            return (
-              <Fragment key={m.id}>{sep}<MessageBubble m={m} mine={mine}
+            const bubble = (
+              <MessageBubble m={m} mine={mine}
                 statusLine={<>{left !== null ? `vanishes in ${left}s` : m.vanish ? (mine ? 'vanishes after read' : 'vanishes once read') : ''}{mine && !m.vanish && m.read_at ? 'Seen' : ''}</>}
                 replyTo={reply} replyName={reply ? (reply.sender_id === me ? 'You' : label.title) : undefined}
                 reactions={extras.summary[m.id]} myReaction={extras.myReaction(m.id)} starred={extras.starred.has(m.id)} pinned={pinnedId === m.id}
-                highlighted={flash === m.id} onReact={(e) => { void extras.react(m.id, e); }} onAction={(a) => onAction(m, a)} onJump={jumpTo} /></Fragment>
+                highlighted={flash === m.id} onReact={(e) => { void extras.react(m.id, e); }} onAction={(a) => onAction(m, a)} onJump={jumpTo} />
+            );
+            if (!selected) return <Fragment key={m.id}>{sep}{bubble}</Fragment>;
+            const on = selected.has(m.id);
+            return (
+              <Fragment key={m.id}>{sep}
+                <div role="checkbox" aria-checked={on} aria-label={`Select message: ${messagePreview(m)}`} tabIndex={0}
+                  onClick={() => toggleSelected(m.id)} onKeyDown={(e) => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); toggleSelected(m.id); } }}
+                  className={`flex items-center gap-3 -mx-3 px-3 py-0.5 cursor-pointer transition-colors ${on ? 'bg-wa-green/15' : 'hover:bg-black/5 dark:hover:bg-white/5'}`}>
+                  <span className={`w-5 h-5 rounded flex-shrink-0 flex items-center justify-center border-2 ${on ? 'bg-wa-green border-wa-green text-white' : 'border-wa-lightTextSecondary dark:border-wa-darkTextSecondary'}`}>
+                    {on && <Check className="w-3.5 h-3.5" strokeWidth={3} />}
+                  </span>
+                  <div className="flex-1 min-w-0 pointer-events-none">{bubble}</div>
+                </div>
+              </Fragment>
             );
           })
         )}
@@ -580,6 +641,15 @@ export default function ChatThread({ otherUserId, initialRef, onBack, onClose, e
           onDone={(n) => show(`Forwarded to ${n} chat${n === 1 ? '' : 's'}`)} />
       )}
       {reporting && <ReportModal targetType="message" targetId={reporting.id} onClose={() => setReporting(null)} />}
+      {deletingSelected && selected && (
+        <DeleteMessageModal canDeleteForEveryone={false} count={selected.size} onClose={() => setDeletingSelected(false)} onEveryone={async () => undefined}
+          onMe={async () => {
+            const n = selected.size;
+            await Promise.all([...selected].map((id) => extras.hideForMe(id)));
+            setSelected(null);
+            show(n === 1 ? 'Message deleted for you' : `${n} messages deleted for you`);
+          }} />
+      )}
       {reportingUser && <ReportModal targetType="user" targetId={otherUserId} onClose={() => setReportingUser(false)} />}
       {confirm && (
         <ConfirmChatModal kind={confirm} name={label.title} blocked={blocked} onClose={() => setConfirm(null)} onConfirm={async () => {

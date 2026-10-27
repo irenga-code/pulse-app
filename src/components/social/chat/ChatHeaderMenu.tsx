@@ -10,17 +10,17 @@ import { CHAT_THEMES, MUTE_OPTIONS, type ChatThemeId } from '@/lib/chatPrefs';
 
 export type ChatHeaderAction =
   | { kind: 'info' } | { kind: 'mute'; ms: number | 'always' } | { kind: 'unmute' } | { kind: 'vanish' } | { kind: 'theme'; theme: ChatThemeId }
-  | { kind: 'favorite' } | { kind: 'export' } | { kind: 'close' } | { kind: 'report' } | { kind: 'block' } | { kind: 'clear' } | { kind: 'delete' };
+  | { kind: 'favorite' } | { kind: 'export' } | { kind: 'close' } | { kind: 'report' } | { kind: 'block' } | { kind: 'clear' } | { kind: 'delete' }
+  | { kind: 'select' } | { kind: 'list' } | { kind: 'callLink' } | { kind: 'groupCall' };
 
 /**
  * WhatsApp Web's ⋮ menu in the chat header, in its order: Contact info, Select messages, Mute notifications, Disappearing
  * messages, Chat theme, Add to Favorites, Add to list, Export chat, Close chat | Send call link, New group call | Report,
- * Block, Clear chat, Delete chat. Mute and Chat theme open in place (no side flyout, so it fits a phone). Items Pulse
- * cannot do yet stay visible but disabled, marked "Soon".
+ * Block, Clear chat, Delete chat. Mute and Chat theme open in place (no side flyout, so it fits a phone). Every item
+ * is live and styled alike.
  */
-export default function ChatHeaderMenu({ ready, muted, vanish, theme, favorite, blocked, onAction, onClose }: {
-  /** false until the conversation exists: items that need it are disabled */
-  ready: boolean; muted: boolean; vanish: boolean; theme: ChatThemeId; favorite: boolean; blocked: boolean;
+export default function ChatHeaderMenu({ muted, vanish, theme, favorite, blocked, onAction, onClose }: {
+  muted: boolean; vanish: boolean; theme: ChatThemeId; favorite: boolean; blocked: boolean;
   onAction: (a: ChatHeaderAction) => void; onClose: () => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -35,22 +35,15 @@ export default function ChatHeaderMenu({ ready, muted, vanish, theme, favorite, 
   }, [onClose]);
 
   const pick = (a: ChatHeaderAction) => { onClose(); onAction(a); };
-  const item = `w-full flex items-center gap-3.5 px-4 py-2.5 text-sm text-left hover:bg-black/5 dark:hover:bg-white/5 disabled:opacity-40 disabled:hover:bg-transparent ${bodyText}`;
+  const item = `w-full flex items-center gap-3.5 px-4 py-2.5 text-sm text-left hover:bg-black/5 dark:hover:bg-white/5 ${bodyText}`;
   const sub = `w-full flex items-center gap-3 pl-12 pr-4 py-2 text-sm text-left hover:bg-black/5 dark:hover:bg-white/5 ${bodyText}`;
   const icon = `w-[18px] h-[18px] flex-shrink-0 ${mutedText}`;
   const rule = <div role="separator" className="my-1.5 border-t border-wa-lightBorder dark:border-wa-darkBorder" />;
-  const Item = ({ Icon, label, a, needsChat = true, danger }: { Icon: LucideIcon; label: string; a: ChatHeaderAction; needsChat?: boolean; danger?: boolean }) => (
-    <button type="button" role="menuitem" className={`${item} ${danger ? '!text-wa-live' : ''}`} disabled={needsChat && !ready} onClick={() => pick(a)}>
-      <Icon className={danger ? 'w-[18px] h-[18px] flex-shrink-0' : icon} />{label}
-    </button>
-  );
-  const Soon = ({ Icon, label }: { Icon: LucideIcon; label: string }) => (
-    <button type="button" role="menuitem" className={item} disabled title="Coming soon">
-      <Icon className={icon} />{label}<span className={`ml-auto text-[11px] ${mutedText}`}>Soon</span>
-    </button>
+  const Item = ({ Icon, label, a }: { Icon: LucideIcon; label: string; a: ChatHeaderAction }) => (
+    <button type="button" role="menuitem" className={item} onClick={() => pick(a)}><Icon className={icon} />{label}</button>
   );
   const Expand = ({ Icon, label, which, hint }: { Icon: LucideIcon; label: string; which: 'mute' | 'theme'; hint?: string }) => (
-    <button type="button" role="menuitem" aria-expanded={open === which} className={item} disabled={!ready} onClick={() => setOpen((o) => (o === which ? null : which))}>
+    <button type="button" role="menuitem" aria-expanded={open === which} className={item} onClick={() => setOpen((o) => (o === which ? null : which))}>
       <Icon className={icon} />{label}
       {hint && <span className={`ml-auto text-[11px] ${mutedText}`}>{hint}</span>}
       <ChevronDown className={`w-4 h-4 ${hint ? '' : 'ml-auto'} ${mutedText} transition-transform ${open === which ? 'rotate-180' : ''}`} />
@@ -60,8 +53,8 @@ export default function ChatHeaderMenu({ ready, muted, vanish, theme, favorite, 
   return (
     <div ref={ref} role="menu" aria-label="Chat menu"
       className="absolute right-0 top-full mt-1 z-30 w-64 max-h-[calc(100dvh-5rem)] overflow-y-auto py-2 rounded-xl bg-wa-lightPanel dark:bg-wa-darkSecondary shadow-2xl border border-wa-lightBorder dark:border-wa-darkBorder animate-fade-in">
-      <Item Icon={Info} label="Contact info" a={{ kind: 'info' }} needsChat={false} />
-      <Soon Icon={CheckSquare} label="Select messages" />
+      <Item Icon={Info} label="Contact info" a={{ kind: 'info' }} />
+      <Item Icon={CheckSquare} label="Select messages" a={{ kind: 'select' }} />
       {muted ? <Item Icon={Bell} label="Unmute notifications" a={{ kind: 'unmute' }} /> : (
         <>
           <Expand Icon={BellOff} label="Mute notifications" which="mute" />
@@ -70,7 +63,7 @@ export default function ChatHeaderMenu({ ready, muted, vanish, theme, favorite, 
           ))}
         </>
       )}
-      <button type="button" role="menuitemcheckbox" aria-checked={vanish} className={item} disabled={!ready} onClick={() => pick({ kind: 'vanish' })}>
+      <button type="button" role="menuitemcheckbox" aria-checked={vanish} className={item} onClick={() => pick({ kind: 'vanish' })}>
         <Timer className={icon} />Disappearing messages<span className={`ml-auto text-[11px] ${vanish ? 'text-wa-green font-semibold' : mutedText}`}>{vanish ? 'On' : 'Off'}</span>
       </button>
       <Expand Icon={Palette} label="Chat theme" which="theme" hint={CHAT_THEMES.find((t) => t.id === theme)?.label} />
@@ -81,17 +74,17 @@ export default function ChatHeaderMenu({ ready, muted, vanish, theme, favorite, 
         </button>
       ))}
       <Item Icon={favorite ? HeartOff : Heart} label={favorite ? 'Remove from Favorites' : 'Add to Favorites'} a={{ kind: 'favorite' }} />
-      <Soon Icon={ListPlus} label="Add to list" />
+      <Item Icon={ListPlus} label="Add to list" a={{ kind: 'list' }} />
       <Item Icon={Download} label="Export chat" a={{ kind: 'export' }} />
-      <Item Icon={X} label="Close chat" a={{ kind: 'close' }} needsChat={false} />
+      <Item Icon={X} label="Close chat" a={{ kind: 'close' }} />
       {rule}
-      <Soon Icon={Link} label="Send call link" />
-      <Soon Icon={Users} label="New group call" />
+      <Item Icon={Link} label="Send call link" a={{ kind: 'callLink' }} />
+      <Item Icon={Users} label="New group call" a={{ kind: 'groupCall' }} />
       {rule}
-      <Item Icon={ThumbsDown} label="Report" a={{ kind: 'report' }} needsChat={false} danger />
-      <Item Icon={Ban} label={blocked ? 'Unblock' : 'Block'} a={{ kind: 'block' }} needsChat={false} danger />
-      <Item Icon={Eraser} label="Clear chat" a={{ kind: 'clear' }} danger />
-      <Item Icon={Trash2} label="Delete chat" a={{ kind: 'delete' }} danger />
+      <Item Icon={ThumbsDown} label="Report" a={{ kind: 'report' }} />
+      <Item Icon={Ban} label={blocked ? 'Unblock' : 'Block'} a={{ kind: 'block' }} />
+      <Item Icon={Eraser} label="Clear chat" a={{ kind: 'clear' }} />
+      <Item Icon={Trash2} label="Delete chat" a={{ kind: 'delete' }} />
     </div>
   );
 }

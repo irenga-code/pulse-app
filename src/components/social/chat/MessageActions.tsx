@@ -91,8 +91,10 @@ export function MessageMenu({ mine, hasText, canForward, pinned, starred, onActi
 }
 
 /** "Delete message?" with Delete for everyone (your own messages only), Delete for me, Cancel. */
-export function DeleteMessageModal({ canDeleteForEveryone, onEveryone, onMe, onClose }: {
+export function DeleteMessageModal({ canDeleteForEveryone, onEveryone, onMe, onClose, count = 1 }: {
   canDeleteForEveryone: boolean; onEveryone: () => Promise<void>; onMe: () => Promise<void>; onClose: () => void;
+  /** several messages picked with "Select messages" */
+  count?: number;
 }) {
   const [busy, setBusy] = useState<'everyone' | 'me' | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -109,9 +111,9 @@ export function DeleteMessageModal({ canDeleteForEveryone, onEveryone, onMe, onC
   };
   const btn = 'w-full rounded-full px-4 py-2.5 text-sm font-semibold transition-colors disabled:opacity-50 flex items-center justify-center gap-2';
   return (
-    <Modal title="Delete message?" icon={Trash2} onClose={onClose}>
+    <Modal title={count > 1 ? `Delete ${count} messages?` : 'Delete message?'} icon={Trash2} onClose={onClose}>
       <p className={`text-sm ${mutedText}`}>
-        {canDeleteForEveryone ? 'Delete for everyone removes it for both of you.' : 'This removes the message from your chat only.'}
+        {canDeleteForEveryone ? 'Delete for everyone removes it for both of you.' : `This removes ${count > 1 ? 'them' : 'the message'} from your chat only.`}
       </p>
       {error && <div className="mt-3"><ErrorNote message={error} /></div>}
       <div className="mt-5 space-y-2">
