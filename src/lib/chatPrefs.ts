@@ -4,7 +4,7 @@
  */
 export type ChatThemeId = 'default' | 'midnight' | 'ocean' | 'forest' | 'rose' | 'sand';
 export const CHAT_THEMES: { id: ChatThemeId; label: string; swatch: string; className: string }[] = [
-  { id: 'default', label: 'Default', swatch: '#efeae2', className: '' },
+  { id: 'default', label: 'Default', swatch: '#f0e2c8', className: '' },
   { id: 'midnight', label: 'Midnight', swatch: '#1e1b4b', className: 'bg-indigo-950/60' },
   { id: 'ocean', label: 'Ocean', swatch: '#0c4a6e', className: 'bg-sky-900/30 dark:bg-sky-950/60' },
   { id: 'forest', label: 'Forest', swatch: '#14532d', className: 'bg-emerald-900/20 dark:bg-emerald-950/60' },
