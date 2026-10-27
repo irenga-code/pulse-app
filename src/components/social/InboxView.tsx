@@ -8,7 +8,7 @@ export default function InboxView({ onOpen, onClose }: { onOpen: (otherUserId: s
     <>
       <header className="flex items-center gap-2 px-4 py-3 border-b border-wa-lightBorder dark:border-wa-darkBorder bg-wa-lightPanel dark:bg-wa-darkPanel">
         <MessageCircle className="w-5 h-5 text-wa-green" />
-        <h2 className={`flex-1 text-base font-bold ${bodyText}`}>Messages</h2>
+        <h2 className={`flex-1 text-base font-medium ${bodyText}`}>Messages</h2>
         <button onClick={onClose} aria-label="Close messages" className={`p-1.5 rounded-full ${mutedText} hover:bg-wa-lightSecondary dark:hover:bg-wa-darkSecondary`}><X className="w-5 h-5" /></button>
       </header>
       <ConversationList onOpen={onOpen} />

@@ -64,7 +64,7 @@ export default function ChatHeaderMenu({ muted, vanish, theme, favorite, blocked
         </>
       )}
       <button type="button" role="menuitemcheckbox" aria-checked={vanish} className={item} onClick={() => pick({ kind: 'vanish' })}>
-        <Timer className={icon} />Disappearing messages<span className={`ml-auto text-[11px] ${vanish ? 'text-wa-green font-semibold' : mutedText}`}>{vanish ? 'On' : 'Off'}</span>
+        <Timer className={icon} />Disappearing messages<span className={`ml-auto text-[11px] ${vanish ? 'text-wa-green font-medium' : mutedText}`}>{vanish ? 'On' : 'Off'}</span>
       </button>
       <Expand Icon={Palette} label="Chat theme" which="theme" hint={CHAT_THEMES.find((t) => t.id === theme)?.label} />
       {open === 'theme' && CHAT_THEMES.map((t) => (
@@ -112,7 +112,7 @@ export function ConfirmChatModal({ kind, name, blocked, onConfirm, onClose }: {
     : kind === 'clear'
       ? `Messages disappear from this device only; ${name} still has them.`
       : `It leaves your list on this device until a new message arrives; ${name} still has the messages.`;
-  const btn = 'rounded-full px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-50 flex items-center gap-2';
+  const btn = 'rounded-full px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50 flex items-center gap-2';
   return (
     <Modal title={title} icon={kind === 'block' ? Ban : kind === 'clear' ? Eraser : Trash2} onClose={onClose}>
       <p className={`text-sm ${mutedText}`}>{text}</p>

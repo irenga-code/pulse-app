@@ -1,5 +1,5 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
-import { ArrowLeft, X, Send, Loader2, Search, Pin, Video, Phone, EllipsisVertical, Paperclip, Star, Copy, Trash2, Check } from 'lucide-react';
+import { ArrowLeft, X, Send, Loader2, Search, Pin, Video, Phone, EllipsisVertical, Paperclip, Star, Copy, Trash2, Check, Forward } from 'lucide-react';
 import Avatar from '@/components/Avatar';
 import ChatShell from '@/components/social/ChatShell';
 import RefPreview from '@/components/social/RefPreview';
@@ -24,7 +24,7 @@ import { useVoiceComposer } from '@/components/social/VoiceComposer';
 import type { VoiceRecording } from '@/hooks/useVoiceRecorder';
 import type { ChatMessage, MessageRef, PublicProfile } from '@/lib/types';
 import { ChatSkeleton } from '@/components/Skeleton';
-import { CHAT_THEMES, clearChat, deleteChat, getChatPrefs, isMutedIn, muteChat, setChatTheme, subscribeChatPrefs, unmuteChat } from '@/lib/chatPrefs';
+import { CHAT_THEMES, NO_CALLS, NO_LISTS, clearChat, deleteChat, getChatPrefs, isMutedIn, muteChat, setChatTheme, subscribeChatPrefs, unmuteChat } from '@/lib/chatPrefs';
 import { exportChat } from '@/lib/exportChat';
 import { appendToContactNote, contactLabel, useContacts } from '@/lib/contacts';
 
@@ -71,7 +71,7 @@ export default function ChatThread({ otherUserId, initialRef, onBack, onClose, e
   const { show } = useToast();
   const { refreshUnread, openProfile } = useSocial();
   const [menuOpen, setMenuOpen] = useState(false);
-  const noCalls = () => show('Voice and video calls are not available in Pulse yet.');
+  const noCalls = () => show(NO_CALLS);
   const { openQuickSnap } = useQuickSnap();
   const me = user?.id ?? '';
   const [convId, setConvId] = useState<string | null>(null);
@@ -89,7 +89,7 @@ export default function ChatThread({ otherUserId, initialRef, onBack, onClose, e
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
   const [deleting, setDeleting] = useState<ChatMessage | null>(null);
   const [infoFor, setInfoFor] = useState<ChatMessage | null>(null);
-  const [forwarding, setForwarding] = useState<ChatMessage | null>(null);
+  const [forwarding, setForwarding] = useState<ChatMessage[] | null>(null);
   const [reporting, setReporting] = useState<ChatMessage | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
   const [blocked, setBlocked] = useState(false);
@@ -368,7 +368,8 @@ export default function ChatThread({ otherUserId, initialRef, onBack, onClose, e
       case 'copy':
         void navigator.clipboard?.writeText(messageText(m)).then(() => show('Message copied'), () => show('Could not copy. Select the text instead.', 'error'));
         break;
-      case 'forward': setForwarding(m); break;
+      case 'forward': setForwarding([m]); break;
+      case 'select': setSelected(new Set([m.id])); break;
       case 'pin': void togglePin(m); break;
       case 'star': void extras.toggleStar(m.id); break;
       case 'note': appendToContactNote(otherUserId, messageText(m)); show('Added to your note about this contact'); break;
@@ -396,6 +397,21 @@ export default function ChatThread({ otherUserId, initialRef, onBack, onClose, e
       () => { show(picked.length === 1 ? 'Message copied' : `${picked.length} messages copied`); setSelected(null); },
       () => show('Could not copy. Select the text instead.', 'error'));
   };
+  const forwardSelected = () => {
+    const picked = pickedInOrder();
+    const ok = picked.filter((m) => m.media_type !== 'audio');
+    if (!ok.length) { show('Voice messages cannot be forwarded.', 'error'); return; }
+    if (ok.length < picked.length) show('Voice messages are left out: they stay in the chat they were recorded for.');
+    setForwarding(ok);
+  };
+  // Escape leaves selection, like WhatsApp Web
+  const selecting = selected !== null;
+  useEffect(() => {
+    if (!selecting) return;
+    const key = (e: KeyboardEvent) => { if (e.key === 'Escape') setSelected(null); };
+    document.addEventListener('keydown', key);
+    return () => document.removeEventListener('keydown', key);
+  }, [selecting]);
   const starSelected = async () => {
     const ids = pickedInOrder().map((m) => m.id);
     // like WhatsApp: star them all, or unstar them all when every one is already starred
@@ -416,7 +432,7 @@ export default function ChatThread({ otherUserId, initialRef, onBack, onClose, e
       case 'report': return setReportingUser(true);
       case 'block': case 'clear': case 'delete': return setConfirm(a.kind);
       case 'select': return setSelected(new Set());
-      case 'list': return show('Chat lists are not available in Pulse yet. Use Favorites to group chats for now.');
+      case 'list': return show(NO_LISTS);
       case 'callLink': case 'groupCall': return noCalls();
     }
     if (!convId) return;
@@ -455,13 +471,15 @@ export default function ChatThread({ otherUserId, initialRef, onBack, onClose, e
       {selected ? (
         <header className={`flex items-center gap-2 px-2 py-2.5 border-b ${secret ? 'border-purple-500/30 bg-zinc-900' : 'border-wa-lightBorder dark:border-wa-darkBorder bg-wa-lightPanel dark:bg-wa-darkPanel'}`} data-testid="select-bar">
           <button onClick={() => setSelected(null)} aria-label="Cancel selection" className="p-2 rounded-full hover:bg-black/10 dark:hover:bg-white/10"><X className="w-5 h-5" /></button>
-          <span className="flex-1 text-sm font-semibold" aria-live="polite">{selected.size} selected</span>
+          <span className="flex-1 text-[15px] font-medium" aria-live="polite">{selected.size ? `${selected.size} selected` : 'Select messages'}</span>
           <button onClick={() => void starSelected()} disabled={!selected.size} aria-label="Star selected messages" title="Star"
             className="p-2 rounded-full hover:bg-black/10 dark:hover:bg-white/10 disabled:opacity-40"><Star className="w-5 h-5" /></button>
           <button onClick={copySelected} disabled={!selected.size} aria-label="Copy selected messages" title="Copy"
             className="p-2 rounded-full hover:bg-black/10 dark:hover:bg-white/10 disabled:opacity-40"><Copy className="w-5 h-5" /></button>
           <button onClick={() => setDeletingSelected(true)} disabled={!selected.size} aria-label="Delete selected messages" title="Delete"
             className="p-2 rounded-full hover:bg-black/10 dark:hover:bg-white/10 disabled:opacity-40"><Trash2 className="w-5 h-5" /></button>
+          <button onClick={forwardSelected} disabled={!selected.size} aria-label="Forward selected messages" title="Forward"
+            className="p-2 rounded-full hover:bg-black/10 dark:hover:bg-white/10 disabled:opacity-40"><Forward className="w-5 h-5" /></button>
         </header>
       ) : (
       <header className={`flex items-center gap-2 px-2 py-2.5 border-b ${secret ? 'border-purple-500/30 bg-zinc-900' : 'border-wa-lightBorder dark:border-wa-darkBorder bg-wa-lightPanel dark:bg-wa-darkPanel'}`}>
@@ -470,7 +488,7 @@ export default function ChatThread({ otherUserId, initialRef, onBack, onClose, e
           className={`flex items-center gap-2.5 min-w-0 flex-1 text-left ${embedded ? 'pl-2' : ''}`}>
           <Avatar name={contacts[otherUserId]?.name ?? other?.display_name ?? '?'} url={other?.avatar_url} size={36} />
           <span className="min-w-0">
-            <span className="block text-sm font-semibold truncate">{label.title}</span>
+            <span className="block text-[15px] font-medium truncate">{label.title}</span>
             <span className={`block text-[11px] ${sub}`}>{secret ? 'Secret mode: messages vanish after being read' : label.subtitle ?? (onInfo ? 'Click here for contact info' : 'Private chat')}</span>
           </span>
         </button>
@@ -561,11 +579,14 @@ export default function ChatThread({ otherUserId, initialRef, onBack, onClose, e
               <Fragment key={m.id}>{sep}
                 <div role="checkbox" aria-checked={on} aria-label={`Select message: ${messagePreview(m)}`} tabIndex={0}
                   onClick={() => toggleSelected(m.id)} onKeyDown={(e) => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); toggleSelected(m.id); } }}
-                  className={`flex items-center gap-3 -mx-3 px-3 py-0.5 cursor-pointer transition-colors ${on ? 'bg-wa-green/15' : 'hover:bg-black/5 dark:hover:bg-white/5'}`}>
-                  <span className={`w-5 h-5 rounded flex-shrink-0 flex items-center justify-center border-2 ${on ? 'bg-wa-green border-wa-green text-white' : 'border-wa-lightTextSecondary dark:border-wa-darkTextSecondary'}`}>
-                    {on && <Check className="w-3.5 h-3.5" strokeWidth={3} />}
-                  </span>
-                  <div className="flex-1 min-w-0 pointer-events-none">{bubble}</div>
+                  className={`relative -mx-3 px-3 py-0.5 cursor-pointer transition-colors duration-150 ${on ? 'bg-wa-green/15' : 'hover:bg-black/[0.03] dark:hover:bg-white/[0.03]'}`}>
+                  {/* only picked messages show a mark: a check on the side away from the bubble */}
+                  {on && (
+                    <span aria-hidden className={`absolute top-1/2 -translate-y-1/2 ${mine ? 'left-3' : 'right-3'} w-5 h-5 rounded-full bg-wa-green text-white flex items-center justify-center shadow animate-fade-in`}>
+                      <Check className="w-3.5 h-3.5" strokeWidth={3} />
+                    </span>
+                  )}
+                  <div className="pointer-events-none">{bubble}</div>
                 </div>
               </Fragment>
             );
@@ -580,7 +601,7 @@ export default function ChatThread({ otherUserId, initialRef, onBack, onClose, e
         {blocked && (
           <div className={`flex items-center justify-center gap-2 px-3 py-2 mb-2 rounded-xl text-sm ${secret ? 'bg-zinc-800 text-zinc-300' : 'bg-wa-lightSecondary dark:bg-wa-darkSecondary'}`} data-testid="blocked-bar">
             <span>You blocked this contact.</span>
-            <button type="button" className="font-semibold text-wa-green" onClick={async () => {
+            <button type="button" className="font-medium text-wa-green" onClick={async () => {
               try { await api.setBlocked(me, otherUserId, false); setBlocked(false); show(`${label.title} unblocked`); } catch (err) { show(friendlyError(err), 'error'); }
             }}>Unblock</button>
           </div>
@@ -637,8 +658,8 @@ export default function ChatThread({ otherUserId, initialRef, onBack, onClose, e
       )}
       {infoFor && <MessageInfoModal message={infoFor} mine={infoFor.sender_id === me} onClose={() => setInfoFor(null)} />}
       {forwarding && convId && (
-        <ForwardModal message={forwarding} currentConversationId={convId} onClose={() => setForwarding(null)}
-          onDone={(n) => show(`Forwarded to ${n} chat${n === 1 ? '' : 's'}`)} />
+        <ForwardModal messages={forwarding} currentConversationId={convId} onClose={() => setForwarding(null)}
+          onDone={(n) => { setSelected(null); show(`Forwarded to ${n} chat${n === 1 ? '' : 's'}`); }} />
       )}
       {reporting && <ReportModal targetType="message" targetId={reporting.id} onClose={() => setReporting(null)} />}
       {deletingSelected && selected && (

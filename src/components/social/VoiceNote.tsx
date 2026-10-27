@@ -150,7 +150,7 @@ export default function VoiceNote({ id, url, durationMs, waveform, tone = 'norma
           <span className="tabular-nums">{failed ? "Can't play this voice message" : formatVoiceTime(showTime)}</span>
           {(isPlaying || speed !== 1) && (
             <button type="button" onClick={cycleSpeed} aria-label={`Playback speed ${speed}x`}
-              className={`ml-auto rounded-full px-1.5 text-[10px] font-bold ${onColor ? 'bg-white/25' : 'bg-black/10 dark:bg-white/10'}`}>{speed}×</button>
+              className={`ml-auto rounded-full px-1.5 text-[10px] font-medium ${onColor ? 'bg-white/25' : 'bg-black/10 dark:bg-white/10'}`}>{speed}×</button>
           )}
           {!isPlaying && speed === 1 && <Mic className={`ml-auto w-3.5 h-3.5 ${onColor ? '' : 'text-wa-green'}`} aria-hidden="true" />}
         </div>

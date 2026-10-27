@@ -2,6 +2,11 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Crisp, light text like WhatsApp Web: regular weight for body text, medium for names and titles. */
+@layer base {
+  html { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; text-rendering: optimizeLegibility; }
+}
+
 /* Accent colour (space-separated RGB so Tailwind's /opacity works). ThemeContext sets data-accent:
    Emerald Green (#10b981) by default in both modes, or the colour picked in Settings > Appearance.
    Navy and the pinks are lifted in dark mode, Yellow and Soft Pink deepened in light mode, so accent text stays readable. */

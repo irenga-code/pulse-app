@@ -27,7 +27,7 @@ export default function RefPreview({ type, id, onRemove, tone = 'light' }: { typ
         {data?.thumb ? <img src={data.thumb} alt="" className="w-full h-full object-cover" /> : data?.isVideo ? <ImageIcon className="w-5 h-5 opacity-70" /> : type === 'status' ? <Clock className="w-5 h-5 opacity-70" /> : <MessageSquareQuote className="w-5 h-5 opacity-70" />}
       </span>
       <span className="min-w-0 flex-1 text-left">
-        <span className="block text-[11px] font-semibold opacity-80 truncate">{loading ? 'Loading…' : data ? data.title : type === 'status' ? 'Status expired' : 'Post no longer available'}</span>
+        <span className="block text-[11px] font-medium opacity-80 truncate">{loading ? 'Loading…' : data ? data.title : type === 'status' ? 'Status expired' : 'Post no longer available'}</span>
         {data?.text && <span className="block text-xs truncate opacity-90"><EmojiText text={data.text} /></span>}
       </span>
       {onRemove && (

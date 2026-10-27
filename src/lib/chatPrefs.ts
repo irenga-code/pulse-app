@@ -86,3 +86,7 @@ export const clearChat = (conversationId: string, at = new Date().toISOString())
 /** Delete chat: cleared, and out of the list until someone sends a new message (this device only). */
 export const deleteChat = (conversationId: string, at = new Date().toISOString()) =>
   save({ ...state, clearedAt: { ...state.clearedAt, [conversationId]: at }, deletedAt: { ...state.deletedAt, [conversationId]: at } });
+
+/** What the WhatsApp options Pulse cannot do yet say when tapped. */
+export const NO_CALLS = 'Voice and video calls are not available in Pulse yet.';
+export const NO_LISTS = 'Chat lists are not available in Pulse yet. Use Favorites to group chats for now.';

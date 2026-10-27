@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
-  Plus, Info, Reply, Copy, SmilePlus, Forward, Pin, PinOff, Star, StarOff, NotebookPen, Flag, Trash2, Search, Check, Loader2, X,
+  Plus, Info, Reply, Copy, CheckSquare, SmilePlus, Forward, Pin, PinOff, Star, StarOff, NotebookPen, Flag, Trash2, Search, Check, Loader2, X,
 } from 'lucide-react';
 import Modal from '@/components/Modal';
 import Avatar from '@/components/Avatar';
@@ -57,36 +58,83 @@ export function QuickReactions({ current, onPick, onClose, align }: {
   );
 }
 
-export type MessageAction = 'info' | 'reply' | 'copy' | 'react' | 'forward' | 'pin' | 'star' | 'note' | 'report' | 'delete';
+export type MessageAction = 'info' | 'reply' | 'copy' | 'react' | 'forward' | 'pin' | 'star' | 'select' | 'note' | 'report' | 'delete';
 
-/** The message dropdown: Message info, Reply, Copy, React, Forward, Pin, Star, Add text to note, Report, Delete. */
-export function MessageMenu({ mine, hasText, canForward, pinned, starred, onAction, onClose, align }: {
+/**
+ * WhatsApp's message context menu, opened by right-click, long-press or the ⌄ button: the quick-reaction pill (six
+ * emojis and + for the full picker) on top, then Message info, Reply, Copy, React, Forward, Pin, Star, Select, Add text
+ * to note, Report (other people's messages) and Delete. It floats at the pointer, in a portal so the chat's scrolling
+ * and animated containers cannot clip it, and is nudged back on screen near the edges. Scrolling closes it.
+ */
+export function MessageMenu({ at, current, mine, hasText, canForward, pinned, starred, onReact, onAction, onClose }: {
+  at: { x: number; y: number }; current: string | null;
   mine: boolean; hasText: boolean; canForward: boolean; pinned: boolean; starred: boolean;
-  onAction: (a: MessageAction) => void; onClose: () => void; align: 'left' | 'right';
+  onReact: (emoji: string) => void; onAction: (a: MessageAction) => void; onClose: () => void;
 }) {
   const ref = useDismiss(onClose);
+  const [more, setMore] = useState(false);
+  const [pos, setPos] = useState(at);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const { width, height } = el.getBoundingClientRect();
+    const pad = 8;
+    setPos({
+      x: Math.max(pad, Math.min(at.x, window.innerWidth - width - pad)),
+      y: Math.max(pad, Math.min(at.y, window.innerHeight - height - pad)),
+    });
+  }, [at, more, ref]);
+  useEffect(() => {
+    // scrolling the chat closes it; scrolling inside it (the full emoji picker) does not
+    const close = (e: Event) => { if (!ref.current?.contains(e.target as Node)) onClose(); };
+    window.addEventListener('scroll', close, true);
+    window.addEventListener('resize', close);
+    return () => { window.removeEventListener('scroll', close, true); window.removeEventListener('resize', close); };
+  }, [onClose, ref]);
+
   const items: { id: MessageAction; label: string; icon: typeof Info; show: boolean; danger?: boolean }[] = [
     { id: 'info', label: 'Message info', icon: Info, show: true },
     { id: 'reply', label: 'Reply', icon: Reply, show: true },
-    { id: 'copy', label: 'Copy text', icon: Copy, show: hasText },
+    { id: 'copy', label: 'Copy', icon: Copy, show: hasText },
     { id: 'react', label: 'React', icon: SmilePlus, show: true },
     { id: 'forward', label: 'Forward', icon: Forward, show: canForward },
-    { id: 'pin', label: pinned ? 'Unpin message' : 'Pin message', icon: pinned ? PinOff : Pin, show: true },
-    { id: 'star', label: starred ? 'Unstar message' : 'Star message', icon: starred ? StarOff : Star, show: true },
+    { id: 'pin', label: pinned ? 'Unpin' : 'Pin', icon: pinned ? PinOff : Pin, show: true },
+    { id: 'star', label: starred ? 'Unstar' : 'Star', icon: starred ? StarOff : Star, show: true },
+    { id: 'select', label: 'Select', icon: CheckSquare, show: true },
     { id: 'note', label: 'Add text to note', icon: NotebookPen, show: hasText },
     { id: 'report', label: 'Report', icon: Flag, show: !mine },
     { id: 'delete', label: 'Delete', icon: Trash2, show: true, danger: true },
   ];
-  return (
-    <div ref={ref} role="menu" aria-label="Message options"
-      className={`absolute top-6 z-30 min-w-52 py-1.5 rounded-xl bg-wa-lightPanel dark:bg-wa-darkSecondary shadow-2xl border border-wa-lightBorder dark:border-wa-darkBorder animate-fade-in ${align === 'right' ? 'right-0' : 'left-0'}`}>
-      {items.filter((i) => i.show).map((i) => (
-        <button key={i.id} type="button" role="menuitem" onClick={() => { onClose(); onAction(i.id); }}
-          className={`w-full flex items-center gap-3 px-4 py-2 text-sm text-left hover:bg-black/5 dark:hover:bg-white/5 ${i.danger ? 'text-wa-live' : bodyText}`}>
-          <i.icon className={`w-4 h-4 ${i.danger ? '' : mutedText}`} />{i.label}
+  const react = (e: string) => { onClose(); onReact(e); };
+  return createPortal(
+    <div ref={ref} style={{ left: pos.x, top: pos.y }} className="fixed z-[90] flex flex-col items-start gap-1.5 animate-fade-in"
+      onContextMenu={(e) => e.preventDefault()}>
+      <div role="toolbar" aria-label="React to message" className="flex items-center gap-0.5 rounded-full px-1.5 py-1 bg-wa-lightPanel dark:bg-wa-darkSecondary shadow-xl border border-wa-lightBorder dark:border-wa-darkBorder">
+        {QUICK_REACTIONS.map((e) => (
+          <button key={e} type="button" onClick={() => react(e)} aria-label={`React ${e}`} aria-pressed={current === e}
+            className={`w-9 h-9 flex items-center justify-center rounded-full text-[22px] leading-none transition-transform hover:scale-125 ${current === e ? 'bg-black/10 dark:bg-white/15' : ''}`}>
+            {e}
+          </button>
+        ))}
+        <button type="button" onClick={() => setMore((v) => !v)} aria-label="More reactions" aria-expanded={more}
+          className={`w-9 h-9 flex items-center justify-center rounded-full bg-black/5 dark:bg-white/10 ${mutedText} hover:text-wa-green`}>
+          <Plus className="w-5 h-5" />
         </button>
-      ))}
-    </div>
+      </div>
+      {more ? <EmojiPanel onPick={react} /> : (
+        <div role="menu" aria-label="Message options"
+          className="min-w-52 py-1.5 rounded-xl bg-wa-lightPanel dark:bg-wa-darkSecondary shadow-2xl border border-wa-lightBorder dark:border-wa-darkBorder">
+          {items.filter((i) => i.show).map((i) => (
+            <button key={i.id} type="button" role="menuitem"
+              onClick={() => { if (i.id === 'react') { setMore(true); return; } onClose(); onAction(i.id); }}
+              className={`w-full flex items-center gap-3 px-4 py-2 text-sm text-left hover:bg-black/5 dark:hover:bg-white/5 ${i.danger ? 'text-wa-live' : bodyText}`}>
+              <i.icon className={`w-4 h-4 ${i.danger ? '' : mutedText}`} />{i.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>,
+    document.body,
   );
 }
 
@@ -109,7 +157,7 @@ export function DeleteMessageModal({ canDeleteForEveryone, onEveryone, onMe, onC
       setBusy(null);
     }
   };
-  const btn = 'w-full rounded-full px-4 py-2.5 text-sm font-semibold transition-colors disabled:opacity-50 flex items-center justify-center gap-2';
+  const btn = 'w-full rounded-full px-4 py-2.5 text-sm font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-2';
   return (
     <Modal title={count > 1 ? `Delete ${count} messages?` : 'Delete message?'} icon={Trash2} onClose={onClose}>
       <p className={`text-sm ${mutedText}`}>
@@ -152,9 +200,12 @@ export function MessageInfoModal({ message, mine, onClose }: { message: ChatMess
   );
 }
 
-/** Forward a message to up to five of your other chats. Voice notes stay in the chat they were recorded for. */
-export function ForwardModal({ message, currentConversationId, onClose, onDone }: {
-  message: ChatMessage; currentConversationId: string; onClose: () => void; onDone: (count: number) => void;
+/**
+ * Forward one message, or several picked with "Select messages" (sent in chat order), to up to five of your other
+ * chats. Voice notes stay in the chat they were recorded for, so callers leave them out.
+ */
+export function ForwardModal({ messages, currentConversationId, onClose, onDone }: {
+  messages: ChatMessage[]; currentConversationId: string; onClose: () => void; onDone: (count: number) => void;
 }) {
   const contacts = useContacts();
   const [rows, setRows] = useState<ConversationSummary[] | null>(null);
@@ -184,18 +235,23 @@ export function ForwardModal({ message, currentConversationId, onClose, onDone }
   const send = async () => {
     setBusy(true);
     setError(null);
-    const media: MessageMedia | null = message.media_url && (message.media_type === 'image' || message.media_type === 'video')
-      ? { media_url: message.media_url, media_type: message.media_type } : null;
     let ok = 0;
     for (const conv of picked) {
-      try { await api.sendMessage(conv, message.body, null, media, { forwarded: true }); ok++; } catch (e) { setError(friendlyError(e)); }
+      try {
+        for (const message of messages) {
+          const media: MessageMedia | null = message.media_url && (message.media_type === 'image' || message.media_type === 'video')
+            ? { media_url: message.media_url, media_type: message.media_type } : null;
+          await api.sendMessage(conv, message.body, null, media, { forwarded: true });
+        }
+        ok++;
+      } catch (e) { setError(friendlyError(e)); }
     }
     setBusy(false);
     if (ok > 0) { onDone(ok); onClose(); }
   };
 
   return (
-    <Modal title="Forward message to" icon={Forward} onClose={onClose}>
+    <Modal title={messages.length > 1 ? `Forward ${messages.length} messages to` : 'Forward message to'} icon={Forward} onClose={onClose}>
       <div className="relative">
         <Search className={`w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 ${mutedText}`} />
         <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search chats" aria-label="Search chats to forward to" className={`${inputClass} pl-9`} autoFocus />
@@ -237,7 +293,7 @@ export function ReplyBar({ name, text, onCancel }: { name: string; text: string;
     <div className="flex items-stretch gap-2 mx-1 mb-2 rounded-lg overflow-hidden bg-black/5 dark:bg-white/5" data-testid="reply-bar">
       <span className="w-1 bg-wa-green flex-shrink-0" aria-hidden="true" />
       <span className="flex-1 min-w-0 py-1.5">
-        <span className="block text-xs font-semibold text-wa-green">Replying to {name}</span>
+        <span className="block text-xs font-medium text-wa-green">Replying to {name}</span>
         <span className={`block text-xs truncate ${mutedText}`}>{text}</span>
       </span>
       <button type="button" onClick={onCancel} aria-label="Cancel reply" className={`px-2 ${mutedText} hover:text-wa-live`}><X className="w-4 h-4" /></button>

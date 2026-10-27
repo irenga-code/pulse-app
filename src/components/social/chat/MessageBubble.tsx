@@ -27,14 +27,16 @@ export default function MessageBubble({ m, mine, statusLine, replyTo, replyName,
   onReact: (emoji: string) => void; onAction: (a: MessageAction) => void; onJump: (id: string) => void;
 }) {
   const [bar, setBar] = useState(false);
-  const [menu, setMenu] = useState(false);
+  // where the context menu opens (pointer, touch point or the ⌄ button), or null when closed
+  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const press = useRef<number | undefined>(undefined);
   const text = messageText(m);
   const align = mine ? 'right' : 'left';
 
   const startPress = (e: React.TouchEvent) => {
     if (e.touches.length !== 1) return;
-    press.current = window.setTimeout(() => { setBar(true); setMenu(true); navigator.vibrate?.(10); }, LONG_PRESS_MS);
+    const { clientX: x, clientY: y } = e.touches[0];
+    press.current = window.setTimeout(() => { setBar(false); setMenu({ x, y }); navigator.vibrate?.(10); }, LONG_PRESS_MS);
   };
   const endPress = () => window.clearTimeout(press.current);
 
@@ -57,17 +59,18 @@ export default function MessageBubble({ m, mine, statusLine, replyTo, replyName,
       <div
         data-testid="chat-bubble"
         onTouchStart={startPress} onTouchEnd={endPress} onTouchMove={endPress}
-        onContextMenu={(e) => { e.preventDefault(); setMenu(true); }}
+        onContextMenu={(e) => { e.preventDefault(); setBar(false); setMenu({ x: e.clientX, y: e.clientY }); }}
         className={`relative max-w-[80%] rounded-2xl px-3 py-2 text-sm leading-snug shadow-sm transition-[box-shadow] ${bubble} ${highlighted ? 'ring-4 ring-wa-green/40' : ''}`}
       >
-        <button type="button" onClick={() => setMenu((v) => !v)} aria-label="Message options" aria-haspopup="menu" aria-expanded={menu}
+        <button type="button" aria-label="Message options" aria-haspopup="menu" aria-expanded={!!menu}
+          onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setBar(false); setMenu(menu ? null : { x: mine ? r.right - 220 : r.left, y: r.bottom + 4 }); }}
           className={`absolute top-1 right-1 z-10 p-0.5 rounded-full opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity ${onColor ? 'bg-black/20 text-white' : 'bg-wa-lightPanel/90 dark:bg-wa-darkSecondary/90 text-wa-lightTextSecondary dark:text-wa-darkTextSecondary'}`}>
           <ChevronDown className="w-4 h-4" />
         </button>
         {bar && <QuickReactions current={myReaction} onPick={onReact} onClose={() => setBar(false)} align={align} />}
         {menu && (
-          <MessageMenu mine={mine} hasText={!!text} canForward={m.media_type !== 'audio'} pinned={pinned} starred={starred} align={align}
-            onClose={() => setMenu(false)} onAction={(a) => (a === 'react' ? setBar(true) : onAction(a))} />
+          <MessageMenu at={menu} current={myReaction} mine={mine} hasText={!!text} canForward={m.media_type !== 'audio'} pinned={pinned} starred={starred}
+            onReact={onReact} onClose={() => setMenu(null)} onAction={onAction} />
         )}
 
         {m.is_forwarded && <p className="flex items-center gap-1 text-[11px] italic opacity-75 mb-0.5"><Forward className="w-3 h-3" />Forwarded</p>}
@@ -77,7 +80,7 @@ export default function MessageBubble({ m, mine, statusLine, replyTo, replyName,
             <span className="flex">
               <span className={`w-1 flex-shrink-0 ${onColor ? 'bg-white/70' : 'bg-wa-green dark:bg-wa-greenLight'}`} />
               <span className="px-2 py-1 min-w-0">
-                <span className={`block text-xs font-semibold ${onColor ? '' : 'text-wa-green dark:text-wa-greenLight'}`}>{replyTo ? replyName : 'Message'}</span>
+                <span className={`block text-xs font-medium ${onColor ? '' : 'text-wa-green dark:text-wa-greenLight'}`}>{replyTo ? replyName : 'Message'}</span>
                 <span className="block text-xs truncate opacity-80">{replyTo ? messagePreview(replyTo) : 'This message is no longer available'}</span>
               </span>
             </span>

@@ -149,7 +149,7 @@ function ChatsDesktop() {
       {/* column 2: chat list */}
       <div className="flex flex-col w-[30%] min-w-[340px] max-w-[460px] flex-shrink-0 min-h-0 bg-wa-lightPanel dark:bg-wa-darkPanel border-r border-wa-lightBorder dark:border-wa-darkBorder">
         <header className="flex items-center gap-1 px-4 pt-3 pb-2">
-          <h1 className={`flex-1 text-[22px] font-bold ${bodyText}`}>Pulse</h1>
+          <h1 className={`flex-1 text-[22px] font-semibold ${bodyText}`}>Pulse</h1>
           <button type="button" onClick={() => setNewChat('')} aria-label="New chat" title="New chat" className={iconBtn}><MessageCirclePlus className="w-5 h-5" /></button>
           <div ref={menuRef} className="relative">
             <button type="button" onClick={() => setMenu((v) => !v)} aria-label="Menu" aria-haspopup="menu" aria-expanded={menu} title="Menu" className={iconBtn}>
@@ -223,7 +223,7 @@ export default function ChatsTab() {
         <SectionHeader title="Chats" camera={false} />
         <div className="flex-1 flex flex-col items-center justify-center text-center px-8 py-16">
           <MessageCircle className="w-14 h-14 text-wa-quiet mb-3" />
-          <p className={`text-base font-semibold ${bodyText}`}>Your chats live here</p>
+          <p className={`text-base font-medium ${bodyText}`}>Your chats live here</p>
           <p className={`text-sm mt-1 max-w-xs ${mutedText}`}>Sign in with your phone number to message people and venues, and send snaps.</p>
           <div className="flex gap-2 mt-5">
             <button onClick={() => openAuth('signin')} className={primaryBtn}><LogIn className="w-4 h-4" />Sign in</button>

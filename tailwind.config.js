@@ -4,6 +4,10 @@ export default {
   darkMode: 'class',
   theme: {
     extend: {
+      // WhatsApp Web's stack: Segoe UI on Windows, Helvetica Neue on Apple, then the usual system fallbacks
+      fontFamily: {
+        sans: ['"Segoe UI"', '"Helvetica Neue"', 'Helvetica', '"Lucida Grande"', 'Arial', 'Ubuntu', 'Cantarell', '"Fira Sans"', 'sans-serif', '"Apple Color Emoji"', '"Segoe UI Emoji"'],
+      },
       colors: {
         wa: {
           // Light mode surfaces

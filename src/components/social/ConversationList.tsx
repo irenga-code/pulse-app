@@ -10,7 +10,7 @@ import { supabase } from '@/lib/supabase';
 import { api } from '@/lib/apiClient';
 import { friendlyError } from '@/lib/api';
 import { chatListTime } from '@/lib/time';
-import { clearChat, deleteChat, getChatPrefs, isMutedIn, muteChat, subscribeChatPrefs, unmuteChat } from '@/lib/chatPrefs';
+import { NO_LISTS, clearChat, deleteChat, getChatPrefs, isMutedIn, muteChat, subscribeChatPrefs, unmuteChat } from '@/lib/chatPrefs';
 import { contactLabel, useContacts } from '@/lib/contacts';
 import { useAsync } from '@/hooks/useAsync';
 import { useAuth } from '@/context/AuthContext';
@@ -158,6 +158,7 @@ export default function ConversationList({ onOpen, query = '', selectedId = null
         else { show('Marked as read'); refresh(); }
         return;
       case 'favorite': return setPref(c, { is_favorite: !pref?.is_favorite }, pref?.is_favorite ? 'Removed from favorites' : 'Added to favorites');
+      case 'list': return show(NO_LISTS);
       case 'block': case 'clear': case 'delete': return setConfirm({ kind: a.kind, c, name });
     }
   };
@@ -202,7 +203,7 @@ export default function ConversationList({ onOpen, query = '', selectedId = null
           const n = f.id === 'unread' || f.id === 'archived' ? count(f.id) : 0;
           return (
             <button key={f.id} role="tab" aria-selected={on} onClick={() => setFilter(f.id)}
-              className={`flex-shrink-0 rounded-full px-3.5 py-1.5 text-xs font-semibold transition-colors duration-200 ${
+              className={`flex-shrink-0 rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors duration-200 ${
                 on ? 'bg-wa-green/20 text-wa-green dark:bg-wa-green/25' : 'bg-wa-lightSecondary dark:bg-wa-darkSecondary text-wa-lightTextSecondary dark:text-wa-darkTextSecondary hover:text-wa-green'
               }`}>
               {f.label}{n > 0 && <span className="ml-1">{n}</span>}
@@ -212,7 +213,7 @@ export default function ConversationList({ onOpen, query = '', selectedId = null
         {morePill && (
           <div ref={moreRef} className="relative">
             <button type="button" onClick={() => setMoreOpen((v) => !v)} aria-label="More chat filters" aria-haspopup="menu" aria-expanded={moreOpen}
-              className="flex-shrink-0 rounded-full px-2.5 py-1.5 text-xs font-semibold bg-wa-lightSecondary dark:bg-wa-darkSecondary text-wa-lightTextSecondary dark:text-wa-darkTextSecondary hover:text-wa-green">
+              className="flex-shrink-0 rounded-full px-2.5 py-1.5 text-xs font-medium bg-wa-lightSecondary dark:bg-wa-darkSecondary text-wa-lightTextSecondary dark:text-wa-darkTextSecondary hover:text-wa-green">
               <Plus className="w-3.5 h-3.5" />
             </button>
             {moreOpen && (
@@ -257,12 +258,12 @@ export default function ConversationList({ onOpen, query = '', selectedId = null
                     <Avatar name={contacts[c.other_user_id]?.name ?? p?.display_name ?? '?'} url={p?.avatar_url} size={48} />
                     <span className="min-w-0 flex-1">
                       <span className="flex items-center gap-1.5">
-                        <span className={`text-sm font-semibold truncate ${bodyText}`}>{name}</span>
+                        <span className={`text-[15px] truncate ${bodyText}`}>{name}</span>
                         {pref?.is_favorite && <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400 flex-shrink-0" aria-label="Favorite" />}
                         {c.vanish_mode && <Ghost className="w-3.5 h-3.5 text-purple-500 flex-shrink-0" aria-label="Secret mode on" />}
-                        <span className={`ml-auto text-[11px] flex-shrink-0 ${unread ? 'text-wa-green font-semibold' : mutedText}`}>{chatListTime(c.last_message_at)}</span>
+                        <span className={`ml-auto text-[11px] flex-shrink-0 ${unread ? 'text-wa-green font-medium' : mutedText}`}>{chatListTime(c.last_message_at)}</span>
                       </span>
-                      <span className={`flex items-center gap-2 text-xs mt-0.5 ${unread ? `font-semibold ${bodyText}` : mutedText}`}>
+                      <span className={`flex items-center gap-2 text-xs mt-0.5 ${unread ? `font-medium ${bodyText}` : mutedText}`}>
                         {mineLast && <CheckCheck className="w-4 h-4 flex-shrink-0 text-wa-lightTextSecondary dark:text-wa-darkTextSecondary" aria-label="Sent" />}
                         <span className="truncate flex-1">
                           {c.last_vanish && c.last_kind === 'text' && '👻 '}<EmojiText text={mineLast ? (c.last_body ?? '') : preview(c)} />
@@ -270,7 +271,7 @@ export default function ConversationList({ onOpen, query = '', selectedId = null
                         {muted && <BellOff className={`w-3.5 h-3.5 flex-shrink-0 ${mutedText}`} aria-label="Muted" />}
                         {pref?.is_pinned && <Pin className={`w-3.5 h-3.5 flex-shrink-0 ${mutedText}`} aria-label="Pinned" />}
                         {c.unread_count > 0 ? (
-                          <span className="min-w-[1.25rem] h-5 px-1.5 rounded-full bg-wa-green text-white text-[11px] font-bold flex items-center justify-center">{c.unread_count}</span>
+                          <span className="min-w-[1.25rem] h-5 px-1.5 rounded-full bg-wa-green text-white text-[11px] font-medium flex items-center justify-center">{c.unread_count}</span>
                         ) : pref?.marked_unread && <span className="w-3 h-3 rounded-full bg-wa-green flex-shrink-0" aria-label="Marked as unread" />}
                       </span>
                     </span>
@@ -305,9 +306,9 @@ export default function ConversationList({ onOpen, query = '', selectedId = null
                 : `The chat leaves your list on this device until a new message arrives; ${confirm.name} still has the messages.`}
           </p>
           <div className="mt-5 flex justify-end gap-2">
-            <button type="button" onClick={() => setConfirm(null)} className="px-4 py-2 rounded-full text-sm font-semibold text-wa-green hover:bg-wa-green/10">Cancel</button>
+            <button type="button" onClick={() => setConfirm(null)} className="px-4 py-2 rounded-full text-sm font-medium text-wa-green hover:bg-wa-green/10">Cancel</button>
             <button type="button" onClick={confirmAction} disabled={busy}
-              className="px-4 py-2 rounded-full text-sm font-semibold bg-wa-live text-white hover:opacity-90 disabled:opacity-50 flex items-center gap-2">
+              className="px-4 py-2 rounded-full text-sm font-medium bg-wa-live text-white hover:opacity-90 disabled:opacity-50 flex items-center gap-2">
               {busy && <Loader2 className="w-4 h-4 animate-spin" />}
               {confirm.kind === 'block' ? (isBlocked(confirm.c.other_user_id) ? 'Unblock' : 'Block') : confirm.kind === 'clear' ? 'Clear chat' : 'Delete chat'}
             </button>

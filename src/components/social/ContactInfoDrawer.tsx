@@ -16,14 +16,13 @@ import { exportChat as downloadChat } from '@/lib/exportChat';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/context/ToastContext';
 import {
-  CHAT_THEMES, clearChat, deleteChat, getChatPrefs, isMutedIn, setChatMuted, setChatTheme, subscribeChatPrefs,
+  CHAT_THEMES, NO_CALLS, NO_LISTS, clearChat, deleteChat, getChatPrefs, isMutedIn, setChatMuted, setChatTheme, subscribeChatPrefs,
 } from '@/lib/chatPrefs';
 import type { ChatMeta } from '@/components/social/ChatThread';
 
-const SOON = 'Coming soon';
 
-function Row({ icon: Icon, label, hint, trailing, onClick, danger, soon }: {
-  icon: typeof Star; label: string; hint?: ReactNode; trailing?: ReactNode; onClick?: () => void; danger?: boolean; soon?: boolean;
+function Row({ icon: Icon, label, hint, trailing, onClick, danger }: {
+  icon: typeof Star; label: string; hint?: ReactNode; trailing?: ReactNode; onClick?: () => void; danger?: boolean;
 }) {
   const body = (
     <>
@@ -32,12 +31,10 @@ function Row({ icon: Icon, label, hint, trailing, onClick, danger, soon }: {
         <span className={`block text-[15px] ${danger ? 'text-wa-live' : bodyText}`}>{label}</span>
         {hint && <span className={`block text-xs mt-0.5 ${mutedText}`}>{hint}</span>}
       </span>
-      {soon && <span className={`text-[10px] font-semibold uppercase tracking-wide rounded-full px-2 py-0.5 bg-black/5 dark:bg-white/10 ${mutedText}`}>Soon</span>}
       {trailing}
     </>
   );
   const cls = 'w-full flex items-center gap-5 px-6 py-3.5 text-left';
-  if (soon) return <div className={`${cls} opacity-60`} title={SOON} aria-disabled="true">{body}</div>;
   return onClick
     ? <button type="button" onClick={onClick} className={`${cls} hover:bg-black/[0.03] dark:hover:bg-white/5 transition-colors`}>{body}</button>
     : <div className={cls}>{body}</div>;
@@ -133,14 +130,13 @@ export default function ContactInfoDrawer({ otherUserId, meta, favorite, onFavor
           {label.phone && other && label.title !== other.display_name && <p className={`text-xs mt-0.5 ${mutedText}`}>~{other.display_name} on Pulse</p>}
           <div className="flex justify-center gap-7 w-full mt-5">
             {[
-              { icon: Phone, label: 'Voice', soon: true },
-              { icon: Video, label: 'Video', soon: true },
-              { icon: Search, label: 'Search', soon: false, onClick: onSearch },
+              { icon: Phone, label: 'Voice', title: 'Voice call', onClick: () => show(NO_CALLS) },
+              { icon: Video, label: 'Video', title: 'Video call', onClick: () => show(NO_CALLS) },
+              { icon: Search, label: 'Search', title: 'Search messages', onClick: onSearch },
             ].map((a) => (
               <span key={a.label} className="flex flex-col items-center gap-1.5">
-                <button type="button" onClick={a.onClick} disabled={a.soon} title={a.soon ? `${a.label} calls: ${SOON.toLowerCase()}` : 'Search messages'}
-                  aria-label={a.soon ? `${a.label} call (coming soon)` : 'Search messages'}
-                  className="w-14 h-14 rounded-full flex items-center justify-center bg-wa-green/10 text-wa-green ring-1 ring-wa-green/30 hover:bg-wa-green/20 transition-colors disabled:opacity-50 disabled:hover:bg-wa-green/10">
+                <button type="button" onClick={a.onClick} title={a.title} aria-label={a.title}
+                  className="w-14 h-14 rounded-full flex items-center justify-center bg-wa-green/10 text-wa-green ring-1 ring-wa-green/30 hover:bg-wa-green/20 transition-colors">
                   <a.icon className="w-6 h-6" />
                 </button>
                 <span className={`text-xs ${bodyText}`}>{a.label}</span>
@@ -173,7 +169,7 @@ export default function ContactInfoDrawer({ otherUserId, meta, favorite, onFavor
                 : stars.length === 0 ? <li className={`text-sm ${mutedText}`}>No starred messages. Star one from its ⌄ menu.</li>
                 : stars.map((m) => (
                   <li key={m.id} className="rounded-lg px-3 py-2 bg-black/[0.03] dark:bg-white/5">
-                    <p className={`text-xs font-semibold ${m.sender_id === user?.id ? 'text-wa-green' : bodyText}`}>{m.sender_id === user?.id ? 'You' : name}</p>
+                    <p className={`text-xs font-medium ${m.sender_id === user?.id ? 'text-wa-green' : bodyText}`}>{m.sender_id === user?.id ? 'You' : name}</p>
                     <p className={`text-sm whitespace-pre-wrap break-words ${bodyText}`}>{m.body}</p>
                     <p className={`text-[11px] mt-0.5 ${mutedText}`}>{formatDateTime(m.created_at)}</p>
                   </li>
@@ -184,7 +180,7 @@ export default function ContactInfoDrawer({ otherUserId, meta, favorite, onFavor
             trailing={<Toggle checked={muted} disabled={!conv} label="Mute notifications" onChange={(on) => { if (conv) { setChatMuted(conv, on); show(on ? 'Chat muted' : 'Chat unmuted'); } }} />} />
           <Row icon={Timer} label="Disappearing messages" hint={meta?.vanish ? 'On: messages vanish after they are read' : 'Off'}
             trailing={<Toggle checked={!!meta?.vanish} disabled={!meta} label="Disappearing messages" onChange={() => meta?.toggleVanish()} />} />
-          <Row icon={ShieldAlert} label="Restricted chat" soon />
+          <Row icon={ShieldAlert} label="Restricted chat" onClick={() => show('Restricted chats are not available in Pulse yet. Mute or archive the chat instead.')} />
           <Row icon={Palette} label="Chat theme" hint={CHAT_THEMES.find((t) => t.id === theme)?.label} onClick={() => setThemes((v) => !v)} />
           {themes && conv && (
             <div role="radiogroup" aria-label="Chat theme" className="flex flex-wrap gap-3 px-6 pb-4">
@@ -203,7 +199,7 @@ export default function ContactInfoDrawer({ otherUserId, meta, favorite, onFavor
         <section className={block}>
           <Row icon={Heart} label={favorite ? 'Remove from Favorites' : 'Add to Favorites'} onClick={() => { void onFavorite(!favorite); }}
             trailing={favorite ? <Heart className="w-4 h-4 fill-wa-green text-wa-green" /> : undefined} />
-          <Row icon={ListPlus} label="Add to list" soon />
+          <Row icon={ListPlus} label="Add to list" onClick={() => show(NO_LISTS)} />
           <Row icon={Download} label="Export chat" hint="Download this chat as a text file" onClick={exportChat}
             trailing={exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : undefined} />
         </section>
@@ -219,8 +215,8 @@ export default function ContactInfoDrawer({ otherUserId, meta, favorite, onFavor
                     : `Delete this chat? It leaves your list on this device until a new message arrives; ${name} still has the messages.`}
               </p>
               <div className="flex gap-2 justify-end">
-                <button type="button" onClick={() => setConfirm(null)} className={`px-4 py-2 rounded-full text-sm font-semibold text-wa-green hover:bg-wa-green/10`}>Cancel</button>
-                <button type="button" className="px-4 py-2 rounded-full text-sm font-semibold bg-wa-live text-white hover:opacity-90"
+                <button type="button" onClick={() => setConfirm(null)} className={`px-4 py-2 rounded-full text-sm font-medium text-wa-green hover:bg-wa-green/10`}>Cancel</button>
+                <button type="button" className="px-4 py-2 rounded-full text-sm font-medium bg-wa-live text-white hover:opacity-90"
                   onClick={async () => {
                     if (confirm === 'block') {
                       if (!user) return;

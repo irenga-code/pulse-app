@@ -8,7 +8,7 @@ import { mutedText, bodyText } from '@/components/ui';
 
 export type ChatListAction =
   | { kind: 'archive' } | { kind: 'mute'; ms: number | 'always' } | { kind: 'unmute' } | { kind: 'pin' }
-  | { kind: 'unread' } | { kind: 'read' } | { kind: 'favorite' } | { kind: 'block' } | { kind: 'clear' } | { kind: 'delete' };
+  | { kind: 'unread' } | { kind: 'read' } | { kind: 'favorite' } | { kind: 'list' } | { kind: 'block' } | { kind: 'clear' } | { kind: 'delete' };
 
 /**
  * WhatsApp's chat context menu: Archive, Mute (8 hours / 1 week / Always), Pin, Mark as unread, Favorites, Add to list,
@@ -68,9 +68,9 @@ export default function ChatListMenu({ archived, muted, pinned, unread, favorite
       <button type="button" role="menuitem" className={item} onClick={() => pick({ kind: 'favorite' })}>
         {favorite ? <HeartOff className={icon} /> : <Heart className={icon} />}{favorite ? 'Remove from Favorites' : 'Add to Favorites'}
       </button>
-      <div role="menuitem" aria-disabled="true" title="Coming soon" className={`${item} opacity-50 cursor-default hover:bg-transparent`}>
-        <ListPlus className={icon} />Add to list<span className={`ml-auto text-[10px] font-semibold uppercase ${mutedText}`}>Soon</span>
-      </div>
+      <button type="button" role="menuitem" className={item} onClick={() => pick({ kind: 'list' })}>
+        <ListPlus className={icon} />Add to list
+      </button>
       <hr className="my-1.5 border-wa-lightBorder dark:border-wa-darkBorder" role="separator" />
       <button type="button" role="menuitem" className={item} onClick={() => pick({ kind: 'block' })}>
         <Ban className={icon} />{blocked ? 'Unblock' : 'Block'}

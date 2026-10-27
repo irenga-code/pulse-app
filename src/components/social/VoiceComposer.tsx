@@ -134,7 +134,7 @@ export function useVoiceComposer({ disabled, secret, onSend }: {
         </button>
       ) : null}
       <span className={`w-2.5 h-2.5 rounded-full bg-red-500 flex-shrink-0 ${sending ? '' : 'animate-pulse'}`} aria-hidden="true" />
-      <span className="text-sm font-semibold tabular-nums" aria-live="off">{formatVoiceTime(recorder.elapsedMs)}</span>
+      <span className="text-sm font-medium tabular-nums" aria-live="off">{formatVoiceTime(recorder.elapsedMs)}</span>
       {sending ? (
         <span className={`text-xs ${muted}`}>Sending…</span>
       ) : locked ? (
