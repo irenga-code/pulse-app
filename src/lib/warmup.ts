@@ -1,6 +1,5 @@
 import { api } from './apiClient';
 import { prefetch, userKey, wireRevalidation } from './cache';
-import { prefetchVenues } from '@/hooks/useVenues';
 import { prefetchFeed } from '@/hooks/useFeed';
 
 /**
@@ -10,11 +9,9 @@ import { prefetchFeed } from '@/hooks/useFeed';
 export function warmUp(userId: string | null) {
   wireRevalidation();
   const run = () => {
-    prefetchVenues();
     prefetchFeed(userId);
     if (userId) {
       prefetch(userKey(userId, 'profile-stats'), () => api.profileStats(userId));
-      prefetch(userKey(userId, 'managed-venues'), () => api.managedVenueIds(userId));
       prefetch(userKey(userId, 'saved-posts'), () => api.listSavedPosts(userId));
     }
     // code for the modals people open most, so their first open is instant too

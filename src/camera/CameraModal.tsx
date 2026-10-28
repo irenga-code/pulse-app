@@ -1,30 +1,27 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  X, SwitchCamera, Zap, ZapOff, Timer, Wand2, Sparkles, Type, Pencil, Sticker, MapPin, Store, ImagePlus, RotateCcw, Loader2, CameraOff,
+  X, SwitchCamera, Zap, ZapOff, Timer, Wand2, Sparkles, Type, Pencil, Sticker, MapPin, ImagePlus, RotateCcw, Loader2, CameraOff,
 } from 'lucide-react';
 import CameraStage, { type StageHandle } from '@/camera/CameraStage';
 import ShutterButton from '@/camera/ShutterButton';
 import { DrawBar, EffectStrip, FilterStrip, StickerTray, TextEditor } from '@/camera/CameraTools';
-import VenuePicker from '@/camera/VenuePicker';
 import PostBar from '@/camera/PostBar';
 import SendToSheet from '@/camera/SendToSheet';
 import { useCameraStream } from '@/camera/useCameraStream';
 import { useCanvasRecorder, type RecordResult } from '@/camera/useCanvasRecorder';
 import { useGeolocation } from '@/camera/useGeolocation';
 import { useSnapDispatch, destinationKey, destinationLabel, type SnapDestination } from '@/camera/useSnapDispatch';
-import { venuesIn } from '@/camera/geo';
 import { drawScene } from '@/camera/renderer';
 import { MAX_VIDEO_MS, STAGE_H, STAGE_W, type StickerDef } from '@/camera/constants';
 import { EMPTY_SCENE, type CaptureResult, type Scene, type TextItem } from '@/camera/types';
-import { useVenues } from '@/hooks/useVenues';
 import { useToast } from '@/context/ToastContext';
 import { api } from '@/lib/apiClient';
 import { revalidateAll } from '@/lib/cache';
-import type { NewPostInput, Post, SnapMeta, Venue } from '@/lib/types';
+import type { NewPostInput, Post, SnapMeta } from '@/lib/types';
 import { lockBodyScroll } from '@/lib/scrollLock';
 
 type Mode = 'capture' | 'edit' | 'review';
-type Panel = null | 'filters' | 'effects' | 'stickers' | 'venue' | 'sendto';
+type Panel = null | 'filters' | 'effects' | 'stickers' | 'sendto';
 type VideoClip = { blob: Blob; url: string; ext: 'mp4' | 'webm'; durationMs: number; width: number; height: number; meta: SnapMeta };
 
 const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
@@ -71,14 +68,13 @@ const createPostDirect = async (input: NewPostInput) => {
 
 /**
  * Full-screen camera (Quick-Snap). Flow: capture (tap = photo, hold = video, up to 15 s) -> edit (text, drawing,
- * stickers, filters, effects, location + venue stamps) -> caption + venue -> Send to: status, Pulse feed,
- * your venue channels and chats (upload once, deliver everywhere). With `destination` (a chat's camera button) the
+ * stickers, filters, effects, location tag) -> caption -> Send to: status, Pulse feed,
+ * your channels and chats (upload once, deliver everywhere). With `destination` (a chat's camera button) the
  * snap goes straight there.
  */
-export default function CameraModal({ onClose, savePost = createPostDirect, initialVenueId, destination, defaultDestinations, onSent }: {
+export default function CameraModal({ onClose, savePost = createPostDirect, destination, defaultDestinations, onSent }: {
   onClose: () => void;
   savePost?: (input: NewPostInput) => Promise<Post>;
-  initialVenueId?: string | null;
   /** Locked destination: skip the Send to sheet. */
   destination?: SnapDestination;
   /** Pre-ticked in the Send to sheet (default: My status). */
@@ -86,7 +82,6 @@ export default function CameraModal({ onClose, savePost = createPostDirect, init
   onSent?: (sent: SnapDestination[]) => void;
 }) {
   const { show } = useToast();
-  const { venues } = useVenues({ orderBy: 'name' });
   const geo = useGeolocation();
   const recorder = useCanvasRecorder();
   const publisher = useSnapDispatch(savePost);
@@ -107,8 +102,6 @@ export default function CameraModal({ onClose, savePost = createPostDirect, init
   const [brush, setBrush] = useState({ color: '#ff2bd6', width: 14 });
   const [textEditing, setTextEditing] = useState<{ item?: TextItem } | null>(null);
   const [geoOn, setGeoOn] = useState(false);
-  const [venueId, setVenueId] = useState<string | null>(initialVenueId ?? null);
-  const [stampOn, setStampOn] = useState(true);
   const [caption, setCaption] = useState('');
   const [timer, setTimer] = useState<0 | 3>(0);
   const [countdown, setCountdown] = useState<number | null>(null);
@@ -118,7 +111,6 @@ export default function CameraModal({ onClose, savePost = createPostDirect, init
   const wantRecording = useRef(false);
   const captureRef = useRef<CaptureResult | null>(null);
 
-  const venue = venues.find((v) => v.id === venueId) ?? null;
   const editable = mode !== 'review';
 
   const flash = useCallback((msg: string) => {
@@ -135,9 +127,8 @@ export default function CameraModal({ onClose, savePost = createPostDirect, init
     () => ({
       ...scene,
       geoLabel: geoOn ? geo.info?.label ?? null : null,
-      stamp: stampOn && venue && editable ? { venueName: venue.name, location: venue.location } : null,
     }),
-    [scene, geoOn, geo.info, stampOn, venue, editable]
+    [scene, geoOn, geo.info]
   );
 
   const buildMeta = useCallback((): SnapMeta => {
@@ -145,7 +136,6 @@ export default function CameraModal({ onClose, savePost = createPostDirect, init
     if (scene.filter !== 'none') meta.filter = scene.filter;
     if (scene.effect !== 'none') meta.effect = scene.effect;
     if (stageScene.geoLabel) meta.geo = stageScene.geoLabel;
-    if (stageScene.stamp) meta.stamp = stageScene.stamp.venueName;
     const tools: string[] = [];
     if (scene.items.some((i) => i.type === 'text')) tools.push('text');
     if (scene.items.some((i) => i.type === 'sticker')) tools.push('sticker');
@@ -316,8 +306,6 @@ export default function CameraModal({ onClose, savePost = createPostDirect, init
     if (g?.label) setGeoOn(true);
     else flash('Location unavailable: allow location access to add a tag');
   };
-  const chooseVenue = (v: Venue | null) => { setVenueId(v?.id ?? null); setPanel(null); captureRef.current = null; };
-  const suggested = useMemo(() => venuesIn(venues, geo.info?.neighborhood ?? null), [venues, geo.info]);
 
   // ---- publish ----------------------------------------------------------------
   const send = async (destinations: SnapDestination[]) => {
@@ -331,7 +319,7 @@ export default function CameraModal({ onClose, savePost = createPostDirect, init
       } else return;
       captureRef.current = capture;
     }
-    const result = await publisher.dispatch(capture, destinations, { caption, venueId });
+    const result = await publisher.dispatch(capture, destinations, { caption });
     if (!result) return;
     if (result.sent.length > 0) onSent?.(result.sent);
     if (result.failed.length === 0) {
@@ -440,7 +428,6 @@ export default function CameraModal({ onClose, savePost = createPostDirect, init
                 <button onClick={toggleGeo} aria-label="Location tag" aria-pressed={geoOn} className={`${railBtn} ${geoOn ? '!bg-wa-green' : ''}`}>{geo.status === 'asking' ? <Loader2 className="w-5 h-5 animate-spin" /> : <MapPin className="w-5 h-5" />}</button>
               </>
             )}
-            <button onClick={() => setPanel('venue')} aria-label="Venue" className={`${railBtn} ${venue ? '!bg-wa-green' : ''}`}><Store className="w-5 h-5" /></button>
           </div>
         )}
 
@@ -468,8 +455,6 @@ export default function CameraModal({ onClose, savePost = createPostDirect, init
           <PostBar
             caption={caption}
             onCaption={setCaption}
-            venueLabel={venue ? venue.name : null}
-            onPickVenue={() => setPanel('venue')}
             onPost={post}
             postLabel={destination ? `Send to ${destinationLabel(destination)}` : 'Send to…'}
             state={publisher.state}
@@ -486,22 +471,7 @@ export default function CameraModal({ onClose, savePost = createPostDirect, init
             key={sendTo.map(destinationKey).join()}
             initial={sendTo}
             busy={publisher.busy}
-            venueLabel={venue ? venue.name : null}
             onSend={(list) => { setSendTo(list); void send(list); }}
-            onClose={() => setPanel(null)}
-          />
-        )}
-        {panel === 'venue' && (
-          <VenuePicker
-            venues={venues}
-            suggested={suggested}
-            selectedId={venueId}
-            stampOn={stampOn}
-            canStamp={editable}
-            geoStatus={geo.status}
-            onSelect={chooseVenue}
-            onStampToggle={(on) => { setStampOn(on); captureRef.current = null; }}
-            onAskLocation={() => { geo.request(); }}
             onClose={() => setPanel(null)}
           />
         )}

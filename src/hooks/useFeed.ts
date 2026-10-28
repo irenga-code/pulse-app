@@ -223,7 +223,7 @@ export function useFeed() {
     [load]
   );
 
-  const createPost = useCallback((content: string, venueId: string | null) => publish({ content, venue_id: venueId }).then(() => undefined), [publish]);
+  const createPost = useCallback((content: string) => publish({ content }).then(() => undefined), [publish]);
 
   const removeOwnPost = useCallback(
     async (postId: string) => {

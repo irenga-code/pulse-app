@@ -1,14 +1,11 @@
 import { useState } from 'react';
-import { Bell, ChevronRight, Settings, LogOut, Bookmark, BadgeCheck, Store, ShieldCheck, UserCog, LogIn, UserRound, Mail, BookmarkCheck, Flame, PlusCircle, Phone, Megaphone, Images } from 'lucide-react';
+import { Bell, ChevronRight, Settings, LogOut, BadgeCheck, ShieldCheck, UserCog, LogIn, UserRound, Mail, BookmarkCheck, Flame, Phone, Megaphone, Images } from 'lucide-react';
 import Avatar from '@/components/Avatar';
 import RoleBadge from '@/components/RoleBadge';
 import NotificationsModal from '@/components/profile/NotificationsModal';
 import SettingsModal from '@/components/profile/SettingsModal';
-import SavedVenuesModal from '@/components/profile/SavedVenuesModal';
 import EditProfileModal from '@/components/profile/EditProfileModal';
 import VerificationModal from '@/components/profile/VerificationModal';
-import MyVenueModal from '@/components/profile/MyVenueModal';
-import RegisterVenueModal from '@/components/profile/RegisterVenueModal';
 import SavedPostsModal from '@/components/profile/SavedPostsModal';
 import { Stat } from '@/components/social/Stat';
 import { primaryBtn, ghostBtn, mutedText, bodyText } from '@/components/ui';
@@ -18,11 +15,10 @@ import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/context/ToastContext';
 import { useSocial } from '@/context/SocialContext';
 import { api } from '@/lib/apiClient';
-import { userKey, revalidateAll } from '@/lib/cache';
-import type { Venue } from '@/lib/types';
+import { userKey } from '@/lib/cache';
 import type { SectionId } from '@/components/nav/sections';
 
-type ModalId = 'notifications' | 'settings' | 'saved' | 'savedPosts' | 'edit' | 'verify' | 'venue' | 'register' | null;
+type ModalId = 'notifications' | 'settings' | 'savedPosts' | 'edit' | 'verify' | null;
 
 type MenuItem = { label: string; icon: typeof Bell; onClick: () => void; badge?: number; href?: string };
 
@@ -33,18 +29,12 @@ function monthYear(iso: string) {
 /** `onNavigate` adds shortcuts to the screens phones have no rail button for (Calls, Broadcasts, Media). */
 export default function ProfileTab({ onNavigate }: { onNavigate?: (id: SectionId) => void } = {}) {
   const [modal, setModal] = useState<ModalId>(null);
-  const [registered, setRegistered] = useState<Venue | null>(null);
-  const closeModal = () => {
-    setModal(null);
-    setRegistered(null);
-  };
+  const closeModal = () => setModal(null);
   const { user, profile, isAdmin, openAuth, signOut } = useAuth();
   const { show } = useToast();
   const feed = useNotifications();
   const { openInbox, unread } = useSocial();
   const stats = useAsync(() => (user ? api.profileStats(user.id) : Promise.resolve(null)), [], user ? userKey(user.id, 'profile-stats') : null);
-  const managed = useAsync(() => (user ? api.managedVenueIds(user.id) : Promise.resolve([] as string[])), [], user ? userKey(user.id, 'managed-venues') : null);
-  const managedCount = (managed.data ?? []).length;
 
   const handleSignOut = async () => {
     try {
@@ -59,7 +49,6 @@ export default function ProfileTab({ onNavigate }: { onNavigate?: (id: SectionId
     { label: 'Notifications', icon: Bell, onClick: () => setModal('notifications'), badge: feed.unreadCount },
     { label: 'Messages', icon: Mail, onClick: openInbox, badge: unread },
     { label: 'Saved posts', icon: BookmarkCheck, onClick: () => setModal('savedPosts') },
-    { label: 'Saved venues', icon: Bookmark, onClick: () => setModal('saved') },
     { label: 'Settings', icon: Settings, onClick: () => setModal('settings') },
   ];
   if (onNavigate) {
@@ -69,10 +58,6 @@ export default function ProfileTab({ onNavigate }: { onNavigate?: (id: SectionId
       { label: 'Broadcast blasts', icon: Megaphone, onClick: () => onNavigate('broadcasts') },
     );
   }
-  // Host / Venue accounts get My venues before their first club, to add one (migration 14)
-  const canLink = profile?.status === 'active' && (profile.account_type === 'host' || profile.account_type === 'venue');
-  if (user && (managedCount > 0 || canLink)) menuItems.push({ label: managedCount === 1 ? 'My venue' : 'My venues', icon: Store, onClick: () => setModal('venue') });
-  if (user) menuItems.push({ label: 'Register a club', icon: PlusCircle, onClick: () => setModal('register') });
   if (user) menuItems.push({ label: 'Request verification', icon: BadgeCheck, onClick: () => setModal('verify') });
   if (isAdmin) menuItems.push({ label: 'Admin dashboard', icon: ShieldCheck, onClick: () => { window.location.hash = '#/manage'; } });
 
@@ -120,7 +105,7 @@ export default function ProfileTab({ onNavigate }: { onNavigate?: (id: SectionId
                 </div>
                 <h2 className={`text-lg font-bold ${bodyText}`}>Join Pulse</h2>
                 <p className={`text-sm mt-1 max-w-xs ${mutedText}`}>
-                  Follow venues, get live alerts, save your favourites and join the conversation.
+                  Message friends, share status updates, follow channels and join the conversation.
                 </p>
                 <div className="flex gap-2 mt-4">
                   <button onClick={() => openAuth('signup')} className={primaryBtn}>Create account</button>
@@ -171,23 +156,9 @@ export default function ProfileTab({ onNavigate }: { onNavigate?: (id: SectionId
 
       {modal === 'notifications' && <NotificationsModal onClose={closeModal} feed={feed} />}
       {modal === 'settings' && <SettingsModal onClose={closeModal} />}
-      {modal === 'saved' && <SavedVenuesModal onClose={closeModal} />}
       {modal === 'savedPosts' && <SavedPostsModal onClose={closeModal} />}
       {modal === 'edit' && <EditProfileModal onClose={closeModal} />}
       {modal === 'verify' && <VerificationModal onClose={closeModal} />}
-      {modal === 'venue' && <MyVenueModal onClose={closeModal} initialVenue={registered ?? undefined} />}
-      {modal === 'register' && (
-        <RegisterVenueModal
-          onClose={closeModal}
-          onRegistered={(venue) => {
-            // refresh venue lists and "My venues", then open the new venue so they can manage it right away
-            revalidateAll();
-            managed.reload();
-            setRegistered(venue);
-            setModal('venue');
-          }}
-        />
-      )}
     </div>
   );
 }

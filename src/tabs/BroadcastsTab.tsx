@@ -1,23 +1,21 @@
 import { useMemo, useState } from 'react';
-import { Megaphone, Send, Loader2, Camera, Plus, Check, Store } from 'lucide-react';
-import VenueLogo from '@/components/VenueLogo';
+import { Megaphone, Send, Loader2, Camera, Plus, Check, MessageSquareDot } from 'lucide-react';
 import SectionHeader from '@/components/nav/SectionHeader';
 import { ErrorNote, Field, inputClass, primaryBtn, ghostBtn, mutedText, bodyText } from '@/components/ui';
 import { api } from '@/lib/apiClient';
 import { friendlyError, isMissingSchema } from '@/lib/api';
 import { useChannels } from '@/hooks/useChannels';
-import { useVenues } from '@/hooks/useVenues';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/context/ToastContext';
 import { useQuickSnap } from '@/camera/QuickSnapContext';
-import type { Venue } from '@/lib/types';
 
 const MAX = 2000;
 const card = 'bg-wa-lightPanel dark:bg-wa-darkSecondary rounded-2xl border border-wa-lightBorder dark:border-wa-darkBorder p-4';
 
-function CreateChannel({ venue, onCreated }: { venue: Venue; onCreated: () => void }) {
+/** A channel for a business you run that has none yet (the database ties every channel to its owner). */
+function CreateChannel({ ownerId, onCreated }: { ownerId: string; onCreated: () => void }) {
   const { show } = useToast();
-  const [name, setName] = useState(venue.name);
+  const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -28,7 +26,7 @@ function CreateChannel({ venue, onCreated }: { venue: Venue; onCreated: () => vo
     setBusy(true);
     setError(null);
     try {
-      await api.createChannel(venue.id, name, description);
+      await api.createChannel(ownerId, name, description);
       show(`${name.trim()} channel created`);
       onCreated();
     } catch (err) {
@@ -49,22 +47,22 @@ function CreateChannel({ venue, onCreated }: { venue: Venue; onCreated: () => vo
   );
 }
 
-/** Broadcast Blasts: venue staff write once and post to one or more of their venue channels; Quick-Snap a photo / video too. */
+/** Business broadcast: write once and post to one or more of the channels you run; Quick-Snap a photo / video too. */
 export default function BroadcastsTab() {
-  const { user, isAdmin } = useAuth();
+  const { user } = useAuth();
   const { show } = useToast();
   const { openQuickSnap } = useQuickSnap();
   const ch = useChannels();
-  const { venues } = useVenues({ orderBy: 'name' });
-  const mine = useMemo(() => venues.filter((v) => ch.managed.includes(v.id)), [venues, ch.managed]);
+  // ch.managed = the businesses you run; each can have one channel
   const channelOf = useMemo(() => new Map(ch.channels.map((c) => [c.venue_id, c])), [ch.channels]);
+  const withoutChannel = ch.managed.filter((id) => !channelOf.has(id));
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [creating, setCreating] = useState<string | null>(null);
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const ready = mine.map((v) => channelOf.get(v.id)).filter((c): c is NonNullable<typeof c> => !!c);
+  const ready = ch.managed.map((id) => channelOf.get(id)).filter((c): c is NonNullable<typeof c> => !!c);
   // nothing ticked = every channel you run
   const targets = picked.size > 0 ? ready.filter((c) => picked.has(c.id)) : ready;
 
@@ -88,22 +86,20 @@ export default function BroadcastsTab() {
   };
 
   if (!user) {
-    return <div className="flex flex-col h-full"><SectionHeader title="Broadcast blasts" camera={false} /><p className={`px-4 text-sm ${mutedText}`}>Sign in to broadcast to your venue channels.</p></div>;
+    return <div className="flex flex-col h-full"><SectionHeader title="Business broadcast" camera={false} /><p className={`px-4 text-sm ${mutedText}`}>Sign in to broadcast to your channels.</p></div>;
   }
 
   return (
     <div className="flex flex-col pb-8">
-      <SectionHeader title="Broadcast blasts" subtitle="One message to every follower of your venue channels" />
+      <SectionHeader title="Business broadcast" subtitle="One message to every follower of your channels" />
       <div className="px-4 md:px-6 space-y-4 max-w-2xl">
         {ch.loading ? (
-          <p className={`text-sm ${mutedText}`}>Loading your venues…</p>
-        ) : mine.length === 0 ? (
+          <p className={`text-sm ${mutedText}`}>Loading your channels…</p>
+        ) : ch.managed.length === 0 ? (
           <div className={`${card} text-center py-10`}>
             <Megaphone className="w-12 h-12 text-wa-quiet mx-auto mb-3" />
-            <p className={`text-sm font-medium ${bodyText}`}>Broadcasts are for venue teams</p>
-            <p className={`text-xs mt-1 ${mutedText}`}>
-              {isAdmin ? 'Link yourself to a venue in Admin > Venue staff to broadcast for it.' : 'Register your club or request verification as its manager or host from your profile, then broadcast to its followers here.'}
-            </p>
+            <p className={`text-sm font-medium ${bodyText}`}>Broadcasts are for business channels</p>
+            <p className={`text-xs mt-1 ${mutedText}`}>Once your account runs a business channel, you can send its followers one update from here.</p>
           </div>
         ) : (
           <>
@@ -135,7 +131,7 @@ export default function BroadcastsTab() {
                     Send to {targets.length} channel{targets.length === 1 ? '' : 's'}
                   </button>
                   <button type="button" disabled={targets.length !== 1} title={targets.length === 1 ? undefined : 'Pick one channel for a snap'}
-                    onClick={() => targets[0] && openQuickSnap({ destination: { kind: 'channel', channelId: targets[0].id, label: targets[0].name }, initialVenueId: targets[0].venue_id, onSent: () => { void ch.reload(); } })}
+                    onClick={() => targets[0] && openQuickSnap({ destination: { kind: 'channel', channelId: targets[0].id, label: targets[0].name }, onSent: () => { void ch.reload(); } })}
                     className={`${ghostBtn} disabled:opacity-40`}>
                     <Camera className="w-4 h-4" />Snap
                   </button>
@@ -144,26 +140,28 @@ export default function BroadcastsTab() {
             )}
 
             <div className="space-y-2">
-              <p className={`text-xs font-semibold uppercase tracking-wide ${mutedText}`}>Your venues</p>
-              {mine.map((v) => {
-                const c = channelOf.get(v.id);
-                return (
-                  <div key={v.id} className={card}>
-                    <div className="flex items-center gap-3">
-                      <VenueLogo venue={v} size={44} fallback />
-                      <span className="min-w-0 flex-1">
-                        <span className={`block text-sm font-semibold truncate ${bodyText}`}>{v.name}</span>
-                        <span className={`block text-xs ${mutedText}`}>{c ? `${c.name} · ${c.follower_count} follower${c.follower_count === 1 ? '' : 's'}` : 'No channel yet'}</span>
-                      </span>
-                      {!c && creating !== v.id && (
-                        <button onClick={() => setCreating(v.id)} className={`${ghostBtn} !px-3 !py-1.5 text-xs`}><Plus className="w-3.5 h-3.5" />Create channel</button>
-                      )}
-                      {c && <Store className={`w-4 h-4 ${mutedText}`} aria-hidden="true" />}
-                    </div>
-                    {!c && creating === v.id && <CreateChannel venue={v} onCreated={() => { setCreating(null); void ch.reload(); }} />}
+              <p className={`text-xs font-semibold uppercase tracking-wide ${mutedText}`}>Your channels</p>
+              {ready.map((c) => (
+                <div key={c.id} className={`${card} flex items-center gap-3`}>
+                  <MessageSquareDot className="w-11 h-11 p-2 text-wa-green flex-shrink-0" />
+                  <span className="min-w-0 flex-1">
+                    <span className={`block text-sm font-semibold truncate ${bodyText}`}>{c.name}</span>
+                    <span className={`block text-xs ${mutedText}`}>{c.follower_count} follower{c.follower_count === 1 ? '' : 's'}</span>
+                  </span>
+                </div>
+              ))}
+              {withoutChannel.map((id) => (
+                <div key={id} className={card}>
+                  <div className="flex items-center gap-3">
+                    <MessageSquareDot className={`w-11 h-11 p-2 flex-shrink-0 ${mutedText}`} />
+                    <span className={`flex-1 text-sm ${mutedText}`}>A business you run has no channel yet</span>
+                    {creating !== id && (
+                      <button onClick={() => setCreating(id)} className={`${ghostBtn} !px-3 !py-1.5 text-xs`}><Plus className="w-3.5 h-3.5" />Create channel</button>
+                    )}
                   </div>
-                );
-              })}
+                  {creating === id && <CreateChannel ownerId={id} onCreated={() => { setCreating(null); void ch.reload(); }} />}
+                </div>
+              ))}
             </div>
           </>
         )}

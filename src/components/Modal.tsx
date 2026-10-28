@@ -8,10 +8,12 @@ type Props = {
   icon?: LucideIcon;
   onClose: () => void;
   children: ReactNode;
+  /** WhatsApp edit-screen header: X on the left, this (e.g. Save) on the right. */
+  action?: ReactNode;
 };
 
 /** Bottom sheet on mobile, centered dialog on desktop. Esc / backdrop click closes. */
-export default function Modal({ title, icon: Icon, onClose, children }: Props) {
+export default function Modal({ title, icon: Icon, onClose, children, action }: Props) {
   const panelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -31,6 +33,16 @@ export default function Modal({ title, icon: Icon, onClose, children }: Props) {
     };
   }, [onClose]);
 
+  const closeButton = (
+    <button
+      onClick={onClose}
+      aria-label="Close"
+      className="p-1.5 rounded-full text-wa-lightTextSecondary dark:text-wa-darkTextSecondary hover:bg-wa-lightSecondary dark:hover:bg-wa-darkSecondary transition-colors"
+    >
+      <X className="w-5 h-5" />
+    </button>
+  );
+
   return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in"
@@ -47,15 +59,10 @@ export default function Modal({ title, icon: Icon, onClose, children }: Props) {
         className="w-full md:max-w-lg max-h-sheet flex flex-col bg-wa-lightPanel dark:bg-wa-darkPanel rounded-t-3xl md:rounded-2xl border border-wa-lightBorder dark:border-wa-darkBorder shadow-2xl outline-none animate-slide-up"
       >
         <div className="flex items-center gap-2.5 px-5 py-4 border-b border-wa-lightBorder dark:border-wa-darkBorder flex-shrink-0">
+          {action && closeButton}
           {Icon && <Icon className="w-5 h-5 text-wa-green" />}
           <h2 className="text-base font-bold text-wa-lightText dark:text-wa-darkText flex-1">{title}</h2>
-          <button
-            onClick={onClose}
-            aria-label="Close"
-            className="p-1.5 rounded-full text-wa-lightTextSecondary dark:text-wa-darkTextSecondary hover:bg-wa-lightSecondary dark:hover:bg-wa-darkSecondary transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          {action ?? closeButton}
         </div>
         <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-5 py-4">{children}</div>
       </div>

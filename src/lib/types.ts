@@ -1,34 +1,3 @@
-export type VenueStatus = 'live' | 'sold_out' | 'not_active';
-
-export type Venue = {
-  id: string;
-  name: string;
-  slug?: string | null;
-  location: string;
-  status: VenueStatus;
-  status_expires_at?: string | null;
-  /** From venues_public: live status or an event running now (see isVenueLive). */
-  is_live?: boolean;
-  /** Cover photo. */
-  image_url: string | null;
-  /** Square logo / profile picture (migration 11; undefined before it is applied). */
-  logo_url?: string | null;
-  /** Who registered it with Register a club (migration 12; on venues_public from migration 13). */
-  created_by?: string | null;
-  is_verified?: boolean;
-  /** Profile fields linked hosts/managers can edit (My venues). */
-  description?: string | null;
-  address?: string | null;
-  phone?: string | null;
-  whatsapp?: string | null;
-  created_at: string;
-};
-
-/** A venue the signed-in user is linked to in `venue_managers` (migration 9 adds 'host'). */
-export type VenueRole = 'owner' | 'manager' | 'host';
-export type ManagedVenue = { venue_id: string; role: VenueRole };
-export type VenueProfilePatch = Partial<Pick<Venue, 'description' | 'address' | 'phone' | 'whatsapp' | 'image_url' | 'logo_url'>>;
-
 export type Post = {
   id: string;
   user_id: string | null;
@@ -117,11 +86,32 @@ export type Profile = {
   created_at: string;
 };
 
+export type WeekDay = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun';
+export type BusinessHours = {
+  /** always = open 24 hours, appointment = by appointment only, custom = the days below */
+  mode: 'always' | 'appointment' | 'custom';
+  days: Record<WeekDay, { open: boolean; from: string; to: string }>;
+};
+/** WhatsApp Business-style details (business_profiles, migration 21). Name and photo stay on the profile. */
+export type BusinessProfile = {
+  user_id: string;
+  cover_url: string | null;
+  status_text: string | null;
+  description: string | null;
+  address: string | null;
+  coverage_area: string | null;
+  location_notes: string | null;
+  hours: BusinessHours | null;
+  category: string | null;
+  websites: string[];
+  email: string | null;
+  phone: string | null;
+  updated_at: string;
+};
+export type BusinessProfilePatch = Omit<BusinessProfile, 'user_id' | 'updated_at'>;
+
 /** Public subset shown next to posts/comments. */
 export type PublicProfile = Pick<Profile, 'id' | 'display_name' | 'avatar_url' | 'account_type' | 'is_verified' | 'status'>;
-/** admin_find_users result: the email is only matched, never returned. */
-export type StaffCandidate = PublicProfile & { matched_email: boolean };
-export type VenueStaffRow = { venue_id: string; user_id: string; role: VenueRole; created_at: string };
 
 export type Preferences = {
   theme: 'dark' | 'light' | 'system';
@@ -259,9 +249,10 @@ export type ConversationPrefs = {
   is_pinned?: boolean; pinned_at?: string | null; marked_unread?: boolean;
 };
 
-// ---------------------------------------------------------------- venue channels (migration 15)
-export type VenueChannel = {
+// ---------------------------------------------------------------- channels (migration 15)
+export type Channel = {
   id: string;
+  /** The business that owns it (the database still calls businesses venues). */
   venue_id: string;
   name: string;
   description: string | null;
@@ -279,8 +270,6 @@ export type ChannelMessage = {
   media_type: 'image' | 'video' | null;
   created_at: string;
 };
-/** A live 24 h status with its venue, for the Vibe Check overlay (vibe_check_stories view). */
-export type VibeCheckStory = Status & { venue_name: string | null; venue_location: string | null };
 export type ConversationSummary = {
   conversation_id: string;
   other_user_id: string;

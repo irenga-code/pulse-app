@@ -8,9 +8,9 @@
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type {
-  Venue, VenueStatus, Post, Comment, ReactionKind, ReactionCounts, ReactionType, NewPostInput, Profile, PublicProfile, Preferences,
+  Post, Comment, ReactionKind, ReactionCounts, ReactionType, NewPostInput, Profile, PublicProfile, Preferences,
   AppNotification, ReportTarget, ReportReason, ReportRow, VerificationRequest, ModerationLogRow, AccountStatus, AccountType,
-  ProfileStats, Status, NewStatusInput, ChatMessage, ConversationSummary, MessageRef, MessageMedia, ConversationPrefs, VenueChannel, ChannelMessage, VerificationRole, ManagedVenue, VenueProfilePatch, StaffCandidate, VenueStaffRow, MessageReaction,
+  ProfileStats, Status, NewStatusInput, ChatMessage, ConversationSummary, MessageRef, MessageMedia, ConversationPrefs, Channel, ChannelMessage, BusinessProfile, BusinessProfilePatch, VerificationRole, MessageReaction,
 } from './types';
 
 export class ApiError extends Error {
@@ -109,12 +109,6 @@ export function friendlyError(e: unknown): string {
 
 export function createApi(c: SupabaseClient) {
   return {
-    // ------------------------------------------------------------ venues
-    async listVenues(opts: { status?: VenueStatus; orderBy?: 'created_at' | 'name' } = {}) {
-      let q = c.from('venues_public').select('*');
-      if (opts.status) q = q.eq('status', opts.status);
-      return unwrap(await q.order(opts.orderBy ?? 'created_at', { ascending: true })) as Venue[];
-    },
 
     // ------------------------------------------------------------- posts
     async listPosts(limit = 50) {
@@ -213,37 +207,6 @@ export function createApi(c: SupabaseClient) {
       ) as ReactionType[];
     },
 
-    // ------------------------------------------------------ venue vibes
-    /** Tonight's vibe counts for every venue: venueId -> kind -> n (last 12 hours only). */
-    async venueVibeCounts() {
-      const rows = unwrap(await c.from('venue_vibe_counts').select('venue_id, kind, n')) as { venue_id: string; kind: ReactionKind; n: number }[];
-      const out: Record<string, ReactionCounts> = {};
-      for (const r of rows) (out[r.venue_id] ??= {})[r.kind] = r.n;
-      return out;
-    },
-    async myVenueReactions(userId: string) {
-      const rows = unwrap(await c.from('venue_reactions').select('venue_id, kind, reacted_at').eq('user_id', userId)) as { venue_id: string; kind: ReactionKind; reacted_at: string }[];
-      const out: Record<string, ReactionKind> = {};
-      const cutoff = Date.now() - 12 * 3600 * 1000;
-      for (const r of rows) if (new Date(r.reacted_at).getTime() > cutoff) out[r.venue_id] = r.kind;
-      return out;
-    },
-    /** Same toggle rules as posts: same emoji removes, another emoji switches. */
-    async setVenueReaction(venueId: string, userId: string, kind: ReactionKind, current: ReactionKind | null) {
-      if (current === kind) {
-        unwrap(await c.from('venue_reactions').delete().eq('venue_id', venueId).eq('user_id', userId));
-        return null;
-      }
-      if (current) {
-        unwrap(await c.from('venue_reactions').update({ kind }).eq('venue_id', venueId).eq('user_id', userId));
-      } else {
-        // an expired (>12h) vibe row may still exist: replace it
-        const del = await c.from('venue_reactions').delete().eq('venue_id', venueId).eq('user_id', userId);
-        if (del.error) throw new ApiError(del.error.message, del.error.code);
-        unwrap(await c.from('venue_reactions').insert({ venue_id: venueId, kind }));
-      }
-      return kind;
-    },
 
     // ---------------------------------------------------------- comments
     async listComments(postId: string) {
@@ -275,28 +238,6 @@ export function createApi(c: SupabaseClient) {
       unwrap(await c.from('reports').insert(row));
     },
 
-    // ---------------------------------------------------- follows & saves
-    async listVenueFollows(userId: string) {
-      const rows = unwrap(await c.from('venue_follows').select('venue_id').eq('user_id', userId)) as { venue_id: string }[];
-      return rows.map((r) => r.venue_id);
-    },
-    async followVenue(venueId: string) {
-      unwrap(await c.from('venue_follows').insert({ venue_id: venueId }));
-    },
-    async unfollowVenue(userId: string, venueId: string) {
-      unwrap(await c.from('venue_follows').delete().eq('user_id', userId).eq('venue_id', venueId));
-    },
-    async listSaved(userId: string) {
-      return unwrap(
-        await c.from('saved_venues').select('venue_id, created_at').eq('user_id', userId).order('created_at', { ascending: false })
-      ) as { venue_id: string; created_at: string }[];
-    },
-    async saveVenue(venueId: string) {
-      unwrap(await c.from('saved_venues').insert({ venue_id: venueId }));
-    },
-    async unsaveVenue(userId: string, venueId: string) {
-      unwrap(await c.from('saved_venues').delete().eq('user_id', userId).eq('venue_id', venueId));
-    },
 
     // ----------------------------------------------- profile & preferences
     async getProfile(userId: string) {
@@ -345,6 +286,18 @@ export function createApi(c: SupabaseClient) {
       unwrap(await c.rpc('delete_my_account'));
     },
 
+    // -------------------------------------------- business profile (migration 21)
+    /** Null when there is no row yet; throws a missing-schema error before migration 21. */
+    async getBusinessProfile(userId: string) {
+      return unwrap(await c.from('business_profiles').select('*').eq('user_id', userId).maybeSingle()) as BusinessProfile | null;
+    },
+    /** Update your row, or create it the first time (update is tried first: user_id itself can not be updated). */
+    async saveBusinessProfile(userId: string, patch: BusinessProfilePatch) {
+      const updated = unwrap(await c.from('business_profiles').update(patch).eq('user_id', userId).select('*')) as BusinessProfile[];
+      if (updated.length > 0) return updated[0];
+      return unwrap(await c.from('business_profiles').insert({ user_id: userId, ...patch }).select('*').single()) as BusinessProfile;
+    },
+
     // ----------------------------------------------------- notifications
     async listNotifications(limit = 50) {
       return unwrap(
@@ -363,62 +316,20 @@ export function createApi(c: SupabaseClient) {
       unwrap(await c.rpc('mark_all_notifications_read'));
     },
 
-    // ------------------------------------------- venue accounts & verification
+    // ------------------------------------------- roles & verification
+    /** The businesses you run (each can own one channel). The database still calls them venues. */
     async managedVenueIds(userId: string) {
       const rows = unwrap(await c.from('venue_managers').select('venue_id').eq('user_id', userId)) as { venue_id: string }[];
       return rows.map((r) => r.venue_id);
     },
-    async managedVenues(userId: string) {
-      return unwrap(await c.from('venue_managers').select('venue_id, role').eq('user_id', userId).order('created_at')) as ManagedVenue[];
-    },
-    /** Linked hosts/managers only (RLS + column grants); image_url must be an http(s) URL. */
-    async updateVenueProfile(venueId: string, patch: VenueProfilePatch) {
-      const rows = unwrap(await c.from('venues').update(patch).eq('id', venueId).select('id')) as unknown[];
-      if (rows.length === 0) throw new ApiError('You do not manage this venue.', '42501');
-    },
-    /** Any active user: creates the venue (unverified, Not active) and links them as its manager (migration 12). */
-    async registerVenue(input: { name: string; location: string; description?: string | null; image_url?: string | null; logo_url?: string | null }) {
-      return unwrap(await c.rpc('register_venue', {
-        p_name: input.name.trim(), p_location: input.location.trim(), p_description: input.description?.trim() || null,
-        p_image_url: input.image_url ?? null, p_logo_url: input.logo_url ?? null,
-      })) as Venue;
-    },
-    // migration 13: self-service roles and venues
-    /** Drop your Performer / Staff or Venue account role and its badge. */
+    // migration 13: self-service roles
+    /** Drop your Performer / Staff or business account role and its badge. */
     async relinquishMyRole() {
       return unwrap(await c.rpc('relinquish_my_role')) as Profile;
     },
-    /** Host / Venue accounts add a club to their own list, no approval (vm_self_insert, migration 14). */
-    async linkMyVenue(userId: string, venueId: string) {
-      unwrap(await c.from('venue_managers').insert({ venue_id: venueId, user_id: userId }));
-    },
-    async leaveVenue(venueId: string) {
-      unwrap(await c.rpc('leave_venue', { p_venue_id: venueId }));
-    },
-    /** Only the person who registered the venue. */
-    async renameMyVenue(venueId: string, name: string, location: string) {
-      return unwrap(await c.rpc('rename_my_venue', { p_venue_id: venueId, p_name: name.trim(), p_location: location.trim() })) as Venue;
-    },
-    /** Only the person who registered the venue; permanent. */
-    async deleteMyVenue(venueId: string) {
-      unwrap(await c.rpc('delete_my_venue', { p_venue_id: venueId }));
-    },
-    async setVenueStatus(venueId: string, status: VenueStatus, minutes = 360) {
-      return unwrap(await c.rpc('set_venue_status', { p_venue_id: venueId, p_status: status, p_duration_minutes: minutes })) as Venue;
-    },
-    /** A venue request covers one venue each, so several venue_ids become one row per venue (one insert: all or none). */
-    async requestVerification(input: {
-      kind: 'host' | 'venue'; role?: VerificationRole | null; venue_id?: string | null; venue_ids?: string[]; message?: string;
-    }) {
-      type Row = { kind: 'host' | 'venue'; role?: VerificationRole; venue_id?: string; message?: string };
-      const base: Row = { kind: input.kind };
-      if (input.kind === 'host' && input.role) base.role = input.role;
-      // a Manager / Host names the venue they work at, so approval can link them to it
-      if (input.kind === 'host' && input.venue_id) base.venue_id = input.venue_id;
-      if (input.message?.trim()) base.message = input.message.trim();
-      const venueIds = [...new Set([...(input.venue_ids ?? []), ...(input.venue_id ? [input.venue_id] : [])])];
-      const rows: Row[] = input.kind === 'venue' && venueIds.length > 0 ? venueIds.map((venue_id) => ({ ...base, venue_id })) : [base];
-      unwrap(await c.from('verification_requests').insert(rows));
+    /** Ask to be verified in a Performer / Staff role. */
+    async requestVerification(input: { kind: 'host'; role: VerificationRole; message?: string }) {
+      unwrap(await c.from('verification_requests').insert({ kind: input.kind, role: input.role, message: input.message?.trim() || undefined }));
     },
     async myVerificationRequests(userId: string) {
       return unwrap(
@@ -528,21 +439,21 @@ export function createApi(c: SupabaseClient) {
       ) as { viewer_id: string; viewed_at: string }[];
     },
 
-    // ----------------------------------------- venue channels (migration 15)
+    // ----------------------------------------- channels (migration 15; each belongs to a business, venue_id)
     /** Every channel, most recently active first. Empty before migration 15. */
     async listChannels() {
       return unwrapOr(
         await c.from('venue_channels').select('*').order('last_message_at', { ascending: false, nullsFirst: false }).order('name').limit(500),
         [],
-      ) as VenueChannel[];
+      ) as Channel[];
     },
-    async createChannel(venueId: string, name: string, description?: string | null) {
+    async createChannel(ownerId: string, name: string, description?: string | null) {
       return unwrap(
-        await c.from('venue_channels').insert({ venue_id: venueId, name: name.trim(), description: description?.trim() || null }).select().single()
-      ) as VenueChannel;
+        await c.from('venue_channels').insert({ venue_id: ownerId, name: name.trim(), description: description?.trim() || null }).select().single()
+      ) as Channel;
     },
     async updateChannel(channelId: string, patch: { name?: string; description?: string | null }) {
-      return unwrap(await c.from('venue_channels').update(patch).eq('id', channelId).select().single()) as VenueChannel;
+      return unwrap(await c.from('venue_channels').update(patch).eq('id', channelId).select().single()) as Channel;
     },
     async myChannelFollows(userId: string) {
       const rows = unwrapOr(await c.from('channel_followers').select('channel_id').eq('user_id', userId), []) as { channel_id: string }[];
@@ -562,7 +473,7 @@ export function createApi(c: SupabaseClient) {
       ) as ChannelMessage[];
       return rows.reverse();
     },
-    /** Venue staff only (RLS). Text, a photo / video, or both. */
+    /** The channel's team only (RLS). Text, a photo / video, or both. */
     async postChannelMessage(channelId: string, input: { body?: string | null; media?: MessageMedia | null }) {
       const row: Record<string, unknown> = { channel_id: channelId, body: input.body?.trim() || null };
       if (input.media) { row.media_url = input.media.media_url; row.media_type = input.media.media_type; }
@@ -807,37 +718,9 @@ export function createApi(c: SupabaseClient) {
     async adminReviewVerification(requestId: string, approve: boolean, note?: string) {
       unwrap(await c.rpc('admin_review_verification', { p_request_id: requestId, p_approve: approve, p_note: note?.trim() || null }));
     },
-    /** Venues people registered themselves (migration 12), newest first. */
-    async adminRegisteredVenues() {
-      return unwrap(
-        await c.from('venues').select('id, created_by, created_at').not('created_by', 'is', null).order('created_at', { ascending: false }).limit(200)
-      ) as { id: string; created_by: string; created_at: string }[];
-    },
-    /** Deletes any venue for good; everyone linked to it is told why (logged). */
-    async adminDeleteVenue(venueId: string, note?: string) {
-      unwrap(await c.rpc('admin_delete_venue', { p_venue_id: venueId, p_note: note?.trim() || null }));
-    },
-    /** Sets anyone's role and badge (logged). Venue links stay with adminAssignVenueStaff / adminUnassignVenueStaff. */
+    /** Sets anyone's role and badge (logged). */
     async adminSetUserRole(userId: string, accountType: AccountType, verified: boolean) {
       return unwrap(await c.rpc('admin_set_user_role', { p_user_id: userId, p_account_type: accountType, p_verified: verified })) as Profile;
-    },
-    /** Grants or removes the Official badge (logged by admin_update_venue). */
-    async adminSetVenueVerified(venueId: string, verified: boolean) {
-      unwrap(await c.rpc('admin_update_venue', { p_venue_id: venueId, p_is_verified: verified }));
-    },
-    /** Display name (partial) or exact email; needs 2+ characters. */
-    async adminFindUsers(query: string) {
-      return unwrap(await c.rpc('admin_find_users', { p_query: query.trim() })) as StaffCandidate[];
-    },
-    async adminListVenueStaff() {
-      return unwrap(await c.from('venue_managers').select('venue_id, user_id, role, created_at').order('created_at', { ascending: false })) as VenueStaffRow[];
-    },
-    async adminAssignVenueStaff(userId: string, venueId: string, role: 'manager' | 'host') {
-      unwrap(await c.rpc('admin_assign_venue_staff', { p_user_id: userId, p_venue_id: venueId, p_role: role }));
-    },
-    /** Deletes the venue_managers row and logs it (admin_unassign_venue_staff, migration 10). */
-    async adminUnassignVenueStaff(userId: string, venueId: string) {
-      unwrap(await c.rpc('admin_unassign_venue_staff', { p_user_id: userId, p_venue_id: venueId }));
     },
     async adminModerationLog() {
       return unwrap(await c.from('moderation_log').select('*').order('created_at', { ascending: false }).limit(100)) as ModerationLogRow[];

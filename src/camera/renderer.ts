@@ -190,7 +190,7 @@ export function hitTest(ctx: CanvasRenderingContext2D, items: OverlayItem[], px:
 export type DrawOptions = { w?: number; h?: number; selectedId?: string | null; liveStroke?: Stroke | null };
 
 /**
- * The whole snap in one function: camera frame -> filter -> effect -> drawing -> stamps -> stickers/text.
+ * The whole snap in one function: camera frame -> filter -> effect -> drawing -> location tag -> stickers/text.
  * Used for the live preview, photo export and the recorded video (same pixels everywhere).
  */
 export function drawScene(ctx: CanvasRenderingContext2D, src: Source | null, scene: Scene, t: number, opts: DrawOptions = {}) {
@@ -227,7 +227,6 @@ export function drawScene(ctx: CanvasRenderingContext2D, src: Source | null, sce
   if (opts.liveStroke) drawStroke(ctx, opts.liveStroke, w, h);
 
   if (scene.geoLabel) chip(ctx, `📍 ${scene.geoLabel}`, 36, 56);
-  if (scene.stamp) chip(ctx, `🪩 ${scene.stamp.venueName} · ${scene.stamp.location}`, 36, h - 150, 36);
 
   for (const it of scene.items) drawItem(ctx, it, w, h, it.id === opts.selectedId);
   ctx.restore();

@@ -14,7 +14,7 @@ export default function CallsTab() {
         </div>
         <p className={`text-base font-semibold ${bodyText}`}>Calls are coming to Pulse</p>
         <p className={`text-sm mt-1 max-w-sm ${mutedText}`}>
-          Voice and video calls with friends and venues are on the way. Until then, send a message or a snap from Chats.
+          Voice and video calls with friends are on the way. Until then, send a message or a snap from Chats.
         </p>
       </div>
     </div>

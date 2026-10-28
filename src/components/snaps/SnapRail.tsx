@@ -13,7 +13,7 @@ export default function SnapRail({ snaps, onOpen, onCamera }: { snaps: Post[]; o
         <span className="text-[11px] text-wa-lightTextSecondary dark:text-wa-darkTextSecondary">Add snap</span>
       </button>
       {snaps.map((s, i) => (
-        <button key={s.id} onClick={() => onOpen(i)} aria-label={`Open snap from ${s.venue_name ?? s.user_name}`} role="listitem" className="flex flex-col items-center gap-1 flex-shrink-0 w-16">
+        <button key={s.id} onClick={() => onOpen(i)} aria-label={`Open snap from ${s.user_name}`} role="listitem" className="flex flex-col items-center gap-1 flex-shrink-0 w-16">
           <span className="w-16 h-16 rounded-full p-[3px] bg-gradient-to-tr from-wa-green via-pink-500 to-yellow-400">
             <span className="block w-full h-full rounded-full overflow-hidden bg-black border-2 border-wa-light dark:border-wa-dark">
               {s.media_type === 'video' ? (
@@ -23,7 +23,7 @@ export default function SnapRail({ snaps, onOpen, onCamera }: { snaps: Post[]; o
               )}
             </span>
           </span>
-          <span className="text-[11px] w-16 truncate text-center text-wa-lightText dark:text-wa-darkText">{s.venue_name ?? s.user_name}</span>
+          <span className="text-[11px] w-16 truncate text-center text-wa-lightText dark:text-wa-darkText">{s.user_name}</span>
         </button>
       ))}
     </div>

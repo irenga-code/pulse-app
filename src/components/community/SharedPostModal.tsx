@@ -37,7 +37,7 @@ export default function SharedPostModal({ postId, onClose }: { postId: string; o
                   ? <RoleBadge official={post.is_official} />
                   : <RoleBadge accountType={data.data?.author?.account_type} verified={data.data?.author?.is_verified} official={post.is_official} />}
               </div>
-              <span className={`text-xs ${mutedText}`}>{timeAgo(post.created_at)}{post.venue_name && !post.as_venue ? ` · ${post.venue_name}` : ''}</span>
+              <span className={`text-xs ${mutedText}`}>{timeAgo(post.created_at)}</span>
             </div>
           </div>
           {post.content && <p className={`text-sm leading-relaxed whitespace-pre-wrap break-words ${bodyText}`}><EmojiText text={post.content} /></p>}

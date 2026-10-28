@@ -10,7 +10,6 @@ export type OverlayItem = TextItem | StickerItem;
 /** Freehand stroke; points are 0..1 of the stage so it survives resizing. */
 export type Stroke = { color: string; width: number; points: [number, number][] };
 
-export type Stamp = { venueName: string; location: string };
 
 export type Scene = {
   filter: FilterId;
@@ -19,10 +18,9 @@ export type Scene = {
   strokes: Stroke[];
   /** e.g. "Kampala" (only the label, never coordinates) */
   geoLabel: string | null;
-  stamp: Stamp | null;
 };
 
-export const EMPTY_SCENE: Scene = { filter: 'none', effect: 'none', items: [], strokes: [], geoLabel: null, stamp: null };
+export const EMPTY_SCENE: Scene = { filter: 'none', effect: 'none', items: [], strokes: [], geoLabel: null };
 
 export type CaptureResult = {
   kind: 'image' | 'video';

@@ -32,7 +32,7 @@ export function useSnapDispatch(savePost: (input: NewPostInput) => Promise<Post>
   const uploaded = useRef<{ blob: Blob; url: string } | null>(null);
 
   const dispatch = useCallback(
-    async (capture: CaptureResult, destinations: SnapDestination[], opts: { caption: string; venueId: string | null }): Promise<DispatchResult | null> => {
+    async (capture: CaptureResult, destinations: SnapDestination[], opts: { caption: string }): Promise<DispatchResult | null> => {
       if (!requireAuth('Sign in to send snaps.') || !user) return null;
       if (destinations.length === 0) {
         setState('error');
@@ -72,7 +72,6 @@ export function useSnapDispatch(savePost: (input: NewPostInput) => Promise<Post>
           if (d.kind === 'feed') {
             await savePost({
               content: caption,
-              venue_id: opts.venueId,
               kind: 'snap',
               media_url: url,
               media_type: capture.kind,
@@ -82,7 +81,7 @@ export function useSnapDispatch(savePost: (input: NewPostInput) => Promise<Post>
               media_meta: capture.meta,
             });
           } else if (d.kind === 'status') {
-            await api.createStatus({ media_url: url, media_type: capture.kind, caption, venue_id: opts.venueId });
+            await api.createStatus({ media_url: url, media_type: capture.kind, caption });
           } else if (d.kind === 'channel') {
             await api.postChannelMessage(d.channelId, { body: caption || null, media });
           } else {

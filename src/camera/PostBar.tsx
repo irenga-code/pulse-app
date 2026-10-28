@@ -1,13 +1,13 @@
 import { useRef } from 'react';
-import { MapPin, Send, Loader2, RotateCcw } from 'lucide-react';
+import { Send, Loader2, RotateCcw } from 'lucide-react';
 import EmojiButton from '@/components/emoji/EmojiPicker';
 import { insertAtCaret } from '@/components/emoji/emojiData';
 import { MAX_CAPTION } from '@/camera/constants';
 import type { PublishState } from '@/camera/useSnapDispatch';
 
-/** One-tap publishing: caption, venue tag and the Post button live together under the snap. */
-export default function PostBar({ caption, onCaption, venueLabel, onPickVenue, onPost, postLabel = 'Send to…', state, error }: {
-  caption: string; onCaption: (v: string) => void; venueLabel: string | null; onPickVenue: () => void; onPost: () => void;
+/** One-tap publishing: caption and the Post button live together under the snap. */
+export default function PostBar({ caption, onCaption, onPost, postLabel = 'Send to…', state, error }: {
+  caption: string; onCaption: (v: string) => void; onPost: () => void;
   postLabel?: string; state: PublishState; error: string | null;
 }) {
   const ref = useRef<HTMLInputElement>(null);
@@ -36,10 +36,6 @@ export default function PostBar({ caption, onCaption, venueLabel, onPickVenue, o
         />
       </div>
       <div className="flex items-center gap-2 mt-2.5">
-        <button onClick={onPickVenue} aria-label="Tag a venue" className="flex items-center gap-1.5 rounded-full bg-white/15 px-3.5 py-2.5 text-sm font-medium max-w-[55%]">
-          <MapPin className="w-4 h-4 text-wa-green flex-shrink-0" />
-          <span className="truncate">{venueLabel ?? 'Tag a venue'}</span>
-        </button>
         <button
           onClick={onPost}
           disabled={busy}

@@ -2,8 +2,7 @@
  * Location helpers. Only a coarse LABEL ("Kampala", "Bugolobi") ever leaves the device: raw coordinates are
  * used locally to pick the label and are never uploaded or stored.
  *
- * NEIGHBORHOODS are approximate area centres (not exact venue positions), good enough to suggest which
- * venues you are probably at. Replace with real venue coordinates (venues.latitude/longitude) when available.
+ * NEIGHBORHOODS are approximate area centres, good enough for a coarse label.
  */
 export type GeoInfo = { label: 'Kampala' | 'Uganda' | null; neighborhood: string | null; distanceKm: number | null };
 
@@ -41,11 +40,4 @@ export function labelForCoords(lat: number, lng: number, maxNeighborhoodKm = 3):
   return best && best.d <= maxNeighborhoodKm
     ? { label, neighborhood: best.name, distanceKm: Math.round(best.d * 10) / 10 }
     : { label, neighborhood: null, distanceKm: best ? Math.round(best.d * 10) / 10 : null };
-}
-
-/** Venues whose neighbourhood tag matches (case-insensitive). */
-export function venuesIn<T extends { location: string }>(venues: T[], neighborhood: string | null): T[] {
-  if (!neighborhood) return [];
-  const n = neighborhood.trim().toLowerCase();
-  return venues.filter((v) => v.location.trim().toLowerCase() === n);
 }

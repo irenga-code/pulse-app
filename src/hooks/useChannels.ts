@@ -6,7 +6,10 @@ import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/context/ToastContext';
 import { userKey } from '@/lib/cache';
 
-/** Venue channels with what you follow and which ones you can post to (venue staff, admins). */
+/**
+ * Channels with what you follow and which ones you can post to (their team, admins). In the database every channel
+ * belongs to a business (`venue_id`); `managed` lists the businesses you run.
+ */
 export function useChannels() {
   const { user, isAdmin } = useAuth();
   const { show } = useToast();
@@ -23,7 +26,7 @@ export function useChannels() {
 
   const isFollowing = useCallback((id: string) => local[id] ?? (data.data?.follows ?? []).includes(id), [local, data.data]);
   const canPost = useCallback(
-    (venueId: string) => isAdmin || (data.data?.managed ?? []).includes(venueId),
+    (ownerId: string) => isAdmin || (data.data?.managed ?? []).includes(ownerId),
     [isAdmin, data.data],
   );
 

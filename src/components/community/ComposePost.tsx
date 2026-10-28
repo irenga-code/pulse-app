@@ -6,20 +6,17 @@ import Avatar from '@/components/Avatar';
 import { inputClass, primaryBtn, mutedText } from '@/components/ui';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/context/ToastContext';
-import { useVenues } from '@/hooks/useVenues';
 import { friendlyError } from '@/lib/api';
 
 const MAX = 1000;
 
-type Props = { onSubmit: (content: string, venueId: string | null) => Promise<void>; onOpenCamera?: () => void };
+type Props = { onSubmit: (content: string) => Promise<void>; onOpenCamera?: () => void };
 
 export default function ComposePost({ onSubmit, onOpenCamera }: Props) {
   const areaRef = useRef<HTMLTextAreaElement>(null);
   const { user, profile, canWrite, openAuth, refreshProfile } = useAuth();
   const { show } = useToast();
-  const { venues } = useVenues({ orderBy: 'name' });
   const [text, setText] = useState('');
-  const [venueId, setVenueId] = useState('');
   const [busy, setBusy] = useState(false);
 
   const card = 'bg-wa-lightPanel dark:bg-wa-darkSecondary rounded-2xl p-4 border border-wa-lightBorder dark:border-wa-darkBorder';
@@ -47,9 +44,8 @@ export default function ComposePost({ onSubmit, onOpenCamera }: Props) {
     if (!content) return;
     setBusy(true);
     try {
-      await onSubmit(content, venueId || null);
+      await onSubmit(content);
       setText('');
-      setVenueId('');
       show('Posted');
     } catch (err) {
       show(friendlyError(err), 'error');
@@ -73,17 +69,6 @@ export default function ComposePost({ onSubmit, onOpenCamera }: Props) {
             className={`${inputClass} resize-none`}
           />
           <div className="flex items-center gap-2 flex-wrap">
-            <select
-              value={venueId}
-              onChange={(e) => setVenueId(e.target.value)}
-              aria-label="Tag a venue"
-              className={`${inputClass} !w-auto py-1.5 text-xs`}
-            >
-              <option value="">No venue</option>
-              {venues.map((v) => (
-                <option key={v.id} value={v.id}>{v.name} · {v.location}</option>
-              ))}
-            </select>
             <EmojiButton
               label="Add emoji to post"
               onPick={(e) => {

@@ -1,9 +1,9 @@
 import type { ComponentType } from 'react';
-import { MessageCircle, MessageSquareText, Phone, Users, Store, Megaphone, Images, User } from 'lucide-react';
-import { StatusIcon, ChannelsIcon } from '@/components/nav/RailIcons';
+import { MessageCircle, MessageSquareText, Phone, Users, Megaphone, Images, User } from 'lucide-react';
+import { StatusIcon, ChannelsIcon, BusinessToolsIcon } from '@/components/nav/RailIcons';
 
 /** Every screen of the app shell. `updates` (Status + Channels together) is the phone layout's version of the two. */
-export type SectionId = 'chats' | 'calls' | 'status' | 'channels' | 'communities' | 'catalog' | 'broadcasts' | 'media' | 'profile' | 'updates';
+export type SectionId = 'chats' | 'calls' | 'status' | 'channels' | 'communities' | 'tools' | 'broadcasts' | 'media' | 'profile' | 'updates';
 
 export type SectionIcon = ComponentType<{ className?: string; strokeWidth?: number | string }>;
 export type SectionDef = { id: SectionId; label: string; icon: SectionIcon };
@@ -17,7 +17,7 @@ export const RAIL_TOP: SectionDef[] = [
   { id: 'communities', label: 'Communities', icon: Users },
 ];
 export const RAIL_BUSINESS: SectionDef[] = [
-  { id: 'catalog', label: 'Venue catalog', icon: Store },
+  { id: 'tools', label: 'Business tools', icon: BusinessToolsIcon },
   { id: 'broadcasts', label: 'Broadcast blasts', icon: Megaphone },
 ];
 export const RAIL_BOTTOM: SectionDef[] = [{ id: 'media', label: 'Media gallery', icon: Images }];
@@ -27,7 +27,7 @@ export const MOBILE_TABS: SectionDef[] = [
   { id: 'chats', label: 'Chats', icon: MessageCircle },
   { id: 'updates', label: 'Updates', icon: StatusIcon },
   { id: 'communities', label: 'Communities', icon: Users },
-  { id: 'catalog', label: 'Catalog', icon: Store },
+  { id: 'tools', label: 'Tools', icon: BusinessToolsIcon },
   { id: 'profile', label: 'You', icon: User },
 ];
 

@@ -9,7 +9,6 @@ const CameraModal = lazy(() => import('@/camera/CameraModal'));
 type QuickSnapOptions = {
   /** Send straight here (a chat's camera button) instead of showing Send to. */
   destination?: SnapDestination;
-  initialVenueId?: string | null;
   onSent?: (sent: SnapDestination[]) => void;
 };
 
@@ -29,7 +28,7 @@ export function QuickSnapProvider({ children }: { children: ReactNode }) {
       {children}
       {open && (
         <Suspense fallback={null}>
-          <CameraModal onClose={() => setOpen(null)} destination={open.destination} initialVenueId={open.initialVenueId} onSent={open.onSent} />
+          <CameraModal onClose={() => setOpen(null)} destination={open.destination} onSent={open.onSent} />
         </Suspense>
       )}
     </QuickSnapContext.Provider>

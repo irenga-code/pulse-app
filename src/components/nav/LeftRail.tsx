@@ -4,7 +4,6 @@ import Avatar from '@/components/Avatar';
 import { useAuth } from '@/context/AuthContext';
 import { useStatuses } from '@/hooks/useStatuses';
 import { useChannels } from '@/hooks/useChannels';
-import { useLiveVenueCount } from '@/hooks/useVenues';
 import { RAIL_BOTTOM, RAIL_BUSINESS, RAIL_TOP, type SectionDef, type SectionId } from '@/components/nav/sections';
 
 type Props = {
@@ -20,12 +19,11 @@ const readSeen = () => { try { return Number(localStorage.getItem(CHANNELS_SEEN_
 
 /**
  * Green dots, WhatsApp-style: Status = someone posted a status you have not seen, Channels = a channel you follow
- * posted since you last opened Channels, Catalog = a venue is live right now.
+ * posted since you last opened Channels.
  */
 function useRailDots(active: SectionId): Partial<Record<SectionId, boolean>> {
   const { groups } = useStatuses();
   const ch = useChannels();
-  const live = useLiveVenueCount();
   const [seenAt, setSeenAt] = useState(readSeen);
   useEffect(() => {
     if (active !== 'channels') return;
@@ -36,8 +34,7 @@ function useRailDots(active: SectionId): Partial<Record<SectionId, boolean>> {
   return useMemo(() => ({
     status: groups.some((g) => g.unseen),
     channels: ch.channels.some((c) => ch.isFollowing(c.id) && !!c.last_message_at && new Date(c.last_message_at).getTime() > seenAt),
-    catalog: live > 0,
-  }), [groups, ch, live, seenAt]);
+  }), [groups, ch, seenAt]);
 }
 
 const itemBase = 'relative p-3 rounded-2xl cursor-pointer flex items-center justify-center transition-[background-color,color,transform] duration-200 active:scale-95';

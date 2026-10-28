@@ -8,14 +8,12 @@ import { memUserKey } from '@/lib/cache';
 import { destinationKey, type SnapDestination } from '@/camera/useSnapDispatch';
 
 /**
- * Snapchat-style "Send To": your Pulse feed, your 24 h status, the channels of venues you run, and your chats.
+ * Snapchat-style "Send To": your Pulse feed, your 24 h status, the channels you run, and your chats.
  * Pick any mix; the snap is uploaded once and sent to all of them.
  */
-export default function SendToSheet({ initial, busy, venueLabel, onSend, onClose }: {
+export default function SendToSheet({ initial, busy, onSend, onClose }: {
   initial: SnapDestination[];
   busy: boolean;
-  /** The tagged venue, shown on the status overlay. */
-  venueLabel: string | null;
   onSend: (destinations: SnapDestination[]) => void;
   onClose: () => void;
 }) {
@@ -75,12 +73,12 @@ export default function SendToSheet({ initial, busy, venueLabel, onSend, onClose
       <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-3 pb-3">
         <p className={heading}>Share</p>
         {row({ kind: 'status' }, iconBox(<CircleDashed className="w-5 h-5 text-wa-green" />), 'My status',
-          `24 hours${venueLabel ? ` · 📍 ${venueLabel}` : ''} · with time`)}
+          '24 hours · with time')}
         {row({ kind: 'feed' }, iconBox(<Users className="w-5 h-5 text-wa-green" />), 'Pulse feed', 'A snap post in Communities')}
 
         {(data.data?.channels.length ?? 0) > 0 && (
           <>
-            <p className={heading}>Your venue channels</p>
+            <p className={heading}>Your channels</p>
             {data.data!.channels.map((ch) =>
               row({ kind: 'channel', channelId: ch.id, label: ch.name }, iconBox(<MessageSquareDot className="w-5 h-5 text-wa-green" />), ch.name,
                 `${ch.follower_count} follower${ch.follower_count === 1 ? '' : 's'}`))}

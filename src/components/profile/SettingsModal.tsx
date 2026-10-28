@@ -2,7 +2,7 @@ import { useEffect, useState, useSyncExternalStore } from 'react';
 import { createPortal } from 'react-dom';
 import {
   X, ArrowLeft, User, KeyRound, Bell, Palette, Info, ChevronRight, Monitor, Moon, Sun, Check, BellRing, Volume2,
-  MessageCircle, Flame, Megaphone, RotateCcw, FileText, ShieldCheck, LogIn, Sparkles,
+  MessageCircle, Megaphone, RotateCcw, FileText, ShieldCheck, LogIn, Sparkles,
 } from 'lucide-react';
 import Avatar from '@/components/Avatar';
 import BrandLogo from '@/components/BrandLogo';
@@ -60,8 +60,7 @@ function NotificationsPane() {
   const supported = desktopNotificationsSupported();
 
   const alertRows: { key: keyof Settings; icon: typeof Bell; title: string; description: string }[] = [
-    { key: 'communityAlerts', icon: MessageCircle, title: 'Community activity', description: 'Comments, reactions, new followers and venue posts' },
-    { key: 'liveVenueAlerts', icon: Flame, title: 'Live venue alerts', description: 'When a venue you follow goes live' },
+    { key: 'communityAlerts', icon: MessageCircle, title: 'Community activity', description: 'Comments, reactions, new followers and channel posts' },
     { key: 'announcements', icon: Megaphone, title: 'Pulse announcements', description: 'News and tips from Pulse' },
   ];
 

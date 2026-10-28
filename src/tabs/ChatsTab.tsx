@@ -224,7 +224,7 @@ export default function ChatsTab() {
         <div className="flex-1 flex flex-col items-center justify-center text-center px-8 py-16">
           <MessageCircle className="w-14 h-14 text-wa-quiet mb-3" />
           <p className={`text-base font-medium ${bodyText}`}>Your chats live here</p>
-          <p className={`text-sm mt-1 max-w-xs ${mutedText}`}>Sign in with your phone number to message people and venues, and send snaps.</p>
+          <p className={`text-sm mt-1 max-w-xs ${mutedText}`}>Sign in with your phone number to message people and send snaps.</p>
           <div className="flex gap-2 mt-5">
             <button onClick={() => openAuth('signin')} className={primaryBtn}><LogIn className="w-4 h-4" />Sign in</button>
             <button onClick={() => openAuth('signup')} className={ghostBtn}>Create account</button>

@@ -1,11 +1,10 @@
-import { lazy, Suspense, useMemo, useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { Camera, ImagePlus, Plus } from 'lucide-react';
 import Avatar from '@/components/Avatar';
 import StatusViewerModal from '@/components/status/StatusViewerModal';
 import SectionHeader, { headerIconBtn } from '@/components/nav/SectionHeader';
 import { mutedText, bodyText } from '@/components/ui';
 import { useStatuses, type StatusGroup } from '@/hooks/useStatuses';
-import { useVenues } from '@/hooks/useVenues';
 import { useAuth } from '@/context/AuthContext';
 import { useQuickSnap } from '@/camera/QuickSnapContext';
 import { timeAgo } from '@/lib/time';
@@ -38,8 +37,6 @@ export function StatusSection({ compact = false }: { compact?: boolean }) {
   const { user, profile, requireAuth } = useAuth();
   const { openQuickSnap } = useQuickSnap();
   const statuses = useStatuses();
-  const { venues } = useVenues();
-  const venueNames = useMemo(() => Object.fromEntries(venues.map((v) => [v.id, v.name])), [venues]);
   const [viewer, setViewer] = useState<number | null>(null);
   const [composing, setComposing] = useState(false);
 
@@ -51,14 +48,13 @@ export function StatusSection({ compact = false }: { compact?: boolean }) {
   const row = (g: StatusGroup, i: number) => {
     const a = statuses.authors[g.userId];
     const last = g.items[g.items.length - 1];
-    const venue = last.venue_id ? venueNames[last.venue_id] : null;
     return (
       <li key={g.userId}>
         <button onClick={() => setViewer(i)} className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-wa-lightSecondary dark:hover:bg-wa-darkSecondary/60 transition-colors">
           <StatusRing group={g}><Avatar name={a?.display_name ?? '?'} url={a?.avatar_url} size={50} /></StatusRing>
           <span className="min-w-0">
             <span className={`block text-sm font-semibold truncate ${bodyText}`}>{a?.display_name ?? 'Pulse user'}</span>
-            <span className={`block text-xs truncate ${mutedText}`}>{timeAgo(last.created_at)}{venue ? ` · 📍 ${venue}` : ''}</span>
+            <span className={`block text-xs truncate ${mutedText}`}>{timeAgo(last.created_at)}</span>
           </span>
         </button>
       </li>
@@ -103,7 +99,7 @@ export function StatusSection({ compact = false }: { compact?: boolean }) {
       )}
 
       {viewer !== null && statuses.groups.length > 0 && (
-        <StatusViewerModal groups={statuses.groups} startGroup={viewer} authors={statuses.authors} venueNames={venueNames}
+        <StatusViewerModal groups={statuses.groups} startGroup={viewer} authors={statuses.authors}
           onViewed={statuses.markViewed} onChanged={statuses.reload} onClose={() => setViewer(null)} />
       )}
       {composing && (

@@ -27,3 +27,15 @@ export function ChannelsIcon({ className, strokeWidth }: IconProps) {
     </svg>
   );
 }
+
+/** Business tools: a little shop front with a scalloped awning and a door. */
+export function BusinessToolsIcon({ className, strokeWidth }: IconProps) {
+  return (
+    <svg {...svg(strokeWidth)} className={className}>
+      <path d="M4 4h16l1.5 5H2.5Z" />
+      <path d="M2.5 9a2.4 2.4 0 0 0 4.75 0a2.4 2.4 0 0 0 4.75 0a2.4 2.4 0 0 0 4.75 0a2.4 2.4 0 0 0 4.75 0" />
+      <path d="M4 11.4V20h16v-8.6" />
+      <path d="M10 20v-5h4v5" />
+    </svg>
+  );
+}

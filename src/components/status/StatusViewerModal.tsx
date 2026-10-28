@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X, MapPin, Eye, Trash2, Flag, Send, MessageCircle, Loader2 } from 'lucide-react';
+import { X, Eye, Trash2, Flag, Send, MessageCircle, Loader2 } from 'lucide-react';
 import Avatar from '@/components/Avatar';
 import EmojiButton from '@/components/emoji/EmojiPicker';
 import { EmojiText } from '@/components/emoji/EmojiImg';
@@ -24,7 +24,6 @@ type Props = {
   groups: StatusGroup[];
   startGroup: number;
   authors: Record<string, PublicProfile>;
-  venueNames: Record<string, string>;
   onViewed: (s: Status) => void;
   /** called after the owner deletes a status, so the tray can refresh */
   onChanged: () => void;
@@ -38,7 +37,7 @@ type Props = {
  *  - press and hold anywhere = pause (release to continue)
  *  - typing a reply, opening the viewer list or a dialog also pauses
  */
-export default function StatusViewerModal({ groups, startGroup, authors, venueNames, onViewed, onChanged, onClose }: Props) {
+export default function StatusViewerModal({ groups, startGroup, authors, onViewed, onChanged, onClose }: Props) {
   const { user, isAdmin } = useAuth();
   const { show } = useToast();
   const { openChat } = useSocial();
@@ -235,7 +234,6 @@ export default function StatusViewerModal({ groups, startGroup, authors, venueNa
             <div className="min-w-0 flex-1">
               <p className="text-sm font-semibold truncate">{mine ? 'Your status' : author?.display_name ?? 'Pulse user'}</p>
               <p className="text-[11px] text-white/70 flex items-center gap-1">
-                {status.venue_id && venueNames[status.venue_id] && <><MapPin className="w-3 h-3" />{venueNames[status.venue_id]} · </>}
                 {timeAgo(status.created_at)}{timeLeft(status.expires_at) ? ` · ${timeLeft(status.expires_at)}` : ''}
               </p>
             </div>
@@ -250,10 +248,10 @@ export default function StatusViewerModal({ groups, startGroup, authors, venueNa
         </div>
 
         <div className="absolute bottom-0 left-0 right-0 z-20 p-4 bg-gradient-to-t from-black/85 to-transparent" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
-          {/* Status overlay: where and when it was taken */}
+          {/* Status overlay: when it was taken */}
           <p data-testid="vibe-check-overlay" className="inline-flex items-center gap-1.5 mb-2 rounded-full bg-black/55 backdrop-blur-sm px-3 py-1 text-xs font-semibold">
             <span className="w-1.5 h-1.5 rounded-full bg-wa-live" aria-hidden="true" />
-            {status.venue_id && venueNames[status.venue_id] ? <><MapPin className="w-3.5 h-3.5 text-wa-green" />{venueNames[status.venue_id]} · </> : 'Status · '}
+            Status ·{' '}
             {new Date(status.created_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
           </p>
           {status.caption &&<p className="text-sm mb-3 leading-snug break-words"><EmojiText text={status.caption} /></p>}

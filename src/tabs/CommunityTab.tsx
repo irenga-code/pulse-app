@@ -9,7 +9,6 @@ import StatusViewerModal from '@/components/status/StatusViewerModal';
 import { useFeed } from '@/hooks/useFeed';
 import { useStatuses } from '@/hooks/useStatuses';
 import { useEngagement } from '@/hooks/useEngagement';
-import { useVenues } from '@/hooks/useVenues';
 import { useAuth } from '@/context/AuthContext';
 import { useSocial } from '@/context/SocialContext';
 import { FeedSkeleton } from '@/components/Skeleton';
@@ -23,8 +22,6 @@ export default function CommunityTab() {
   const { user, profile, requireAuth } = useAuth();
   const { openInbox, unread } = useSocial();
   const statuses = useStatuses();
-  const { venues } = useVenues();
-  const venueNames = useMemo(() => Object.fromEntries(venues.map((v) => [v.id, v.name])), [venues]);
   const [cameraOpen, setCameraOpen] = useState(false);
   const [viewer, setViewer] = useState<number | null>(null);
   const [statusViewer, setStatusViewer] = useState<number | null>(null);
@@ -146,7 +143,6 @@ export default function CommunityTab() {
           groups={statuses.groups}
           startGroup={statusViewer}
           authors={statuses.authors}
-          venueNames={venueNames}
           onViewed={statuses.markViewed}
           onChanged={statuses.reload}
           onClose={() => setStatusViewer(null)}

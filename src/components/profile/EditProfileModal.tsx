@@ -19,7 +19,7 @@ export default function EditProfileModal({ onClose }: { onClose: () => void }) {
     <Modal title="Edit profile" icon={UserCog} onClose={onClose}>
       <ProfileForm onSaved={onClose} draft={draft} />
       <div className="mt-5 pt-4 border-t border-wa-lightBorder dark:border-wa-darkBorder">
-        <p className={`text-xs mb-2 ${mutedText}`}>Performer, staff or venue account? Request verification for a new role or venue.</p>
+        <p className={`text-xs mb-2 ${mutedText}`}>Performer or staff? Request verification for a badge.</p>
         <button type="button" onClick={() => setVerifying(true)} className={`${ghostBtn} w-full`}>
           <BadgeCheck className="w-4 h-4" />
           Request verification

@@ -6,14 +6,11 @@ import { SettingsProvider, useSettings } from '@/context/SettingsContext';
 import { ToastProvider } from '@/context/ToastContext';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { SocialProvider, useSocial } from '@/context/SocialContext';
-import { VenueLibraryProvider } from '@/context/VenueLibraryContext';
-import { VenueVibesProvider } from '@/context/VenueVibesContext';
 import { QuickSnapProvider, useQuickSnap } from '@/camera/QuickSnapContext';
 import AuthModals from '@/components/auth/AuthModals';
 import NotificationSounds from '@/components/NotificationSounds';
 import AdminDashboard from '@/admin/AdminDashboard';
 import { useHashRoute, isAdminRoute } from '@/hooks/useHashRoute';
-import { useLiveVenueCount } from '@/hooks/useVenues';
 import { useIsDesktop } from '@/hooks/useMediaQuery';
 import { warmUp } from '@/lib/warmup';
 import Header from '@/components/Header';
@@ -26,7 +23,7 @@ import StatusTab from '@/tabs/StatusTab';
 import ChannelsTab from '@/tabs/ChannelsTab';
 import UpdatesTab from '@/tabs/UpdatesTab';
 import CommunityTab from '@/tabs/CommunityTab';
-import CatalogTab from '@/tabs/CatalogTab';
+import BusinessToolsTab from '@/tabs/BusinessToolsTab';
 import BroadcastsTab from '@/tabs/BroadcastsTab';
 import MediaTab from '@/tabs/MediaTab';
 import ProfileTab from '@/tabs/ProfileTab';
@@ -34,24 +31,14 @@ import ProfileTab from '@/tabs/ProfileTab';
 const SharedPostModal = lazy(() => import('@/components/community/SharedPostModal'));
 const SettingsModal = lazy(() => import('@/components/profile/SettingsModal'));
 
-/** Desktop top bar: live count, Quick-Snap launcher and theme. (Phones get the same in the green Header.) */
+/** Desktop top bar: Quick-Snap launcher and theme. (Phones get the same in the green Header.) */
 function DesktopTopBar() {
-  const liveCount = useLiveVenueCount();
   const { openQuickSnap } = useQuickSnap();
   const { theme } = useTheme();
   const { setThemePreference } = useSettings();
   return (
     <div className="hidden md:flex items-center gap-2 px-6 py-2.5 bg-wa-lightPanel dark:bg-wa-darkPanel border-b border-wa-lightBorder dark:border-wa-darkBorder">
       <span className="mr-3"><BrandLogo /></span>
-      {liveCount > 0 && (
-        <>
-          <span className="relative flex h-2.5 w-2.5">
-            <span className="absolute inline-flex h-full w-full rounded-full bg-wa-live animate-pulse-dot" />
-            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-wa-live" />
-          </span>
-          <span className="text-sm font-semibold text-wa-live">LIVE · {liveCount}</span>
-        </>
-      )}
       <span className="flex-1" />
       <button onClick={() => openQuickSnap()} className="flex items-center gap-2 rounded-full bg-wa-green text-white px-4 py-1.5 text-sm font-semibold hover:bg-wa-greenDark transition-colors"
         aria-label="Quick-Snap camera" title="Tap for photo, hold for video">
@@ -87,7 +74,7 @@ function MainApp({ sharedPostId }: { sharedPostId?: string }) {
       case 'channels': return <ChannelsTab onCreate={() => go('broadcasts')} />;
       case 'updates': return <UpdatesTab onCreate={() => go('broadcasts')} />;
       case 'communities': return <CommunityTab />;
-      case 'catalog': return <CatalogTab />;
+      case 'tools': return <BusinessToolsTab onNavigate={go} />;
       case 'broadcasts': return <BroadcastsTab />;
       case 'media': return <MediaTab />;
       case 'profile': return <ProfileTab onNavigate={go} />;
@@ -143,17 +130,13 @@ function App() {
       <ToastProvider>
         <AuthProvider>
           <SettingsProvider>
-            <VenueLibraryProvider>
-              <VenueVibesProvider>
-                <QuickSnapProvider>
-                  <SocialProvider>
-                    <Router />
-                  </SocialProvider>
-                </QuickSnapProvider>
-                <NotificationSounds />
-                <AuthModals />
-              </VenueVibesProvider>
-            </VenueLibraryProvider>
+            <QuickSnapProvider>
+              <SocialProvider>
+                <Router />
+              </SocialProvider>
+            </QuickSnapProvider>
+            <NotificationSounds />
+            <AuthModals />
           </SettingsProvider>
         </AuthProvider>
       </ToastProvider>

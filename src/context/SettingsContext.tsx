@@ -8,16 +8,14 @@ import { useTheme, type ThemePreference } from '@/context/ThemeContext';
 import { useToast } from '@/context/ToastContext';
 
 export type Settings = {
-  liveVenueAlerts: boolean;
   communityAlerts: boolean;
   announcements: boolean;
 };
 
-const DEFAULT_SETTINGS: Settings = { liveVenueAlerts: true, communityAlerts: true, announcements: true };
+const DEFAULT_SETTINGS: Settings = { communityAlerts: true, announcements: true };
 const STORAGE_KEY = 'pulse-settings';
 
 const toColumn: Record<keyof Settings, keyof Preferences> = {
-  liveVenueAlerts: 'live_venue_alerts',
   communityAlerts: 'community_alerts',
   announcements: 'announcements',
 };
@@ -38,7 +36,6 @@ function loadLocal(): Settings {
     if (!raw) return DEFAULT_SETTINGS;
     const parsed = JSON.parse(raw) as Partial<Settings>;
     return {
-      liveVenueAlerts: parsed.liveVenueAlerts ?? true,
       communityAlerts: parsed.communityAlerts ?? true,
       announcements: parsed.announcements ?? true,
     };
@@ -73,7 +70,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     let active = true;
     api.getPreferences(userId).then((p) => {
       if (!active || !p) return;
-      setSettings({ liveVenueAlerts: p.live_venue_alerts, communityAlerts: p.community_alerts, announcements: p.announcements });
+      setSettings({ communityAlerts: p.community_alerts, announcements: p.announcements });
       if (p.theme === 'dark' || p.theme === 'light' || p.theme === 'system') setTheme(p.theme);
     }).catch(() => undefined);
     return () => {
@@ -99,7 +96,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
   const resetSettings = useCallback(() => {
     setSettings(DEFAULT_SETTINGS);
-    persist({ live_venue_alerts: true, community_alerts: true, announcements: true });
+    persist({ community_alerts: true, announcements: true });
   }, [persist]);
 
   const setThemePreference = useCallback(

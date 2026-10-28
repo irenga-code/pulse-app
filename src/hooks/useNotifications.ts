@@ -8,8 +8,9 @@ import { useSettings, type Settings } from '@/context/SettingsContext';
 
 const LOCAL_READ_KEY = 'pulse-read-notifications';
 
-const typeToSetting: Record<NotificationType, keyof Settings | null> = {
-  venue_live: 'liveVenueAlerts',
+/** Which alert setting shows each type: null = always shown, false = never (venue_live: venues are gone from Pulse). */
+const typeToSetting: Record<NotificationType, keyof Settings | null | false> = {
+  venue_live: false,
   official_post: 'communityAlerts',
   community: 'communityAlerts',
   comment: 'communityAlerts',
@@ -106,7 +107,7 @@ export function useNotifications() {
     () =>
       all.filter((n) => {
         const key = typeToSetting[n.type] ?? null;
-        return key === null || settings[key];
+        return key !== false && (key === null || settings[key]);
       }),
     [all, settings]
   );

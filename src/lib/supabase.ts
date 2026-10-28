@@ -22,5 +22,5 @@ export const supabase = createClient(supabaseUrl || 'http://localhost:54321', su
 });
 
 export type {
-  Venue, Post, Comment, Profile, PublicProfile, Preferences, AppNotification,
+  Post, Comment, Profile, PublicProfile, Preferences, AppNotification,
 } from './types';

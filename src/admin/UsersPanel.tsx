@@ -100,7 +100,7 @@ function UserRow({ profile, isSelf, onChanged }: { profile: Profile; isSelf: boo
               <select value={role} onChange={(e) => setRole(e.target.value as AccountType)} aria-label={`Role of ${profile.display_name}`} className={`${inputClass} !w-auto !py-1.5`}>
                 <option value="user">User</option>
                 <option value="host">Performer / Staff (Host)</option>
-                <option value="venue">Venue account</option>
+                <option value="venue">Business account</option>
               </select>
             </label>
             <label className={`flex items-center gap-2 text-xs ${bodyText}`}>
@@ -108,7 +108,6 @@ function UserRow({ profile, isSelf, onChanged }: { profile: Profile; isSelf: boo
               <BadgeCheck className="w-3.5 h-3.5 text-wa-green" />Verified badge
             </label>
           </div>
-          <p className={`text-[11px] ${mutedText}`}>Venue links (manager / host of a club) are managed in the Venue staff tab.</p>
           {error && <ErrorNote message={error} />}
           <div className="flex gap-2">
             <button onClick={saveRole} disabled={busy} className={primaryBtn}>

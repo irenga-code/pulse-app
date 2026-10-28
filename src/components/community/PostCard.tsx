@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { Flag, Trash2, ShieldX, MapPin, Pencil, Loader2 } from 'lucide-react';
+import { Flag, Trash2, ShieldX, Pencil, Loader2 } from 'lucide-react';
 import Avatar from '@/components/Avatar';
 import RoleBadge from '@/components/RoleBadge';
 import ReactionBurst from '@/components/reactions/ReactionBurst';
@@ -57,7 +57,7 @@ export default function PostCard({ post, author, counts, mine, onReact, onDelete
   const [saving, setSaving] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
   const own = !!user && post.user_id === user.id;
-  // a post made as a venue speaks for the venue, so it does not link to (or badge) the person who wrote it
+  // older posts published on behalf of a business (as_venue) keep their writer private: no profile link or badge
   const profileId = post.as_venue ? null : post.user_id;
   const liked = mine === 'heart';
 
@@ -134,12 +134,6 @@ export default function PostCard({ post, author, counts, mine, onReact, onDelete
               )}
             </div>
           </div>
-          {post.venue_name && !post.as_venue && (
-            <span className="inline-flex items-center gap-1 text-xs text-wa-green font-medium mt-0.5">
-              <MapPin className="w-3 h-3" />
-              {post.venue_name}
-            </span>
-          )}
           {draft !== null ? (
             <div className="mt-1.5 space-y-2">
               <textarea value={draft} onChange={(e) => setDraft(e.target.value.slice(0, 1000))} rows={3} aria-label="Post text" className={`${inputClass} resize-none`} autoFocus />

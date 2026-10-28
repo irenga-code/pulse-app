@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { X, MapPin, Send } from 'lucide-react';
+import { X, Send } from 'lucide-react';
 import Avatar from '@/components/Avatar';
 import ReactionBar from '@/components/reactions/ReactionBar';
 import ReactionBurst from '@/components/reactions/ReactionBurst';
@@ -109,7 +109,6 @@ export default function SnapViewer({ snaps, start, authors, counts, mine, bursts
             <div className="min-w-0 flex-1">
               <p className="text-sm font-semibold truncate">{snap.user_name}</p>
               <p className="text-[11px] text-white/70 flex items-center gap-1">
-                {snap.venue_name && <><MapPin className="w-3 h-3" />{snap.venue_name} · </>}
                 {timeAgo(snap.created_at)}{timeLeft(snap.expires_at) ? ` · ${timeLeft(snap.expires_at)}` : ''}
               </p>
             </div>

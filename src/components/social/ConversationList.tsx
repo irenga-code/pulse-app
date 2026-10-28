@@ -194,7 +194,7 @@ export default function ConversationList({ onOpen, query = '', selectedId = null
     all: { title: 'No conversations yet', hint: "Tap someone's name on a post or status, then press Message. Or start one by phone number." },
     unread: { title: 'No unread chats', hint: 'You are all caught up.' },
     favorites: { title: 'No favorites yet', hint: 'Tap the star on a chat to keep it here.' },
-    groups: { title: 'Group chats are coming soon', hint: 'For now, use Communities and venue Channels to talk with many people.' },
+    groups: { title: 'Group chats are coming soon', hint: 'For now, use Communities and Channels to talk with many people.' },
     archived: { title: 'No archived chats', hint: 'Archive a chat to hide it from All. New messages keep it archived.' },
   };
 

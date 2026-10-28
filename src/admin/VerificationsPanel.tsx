@@ -6,30 +6,25 @@ import { formatDateTime } from '@/lib/time';
 import { api } from '@/lib/apiClient';
 import { friendlyError } from '@/lib/api';
 import { useAsync } from '@/hooks/useAsync';
-import { useVenues } from '@/hooks/useVenues';
 import { useToast } from '@/context/ToastContext';
 import type { PublicProfile, VerificationRequest } from '@/lib/types';
 import { memUserKey } from '@/lib/cache';
 import { useAuth } from '@/context/AuthContext';
 
-function RequestCard({ req, who, venueName, onDone }: { req: VerificationRequest; who?: PublicProfile; venueName?: string; onDone: () => void }) {
+function RequestCard({ req, who, onDone }: { req: VerificationRequest; who?: PublicProfile; onDone: () => void }) {
   const { show } = useToast();
   const [mode, setMode] = useState<'approve' | 'reject' | null>(null);
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // a Manager / Host request that names a venue is linked to it on approval
-  const linkRole = req.kind === 'host' && req.venue_id && (req.role === 'Manager' || req.role === 'Host') ? (req.role === 'Manager' ? 'manager' : 'host') : null;
 
   const submit = async () => {
     if (!mode) return;
     setBusy(true);
     setError(null);
     try {
-      // link first: assigning is idempotent, so if the review then fails, confirming again finishes both
-      if (mode === 'approve' && linkRole) await api.adminAssignVenueStaff(req.user_id, req.venue_id!, linkRole);
       await api.adminReviewVerification(req.id, mode === 'approve', note);
-      show(mode === 'approve' ? (linkRole ? `Approved and linked to ${venueName ?? 'the venue'} as ${linkRole}` : 'Approved') : 'Rejected');
+      show(mode === 'approve' ? 'Approved' : 'Rejected');
       onDone();
     } catch (e) {
       setError(friendlyError(e));
@@ -41,9 +36,8 @@ function RequestCard({ req, who, venueName, onDone }: { req: VerificationRequest
     <div className={panelCard}>
       <div className="flex items-center gap-1.5 flex-wrap">
         <span className={`font-semibold text-sm ${bodyText}`}>{who?.display_name ?? 'Unknown user'}</span>
-        <Chip>{req.kind === 'host' ? 'Performer / Staff' : 'Venue account'}</Chip>
+        <Chip>{req.kind === 'host' ? 'Performer / Staff' : 'Business account'}</Chip>
         {req.kind === 'host' && req.role && <Chip>{req.role}</Chip>}
-        {req.venue_id && <Chip>{venueName ?? 'venue'}</Chip>}
         <StatusChip status={req.status} />
         <span className={`text-[11px] ml-auto ${mutedText}`}>{formatDateTime(req.created_at)}</span>
       </div>
@@ -58,14 +52,14 @@ function RequestCard({ req, who, venueName, onDone }: { req: VerificationRequest
             <div className="flex gap-2">
               <button onClick={submit} disabled={busy} className={primaryBtn}>
                 {busy && <Loader2 className="w-4 h-4 animate-spin" />}
-                {mode === 'approve' && linkRole ? `Confirm: approve and link as ${linkRole}` : `Confirm ${mode}`}
+                Confirm {mode}
               </button>
               <button onClick={() => setMode(null)} disabled={busy} className={ghostBtn}>Cancel</button>
             </div>
           </div>
         ) : (
           <div className="flex gap-2 mt-3">
-            <button onClick={() => setMode('approve')} className={primaryBtn}>{linkRole ? `Approve & link to ${venueName ?? 'venue'}` : 'Approve'}</button>
+            <button onClick={() => setMode('approve')} className={primaryBtn}>Approve</button>
             <button onClick={() => setMode('reject')} className={ghostBtn}>Reject</button>
           </div>
         ))}
@@ -75,7 +69,6 @@ function RequestCard({ req, who, venueName, onDone }: { req: VerificationRequest
 
 export default function VerificationsPanel() {
   const [filter, setFilter] = useState<'pending' | 'all'>('pending');
-  const { venues } = useVenues();
   const { user } = useAuth();
   const data = useAsync(async () => {
     const rows = await api.adminListVerifications(filter);
@@ -97,7 +90,7 @@ export default function VerificationsPanel() {
         </div>
       ) : (
         data.data!.rows.map((r) => (
-          <RequestCard key={r.id} req={r} who={data.data!.people[r.user_id]} venueName={venues.find((v) => v.id === r.venue_id)?.name} onDone={data.reload} />
+          <RequestCard key={r.id} req={r} who={data.data!.people[r.user_id]} onDone={data.reload} />
         ))
       )}
     </div>

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Camera, ImagePlus, Loader2, MapPin, Send } from 'lucide-react';
+import { Camera, ImagePlus, Loader2, Send } from 'lucide-react';
 import Modal from '@/components/Modal';
 import EmojiButton from '@/components/emoji/EmojiPicker';
 import { useEmojiInsert } from '@/components/emoji/useEmojiInsert';
@@ -9,18 +9,15 @@ import { friendlyError } from '@/lib/api';
 import { prepareStatusMedia, type PreparedMedia } from '@/lib/statusMedia';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/context/ToastContext';
-import { useVenues } from '@/hooks/useVenues';
 
 const MAX_CAPTION = 300;
 
-/** Create a status: pick a photo/video, add a caption, optionally tag a venue, post. It disappears after 24 hours. */
+/** Create a status: pick a photo/video, add a caption, post. It disappears after 24 hours. */
 export default function StatusComposer({ onClose, onPosted }: { onClose: () => void; onPosted: () => void }) {
   const { user, canWrite } = useAuth();
   const { show } = useToast();
-  const { venues } = useVenues({ orderBy: 'name' });
   const [media, setMedia] = useState<PreparedMedia | null>(null);
   const [caption, setCaption] = useState('');
-  const [venueId, setVenueId] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -48,7 +45,7 @@ export default function StatusComposer({ onClose, onPosted }: { onClose: () => v
     try {
       // the file goes into the signed-in user's own folder; the database then stamps who posted it
       const url = await api.uploadPostMedia(user.id, media.blob, media.ext);
-      await api.createStatus({ media_url: url, media_type: media.type, caption, venue_id: venueId || null });
+      await api.createStatus({ media_url: url, media_type: media.type, caption });
       show('Status posted. It stays up for 24 hours.');
       onPosted();
       onClose();
@@ -86,14 +83,6 @@ export default function StatusComposer({ onClose, onPosted }: { onClose: () => v
             <input ref={captionRef} value={caption} onChange={(e) => setCaption(e.target.value.slice(0, MAX_CAPTION))} placeholder="Add a caption…" aria-label="Caption" className={inputClass} />
             <EmojiButton label="Add emoji to caption" onPick={insert} />
           </div>
-
-          <label className="flex items-center gap-2">
-            <MapPin className="w-4 h-4 text-wa-green flex-shrink-0" />
-            <select value={venueId} onChange={(e) => setVenueId(e.target.value)} aria-label="Tag a venue" className={inputClass}>
-              <option value="">Tag a venue (optional)</option>
-              {venues.map((v) => <option key={v.id} value={v.id}>{v.name} · {v.location}</option>)}
-            </select>
-          </label>
 
           {error && <ErrorNote message={error} />}
           <div className="flex gap-2">

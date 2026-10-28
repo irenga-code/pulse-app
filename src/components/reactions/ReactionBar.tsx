@@ -8,7 +8,7 @@ type Props = {
   counts: ReactionCounts;
   mine: ReactionKind | null;
   onReact: (kind: ReactionKind) => void;
-  /** Smaller pills (used on venue cards). */
+  /** Smaller pills. */
   compact?: boolean;
   /** Reaction kinds that are shown elsewhere (e.g. 'heart' = the like button) and so are left out of the pill row. */
   exclude?: ReactionKind[];

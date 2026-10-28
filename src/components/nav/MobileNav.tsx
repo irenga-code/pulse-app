@@ -1,6 +1,6 @@
 import { MOBILE_TABS, mobileTabFor, type SectionId } from '@/components/nav/sections';
 
-/** Phone bottom bar: Chats, Updates, Communities, Catalog, You. */
+/** Phone bottom bar: Chats, Updates, Communities, Tools, You. */
 export default function MobileNav({ active, onSelect, badges = {} }: {
   active: SectionId;
   onSelect: (id: SectionId) => void;

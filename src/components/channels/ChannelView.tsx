@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, Camera, Send, Loader2, Trash2, Check, Plus, MessageSquareDot } from 'lucide-react';
-import VenueLogo from '@/components/VenueLogo';
 import { EmojiText } from '@/components/emoji/EmojiImg';
 import { ErrorNote, mutedText, bodyText } from '@/components/ui';
 import { supabase } from '@/lib/supabase';
@@ -10,15 +9,14 @@ import { timeAgo } from '@/lib/time';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/context/ToastContext';
 import { useQuickSnap } from '@/camera/QuickSnapContext';
-import type { ChannelMessage, Venue, VenueChannel } from '@/lib/types';
+import type { ChannelMessage, Channel } from '@/lib/types';
 
 let channelCounter = 0;
 const MAX = 2000;
 
-/** One venue channel: everyone reads, followers get it in their list, the venue's staff post (text or Quick-Snap). */
-export default function ChannelView({ channel, venue, following, canPost, onToggleFollow, onBack }: {
-  channel: VenueChannel;
-  venue?: Venue;
+/** One channel: everyone reads, followers get it in their list, its team posts (text or Quick-Snap). */
+export default function ChannelView({ channel, following, canPost, onToggleFollow, onBack }: {
+  channel: Channel;
   following: boolean;
   canPost: boolean;
   onToggleFollow: () => void;
@@ -48,7 +46,7 @@ export default function ChannelView({ channel, venue, following, canPost, onTogg
     void load();
     const add = (m: ChannelMessage) => setPosts((list) => (list.some((x) => x.id === m.id) ? list : [...list, m]));
     const ch = supabase
-      .channel(`venue-channel-${channel.id}-${++channelCounter}`)
+      .channel(`channel-${channel.id}-${++channelCounter}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'channel_messages', filter: `channel_id=eq.${channel.id}` }, (p) => add(p.new as ChannelMessage))
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'channel_messages' }, (p) => {
         const id = (p.old as { id?: string }).id;
@@ -89,10 +87,10 @@ export default function ChannelView({ channel, venue, following, canPost, onTogg
     <div className="flex flex-col h-full min-h-0 animate-section-in">
       <header className="flex items-center gap-2 px-2 py-2.5 border-b border-wa-lightBorder dark:border-wa-darkBorder bg-wa-lightPanel dark:bg-wa-darkPanel">
         <button onClick={onBack} aria-label="Back to channels" className={`p-2 rounded-full hover:bg-black/5 dark:hover:bg-white/10 ${bodyText}`}><ArrowLeft className="w-5 h-5" /></button>
-        {venue ? <VenueLogo venue={venue} size={38} fallback /> : <MessageSquareDot className="w-8 h-8 text-wa-green" />}
+        <MessageSquareDot className="w-8 h-8 text-wa-green" />
         <span className="min-w-0 flex-1">
           <span className={`block text-sm font-semibold truncate ${bodyText}`}>{channel.name}</span>
-          <span className={`block text-[11px] truncate ${mutedText}`}>{channel.follower_count} follower{channel.follower_count === 1 ? '' : 's'}{venue ? ` · ${venue.location}` : ''}</span>
+          <span className={`block text-[11px] truncate ${mutedText}`}>{channel.follower_count} follower{channel.follower_count === 1 ? '' : 's'}</span>
         </span>
         <button
           onClick={() => { if (requireAuth('Sign in to follow channels.')) onToggleFollow(); }}
@@ -135,7 +133,7 @@ export default function ChannelView({ channel, venue, following, canPost, onTogg
       {canPost ? (
         <form onSubmit={send} className="flex items-center gap-1 px-2 pt-2 pb-3 border-t border-wa-lightBorder dark:border-wa-darkBorder bg-wa-lightPanel dark:bg-wa-darkPanel">
           <button type="button" aria-label="Snap to channel"
-            onClick={() => openQuickSnap({ destination: { kind: 'channel', channelId: channel.id, label: channel.name }, initialVenueId: channel.venue_id, onSent: () => { void load(); } })}
+            onClick={() => openQuickSnap({ destination: { kind: 'channel', channelId: channel.id, label: channel.name }, onSent: () => { void load(); } })}
             className={`p-2 rounded-full hover:bg-black/5 dark:hover:bg-white/10 ${mutedText}`}>
             <Camera className="w-5 h-5" />
           </button>
@@ -146,7 +144,7 @@ export default function ChannelView({ channel, venue, following, canPost, onTogg
           </button>
         </form>
       ) : (
-        <p className={`text-center text-xs py-3 border-t border-wa-lightBorder dark:border-wa-darkBorder ${mutedText}`}>Only {venue?.name ?? 'the venue'} can post here.</p>
+        <p className={`text-center text-xs py-3 border-t border-wa-lightBorder dark:border-wa-darkBorder ${mutedText}`}>Only the channel's team can post here.</p>
       )}
     </div>
   );

@@ -6,7 +6,7 @@ import type { useNotifications } from '@/hooks/useNotifications';
 import { ListSkeleton } from '@/components/Skeleton';
 
 const typeStyle: Record<NotificationType, { icon: LucideIcon; color: string }> = {
-  venue_live: { icon: Flame, color: 'text-wa-live bg-wa-live/10' },
+  venue_live: { icon: Flame, color: 'text-wa-live bg-wa-live/10' }, // never shown (useNotifications), kept for the type
   community: { icon: MessageCircle, color: 'text-wa-green bg-wa-green/10' },
   comment: { icon: MessageCircle, color: 'text-wa-green bg-wa-green/10' },
   reaction: { icon: Smile, color: 'text-wa-busy bg-wa-busy/10' },
@@ -63,7 +63,7 @@ export default function NotificationsModal({ onClose, feed }: Props) {
               <p className="text-xs text-wa-lightTextSecondary dark:text-wa-darkTextSecondary mt-1 max-w-xs">
                 {hiddenByPreferences > 0
                   ? 'You have turned off these alert types in Settings.'
-                  : 'Venue alerts and updates will show up here.'}
+                  : 'Alerts and updates will show up here.'}
               </p>
             </div>
           ) : (

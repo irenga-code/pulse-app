@@ -32,25 +32,6 @@ export function ListSkeleton({ rows = 4, label = 'Loading' }: { rows?: number; l
   );
 }
 
-/** Venue cards in the same grid as the real ones. `tall` matches the Tonight cards. */
-export function VenueGridSkeleton({ count = 6, tall = false, label = 'Loading venues' }: { count?: number; tall?: boolean; label?: string }) {
-  return (
-    <Busy label={label} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-5 mt-2">
-      {Array.from({ length: count }, (_, i) => (
-        <div key={i} className="rounded-2xl overflow-hidden border border-wa-lightBorder dark:border-wa-darkBorder">
-          <Skeleton className={`${tall ? 'h-52 md:h-56 lg:h-64' : 'h-40'} !rounded-none`} />
-          {!tall && (
-            <div className="p-4 space-y-2.5">
-              <Skeleton className="h-4 w-1/2" />
-              <Skeleton className="h-3 w-1/3" />
-            </div>
-          )}
-        </div>
-      ))}
-    </Busy>
-  );
-}
-
 /** Feed posts: author row, text lines, action row. */
 export function FeedSkeleton({ count = 3 }: { count?: number }) {
   return (
