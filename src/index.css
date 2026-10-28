@@ -108,7 +108,7 @@
   background-image:
     radial-gradient(ellipse 80% 60% at 30% 20%, rgb(255 246 228 / 0.5), transparent 70%),
     radial-gradient(ellipse at center, transparent 55%, rgb(110 76 42 / 0.18) 100%),
-    linear-gradient(rgb(255 251 244 / 0.2), rgb(255 251 244 / 0.2)),
+    linear-gradient(rgb(255 251 244 / 0.1), rgb(255 251 244 / 0.1)),
     url('./assets/wallpaper_whatsapp_bolder.png');
   background-size: 100% 100%, 100% 100%, 100% 100%, cover;
   background-position: center;
