@@ -95,13 +95,16 @@
 .dark .bubble-out { background-color: var(--bubble-bg-dark); color: #e9edef; --bubble-quote: var(--bubble-quote-dark); }
 .bubble-quote { background-color: var(--bubble-quote); border: 1px solid rgb(var(--wa-green) / 0.25); }
 
-/* Chat wallpaper: the cream doodle scene (assets/wallpaper_whatsapp_bolder.png, 1024x585, not a tile) covers the
-   visible chat area and stays put while messages scroll over it. No overlays: the doodles show as drawn.
-   Light: the picture is multiplied onto the canvas colour, so the default near-white canvas leaves it unchanged and a
-   chat theme picked in Contact info (a Tailwind bg-* class) tints it.
-   Dark: the same picture is inverted (difference against white), like WhatsApp's dark wallpaper: its cream
-   (#f5f1eb) becomes ~#0a0e14 and the doodle lines turn faintly lighter. A themed chat (.chat-wallpaper-tinted)
-   soft-lights the picture onto its theme colour instead, since the inverted picture would hide that colour.
+/* Chat wallpaper: the cream doodle scene (assets/wallpaper_whatsapp_bolder.png, 1024x585, not a tile) on its own
+   layer behind the message list (ChatThread), so the filters below never touch the messages.
+   The picture is very faint (cream #f5f1eb, lines only down to ~#e9e0d4), so the filter boldens it: brightness(0.625)
+   then contrast(4.8) is a 3x stretch that holds the cream in place (contrast alone pivots on mid-grey and would wash
+   everything out to white), turning the lines into a clear tan (~#cfbca4); saturate() keeps the cream from going orange.
+   Light: the picture is multiplied onto the canvas colour, so the default near-white canvas leaves it as drawn.
+   Dark: the same bold picture is inverted, like WhatsApp's dark wallpaper: the cream becomes ~#0c1118 and the lines a
+   soft slate (~#374251). Its canvas is cream so it also inverts to dark before the picture has loaded.
+   A chat theme picked in Contact info (a Tailwind bg-* class, plus .chat-wallpaper-tinted) skips the filter, which
+   would garble the theme colour: the picture is multiplied (light) or soft-lit (dark) onto that colour instead.
    :where() keeps the canvas colour at zero specificity so the theme class wins. */
 :where(.chat-wallpaper) { background-color: #fffaf3; }
 :where(.dark .chat-wallpaper) { background-color: #0b141a; }
@@ -112,9 +115,10 @@
   background-repeat: no-repeat;
   background-blend-mode: multiply;
 }
+.chat-wallpaper:not(.chat-wallpaper-tinted) { filter: brightness(0.625) contrast(4.8) saturate(0.7); }
 .dark .chat-wallpaper:not(.chat-wallpaper-tinted) {
-  background-image: url('./assets/wallpaper_whatsapp_bolder.png'), linear-gradient(#fff, #fff);
-  background-size: cover, 100% 100%;
-  background-blend-mode: difference, normal;
+  background-color: #f5f1eb;
+  background-blend-mode: normal;
+  filter: brightness(0.625) contrast(4.8) saturate(0.4) invert(1);
 }
 .dark .chat-wallpaper-tinted { background-blend-mode: soft-light; }

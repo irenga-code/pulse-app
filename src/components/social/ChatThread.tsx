@@ -562,6 +562,8 @@ export default function ChatThread({ otherUserId, initialRef, onBack, onClose, e
         </div>
       )}
       <div className="relative flex-1 min-h-0 flex flex-col">
+      {/* the wallpaper is its own empty layer so its filter (index.css) never touches the messages */}
+      {!secret && <div aria-hidden className={`absolute inset-0 pointer-events-none chat-wallpaper ${themeClass && `chat-wallpaper-tinted ${themeClass}`}`} />}
       {stickyDay && visible.length > 0 && (
         <div aria-hidden={!stickyShown} data-testid="sticky-day"
           className={`absolute top-2 left-1/2 -translate-x-1/2 z-20 pointer-events-none transition-opacity duration-300 ${PILL} ${stickyShown ? 'opacity-100' : 'opacity-0'}`}>
@@ -569,7 +571,7 @@ export default function ChatThread({ otherUserId, initialRef, onBack, onClose, e
         </div>
       )}
       <div ref={listRef} onScroll={onListScroll}
-        className={`flex-1 overflow-y-auto px-3 py-3 space-y-1.5 ${secret ? '' : `chat-wallpaper ${themeClass && `chat-wallpaper-tinted ${themeClass}`}`}`} aria-live="polite" data-testid="chat-messages">
+        className="relative flex-1 overflow-y-auto px-3 py-3 space-y-1.5" aria-live="polite" data-testid="chat-messages">
         {!loading && !error && hasOlder && (
           <div className="flex justify-center pb-1">
             <button type="button" onClick={() => void loadOlder()} disabled={loadingOlder} className={`${PILL} flex items-center gap-1.5 hover:bg-white dark:hover:bg-zinc-800 disabled:opacity-70`}>
