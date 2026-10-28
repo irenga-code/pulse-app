@@ -1,24 +1,31 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { ArrowLeft, Check, CreditCard, Globe, ImagePlus, Info, MessageCircle, MoreHorizontal, ThumbsUp, X } from 'lucide-react';
+import { ArrowLeft, CalendarDays, Check, ImagePlus, Loader2, MessageCircle, MessageSquareDot, MoreHorizontal, Search, Store, X } from 'lucide-react';
 import Avatar from '@/components/Avatar';
 import Modal from '@/components/Modal';
-import { mutedText, bodyText } from '@/components/ui';
+import { ErrorNote, mutedText, bodyText } from '@/components/ui';
+import { api } from '@/lib/apiClient';
+import { friendlyError, isMissingSchema } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/context/ToastContext';
 
-/** Daily budget in US dollars, like WhatsApp Business's ad flow outside the user's own currency setup. */
-const BUDGET_MIN = 1;
-const BUDGET_MAX = 100;
 const DESCRIPTION_MAX = 500;
-const DURATIONS = [{ days: 1, label: '1 day' }, { days: 3, label: '3 days' }, { days: 7, label: '7 days' }, { days: 14, label: '14 days' }, { days: 0, label: 'Run until paused' }];
+/** Promotions are free; they only differ in how long they run. 0 = continuous (until you pause it). */
+const DURATIONS = [{ days: 1, label: '1 day' }, { days: 3, label: '3 days' }, { days: 7, label: '7 days' }, { days: 0, label: 'Continuous' }];
+const MEDIA_MAX = 25 * 1024 * 1024;
+const MEDIA_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'video/mp4', 'video/webm', 'video/quicktime'];
+const MIGRATION_NOTE = 'Campaigns need the latest database update (migration 22).';
 const AGES = [18, 21, 25, 30, 35, 40, 45, 50, 55, 60, 65];
 const GENDERS = ['All', 'Men', 'Women'] as const;
 const SPECIAL = ['Credit', 'Employment', 'Housing', 'Social issues, elections or politics'] as const;
-type Placement = 'facebook' | 'instagram';
+type Placement = 'feed' | 'status' | 'directory';
 const PLACEMENTS: { id: Placement; label: string; hint: string }[] = [
-  { id: 'facebook', label: 'Facebook', hint: 'Feed, Stories and Marketplace' },
-  { id: 'instagram', label: 'Instagram', hint: 'Feed, Stories and Explore' },
+  { id: 'feed', label: 'Pulse Feed', hint: 'Main feed, timeline & sponsored posts' },
+  { id: 'status', label: 'Pulse Status', hint: '24-hour status updates & stories' },
+  { id: 'directory', label: 'Pulse Directory & Channels', hint: 'Promoted channels and business search' },
 ];
+const PLACEMENT_LABEL: Record<Placement, string> = { feed: 'Pulse Feed', status: 'Pulse Status', directory: 'Directory & Channels' };
+/** The live preview switches between these two; the directory listing shows under See all. */
+const TABBED: Placement[] = ['feed', 'status'];
 
 const card = 'bg-wa-lightPanel dark:bg-wa-darkSecondary rounded-2xl border border-wa-lightBorder dark:border-wa-darkBorder p-5';
 const pill = (on: boolean) =>
@@ -51,11 +58,11 @@ function Tick({ checked, onChange, label, hint }: { checked: boolean; onChange: 
   );
 }
 
-type Media = { url: string; video: boolean };
+type Media = { url: string; video: boolean; file?: File };
 
-/** A feed-style sponsored post as it would look on the chosen app; the button opens a WhatsApp chat. */
-function AdPreview({ placement, name, avatar, text, media, story = false }: {
-  placement: Placement; name: string; avatar: string | null; text: string; media: Media | null; story?: boolean;
+/** The ad as it would appear in each Pulse placement; every version's button opens a chat with the business. */
+function AdPreview({ placement, name, avatar, text, media }: {
+  placement: Placement; name: string; avatar: string | null; text: string; media: Media | null;
 }) {
   const shown = text.trim() || 'Your ad description appears here.';
   const visual = media ? (
@@ -67,55 +74,93 @@ function AdPreview({ placement, name, avatar, text, media, story = false }: {
       <ImagePlus className="w-8 h-8" /><span className="text-xs">Your photo or video</span>
     </div>
   );
-  if (story) {
+  const messageBtn = 'flex items-center justify-center gap-1.5 rounded-full bg-wa-green text-white text-xs font-semibold';
+
+  if (placement === 'status') {
+    // a 24 h status in the status viewer: progress bars on top, the message button at the bottom
     return (
       <div className="relative aspect-[9/16] w-full rounded-xl overflow-hidden bg-black text-white">
         {visual}
-        <div className="absolute inset-x-0 top-0 p-3 flex items-center gap-2 bg-gradient-to-b from-black/60 to-transparent">
-          <Avatar name={name} url={avatar} size={28} />
-          <span className="text-xs font-semibold truncate">{name}</span>
-          <span className="text-[10px] opacity-80">Sponsored</span>
+        <div className="absolute inset-x-0 top-0 p-3 space-y-2 bg-gradient-to-b from-black/60 to-transparent">
+          <div className="flex gap-1" aria-hidden="true">
+            <span className="h-0.5 flex-1 rounded-full bg-white" /><span className="h-0.5 flex-1 rounded-full bg-white/40" />
+          </div>
+          <div className="flex items-center gap-2">
+            <Avatar name={name} url={avatar} size={28} />
+            <span className="min-w-0">
+              <span className="block text-xs font-semibold truncate">{name}</span>
+              <span className="block text-[10px] opacity-80">Sponsored</span>
+            </span>
+          </div>
         </div>
-        <div className="absolute inset-x-0 bottom-0 p-3 bg-gradient-to-t from-black/70 to-transparent">
+        <div className="absolute inset-x-0 bottom-0 p-3 bg-gradient-to-t from-black/75 to-transparent">
           <p className="text-xs line-clamp-2 mb-2">{shown}</p>
-          <span className="flex items-center justify-center gap-1.5 rounded-full bg-white text-black text-xs font-semibold py-2"><MessageCircle className="w-3.5 h-3.5" />Send message</span>
+          <span className={`${messageBtn} py-2`}><MessageCircle className="w-3.5 h-3.5" />Send message</span>
         </div>
       </div>
     );
   }
+
+  if (placement === 'directory') {
+    // business search with the promoted business on top, then its promoted channel
+    return (
+      <div className="rounded-xl overflow-hidden border border-wa-lightBorder dark:border-wa-darkBorder bg-wa-lightPanel dark:bg-wa-darkPanel">
+        <div className="p-3">
+          <div className={`flex items-center gap-2 rounded-full bg-wa-lightSecondary dark:bg-wa-darkSecondary px-3 py-2 text-xs ${mutedText}`}>
+            <Search className="w-3.5 h-3.5" />Search businesses and channels
+          </div>
+        </div>
+        <div className="flex items-center gap-3 px-3 py-2.5 border-t border-wa-lightBorder dark:border-wa-darkBorder">
+          <Avatar name={name} url={avatar} size={40} />
+          <span className="min-w-0 flex-1">
+            <span className={`flex items-center gap-1 text-sm font-semibold truncate ${bodyText}`}>{name}<Store className="w-3.5 h-3.5 text-wa-green flex-shrink-0" /></span>
+            <span className={`block text-xs truncate ${mutedText}`}>Sponsored · {shown}</span>
+          </span>
+          <span className={`${messageBtn} px-3 py-1.5`}>Message</span>
+        </div>
+        <div className="flex items-center gap-3 px-3 py-2.5 border-t border-wa-lightBorder dark:border-wa-darkBorder">
+          <MessageSquareDot className="w-10 h-10 p-2 text-wa-green flex-shrink-0" />
+          <span className="min-w-0 flex-1">
+            <span className={`block text-sm font-semibold truncate ${bodyText}`}>{name} channel</span>
+            <span className={`block text-xs ${mutedText}`}>Promoted channel</span>
+          </span>
+          <span className="rounded-full border border-wa-green/50 px-3 py-1.5 text-xs font-semibold text-wa-green">Follow</span>
+        </div>
+      </div>
+    );
+  }
+
+  // a sponsored post in the main feed, laid out like Pulse's own post cards
   return (
-    <div className="rounded-xl overflow-hidden border border-wa-lightBorder dark:border-wa-darkBorder bg-white dark:bg-[#1c1e21] text-[#050505] dark:text-[#e4e6eb]">
+    <div className="rounded-xl overflow-hidden border border-wa-lightBorder dark:border-wa-darkBorder bg-wa-lightPanel dark:bg-wa-darkSecondary">
       <div className="flex items-center gap-2 px-3 py-2.5">
         <Avatar name={name} url={avatar} size={32} />
         <span className="min-w-0 flex-1">
-          <span className="block text-[13px] font-semibold truncate">{name}</span>
-          <span className="flex items-center gap-1 text-[11px] opacity-60">Sponsored{placement === 'facebook' && <> · <Globe className="w-3 h-3" /></>}</span>
+          <span className={`block text-[13px] font-semibold truncate ${bodyText}`}>{name}</span>
+          <span className={`block text-[11px] ${mutedText}`}>Sponsored</span>
         </span>
-        <MoreHorizontal className="w-4 h-4 opacity-60" />
+        <MoreHorizontal className={`w-4 h-4 ${mutedText}`} />
       </div>
-      {placement === 'facebook' && <p className="px-3 pb-2 text-[13px] whitespace-pre-wrap break-words line-clamp-4">{shown}</p>}
+      <p className={`px-3 pb-2 text-[13px] whitespace-pre-wrap break-words line-clamp-4 ${bodyText}`}>{shown}</p>
       <div className="aspect-square w-full">{visual}</div>
-      <div className="flex items-center gap-2 px-3 py-2.5 bg-[#f0f2f5] dark:bg-[#242526]">
+      <div className="flex items-center gap-2 px-3 py-2.5">
         <span className="min-w-0 flex-1">
-          <span className="block text-[11px] uppercase opacity-60">WhatsApp</span>
-          <span className="block text-[13px] font-semibold truncate">Chat with {name}</span>
+          <span className={`block text-[11px] uppercase ${mutedText}`}>Pulse chat</span>
+          <span className={`block text-[13px] font-semibold truncate ${bodyText}`}>Chat with {name}</span>
         </span>
-        <span className="flex items-center gap-1 rounded-md bg-[#e4e6eb] dark:bg-[#3a3b3c] px-3 py-1.5 text-xs font-semibold"><MessageCircle className="w-3.5 h-3.5" />Send message</span>
+        <span className={`${messageBtn} px-3 py-1.5`}><MessageCircle className="w-3.5 h-3.5" />Send message</span>
       </div>
-      {placement === 'instagram'
-        ? <p className="px-3 py-2 text-[13px] break-words line-clamp-3"><span className="font-semibold">{name}</span> {shown}</p>
-        : <div className="flex items-center justify-around px-3 py-1.5 text-xs font-semibold opacity-60 border-t border-black/5 dark:border-white/10"><span className="flex items-center gap-1"><ThumbsUp className="w-3.5 h-3.5" />Like</span><span>Comment</span><span>Share</span></div>}
     </div>
   );
 }
 
 /**
  * Business tools > Advertise > Create new ad: settings on the left, a live, sticky preview on the right (stacked on
- * phones). Pulse has no ad or payments backend yet, so publishing and payment methods are clearly marked as not
- * available; nothing here is sent anywhere.
+ * phones). Promotions are free and native to Pulse: Publish Campaign uploads the media and saves the campaign
+ * (promotions, migration 22) as active straight away; the server works out when it ends.
  */
 export default function CreateAdView({ onBack }: { onBack: () => void }) {
-  const { profile } = useAuth();
+  const { user, profile } = useAuth();
   const { show } = useToast();
   const fileRef = useRef<HTMLInputElement>(null);
   const [media, setMedia] = useState<Media | null>(null);
@@ -127,16 +172,18 @@ export default function CreateAdView({ onBack }: { onBack: () => void }) {
   const [gender, setGender] = useState<(typeof GENDERS)[number]>('All');
   const [special, setSpecial] = useState(false);
   const [specialKinds, setSpecialKinds] = useState<string[]>([]);
-  const [placements, setPlacements] = useState<Record<Placement, boolean>>({ facebook: true, instagram: true });
-  const [budget, setBudget] = useState(3);
+  const [placements, setPlacements] = useState<Record<Placement, boolean>>({ feed: true, status: true, directory: true });
   const [days, setDays] = useState(7);
-  const [previewOn, setPreviewOn] = useState<Placement>('facebook');
+  const [previewOn, setPreviewOn] = useState<Placement>('feed');
   const [seeAll, setSeeAll] = useState(false);
+  const [publishing, setPublishing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => () => { if (media) URL.revokeObjectURL(media.url); }, [media]);
   const chosen = PLACEMENTS.filter((p) => placements[p.id]).map((p) => p.id);
-  // the preview follows the placements: switching one off moves it to the other
-  const shownOn = chosen.includes(previewOn) ? previewOn : chosen[0] ?? 'facebook';
+  // the preview follows the placements: switching Feed or Status off moves it to the other (Directory when neither is on)
+  const tabs = TABBED.filter((p) => chosen.includes(p));
+  const shownOn = tabs.includes(previewOn) ? previewOn : tabs[0] ?? 'directory';
   const name = profile?.display_name ?? 'Your business';
   const avatar = profile?.avatar_url ?? null;
 
@@ -144,15 +191,48 @@ export default function CreateAdView({ onBack }: { onBack: () => void }) {
     const f = e.target.files?.[0];
     e.target.value = '';
     if (!f) return;
-    if (!f.type.startsWith('image/') && !f.type.startsWith('video/')) return show('Choose a photo or a video.', 'error');
-    setMedia({ url: URL.createObjectURL(f), video: f.type.startsWith('video/') });
+    if (!MEDIA_TYPES.includes(f.type)) return show('Choose a JPG, PNG or WebP photo, or an MP4 / WebM / MOV video.', 'error');
+    if (f.size > MEDIA_MAX) return show('That file is too large (max 25 MB).', 'error');
+    setMedia({ url: URL.createObjectURL(f), video: f.type.startsWith('video/'), file: f });
   };
   const togglePlacement = (id: Placement, on: boolean) => {
     if (!on && chosen.length === 1) return show('Keep at least one placement.');
     setPlacements((p) => ({ ...p, [id]: on }));
   };
-  const pct = ((budget - BUDGET_MIN) / (BUDGET_MAX - BUDGET_MIN)) * 100;
-  const total = days ? `$${(budget * days).toLocaleString()} total over ${days} day${days === 1 ? '' : 's'}` : `$${budget} a day until you pause it`;
+  const endsOn = days
+    ? new Date(Date.now() + days * 86_400_000).toLocaleString([], { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })
+    : null;
+  const audienceLabel = suggested
+    ? 'Suggested audience: people 18+ near your business'
+    : `${locations.trim() || 'Anywhere'} · ages ${ageMin}–${ageMax === 65 ? '65+' : ageMax} · ${gender === 'All' ? 'everyone' : gender.toLowerCase()}`;
+  const canPublish = !!user && (!!text.trim() || !!media) && !publishing;
+
+  const publish = async () => {
+    if (!user || !canPublish) return;
+    setPublishing(true);
+    setError(null);
+    try {
+      let mediaUrl: string | null = null;
+      if (media?.file) {
+        const sub = media.file.type.split('/')[1];
+        mediaUrl = await api.uploadPostMedia(user.id, media.file, sub === 'jpeg' ? 'jpg' : sub === 'quicktime' ? 'mov' : sub);
+      }
+      await api.createPromotion({
+        description: text.trim() || null,
+        media_url: mediaUrl,
+        media_type: mediaUrl ? (media!.video ? 'video' : 'image') : null,
+        placements: chosen,
+        audience: suggested ? { suggested: true } : { suggested: false, locations: locations.trim(), ageMin, ageMax, gender },
+        special_categories: special ? specialKinds : [],
+        duration_days: days || null,
+      });
+      show(days ? `Campaign published. It runs until ${endsOn}.` : 'Campaign published. It runs until you pause it.');
+      onBack();
+    } catch (err) {
+      setError(isMissingSchema(err) ? MIGRATION_NOTE : friendlyError(err));
+      setPublishing(false);
+    }
+  };
 
   return (
     <div className="flex flex-col h-full min-h-0">
@@ -235,38 +315,21 @@ export default function CreateAdView({ onBack }: { onBack: () => void }) {
               )}
             </Card>
 
-            <Card title="Placements" subtitle="Where your ad can appear.">
+            <Card title="Placements" subtitle="Where your ad can appear in Pulse.">
               {PLACEMENTS.map((p) => <Tick key={p.id} checked={placements[p.id]} onChange={(on) => togglePlacement(p.id, on)} label={p.label} hint={p.hint} />)}
             </Card>
 
-            <Card title="Daily budget">
-              <div className="flex items-baseline justify-between">
-                <span className={`text-2xl font-semibold ${bodyText}`}>${budget}<span className={`text-sm font-normal ${mutedText}`}> / day</span></span>
-                <span className={`text-xs ${mutedText}`}>USD</span>
-              </div>
-              <input type="range" min={BUDGET_MIN} max={BUDGET_MAX} step={1} value={budget} onChange={(e) => setBudget(Number(e.target.value))} aria-label="Daily budget"
-                className="ad-slider w-full mt-3" style={{ background: `linear-gradient(to right, rgb(var(--wa-green)) ${pct}%, rgb(var(--slider-track)) ${pct}%)` }} />
-              <div className={`flex justify-between text-xs mt-1 ${mutedText}`}><span>${BUDGET_MIN}</span><span>${BUDGET_MAX}</span></div>
-            </Card>
-
-            <Card title="Duration">
-              <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Duration">
+            <Card title="Campaign Reach & Duration" subtitle="Promotions on Pulse are free. Choose how long yours runs.">
+              <dl className="space-y-2 text-sm">
+                <div className="flex gap-3"><dt className={`w-24 flex-shrink-0 ${mutedText}`}>Shows in</dt><dd className={bodyText}>{chosen.map((p) => PLACEMENT_LABEL[p]).join(', ')}</dd></div>
+                <div className="flex gap-3"><dt className={`w-24 flex-shrink-0 ${mutedText}`}>Audience</dt><dd className={bodyText}>{audienceLabel}</dd></div>
+              </dl>
+              <div className="flex flex-wrap gap-2 mt-4" role="radiogroup" aria-label="Duration">
                 {DURATIONS.map((d) => <button key={d.days} type="button" role="radio" aria-checked={days === d.days} onClick={() => setDays(d.days)} className={pill(days === d.days)}>{d.label}</button>)}
               </div>
-              <p className={`text-sm mt-3 ${mutedText}`}>{total}</p>
-            </Card>
-
-            <Card title="Payment details">
-              <div className="flex items-center justify-between text-sm py-1">
-                <span className={mutedText}>Total budget</span>
-                <span className={`font-semibold ${bodyText}`}>{days ? `$${(budget * days).toLocaleString()}` : `$${budget} / day`}</span>
-              </div>
-              <button type="button" onClick={() => show('Payment methods are coming soon to Pulse')}
-                className="mt-3 w-full flex items-center gap-3 rounded-xl border border-wa-lightBorder dark:border-wa-darkBorder px-4 py-3 text-left hover:bg-wa-lightSecondary dark:hover:bg-white/5 transition-colors">
-                <CreditCard className="w-5 h-5 text-wa-green" />
-                <span className="text-sm font-semibold text-wa-green flex-1">Add a payment method</span>
-              </button>
-              <p className={`flex items-start gap-1.5 text-xs mt-3 ${mutedText}`}><Info className="w-3.5 h-3.5 mt-px flex-shrink-0" />Publishing ads isn't available on Pulse yet. You can set up and preview your ad here.</p>
+              <p className={`flex items-center gap-1.5 text-sm mt-3 ${mutedText}`}>
+                <CalendarDays className="w-4 h-4 flex-shrink-0" />{endsOn ? `Starts when you publish and ends ${endsOn}` : 'Starts when you publish and runs until you pause it'}
+              </p>
             </Card>
           </div>
 
@@ -277,21 +340,23 @@ export default function CreateAdView({ onBack }: { onBack: () => void }) {
                 <h2 className={`text-base font-semibold ${bodyText}`}>Ad preview</h2>
                 <button onClick={() => setSeeAll(true)} className="rounded-full px-3 py-1 text-sm font-semibold text-wa-green hover:bg-wa-green/10 transition-colors">See all</button>
               </div>
-              {chosen.length > 1 && (
+              {tabs.length > 1 && (
                 <div className="flex gap-1 mt-3 p-1 rounded-full bg-wa-lightSecondary dark:bg-wa-dark" role="tablist" aria-label="Preview placement">
-                  {chosen.map((p) => (
+                  {tabs.map((p) => (
                     <button key={p} role="tab" aria-selected={shownOn === p} onClick={() => setPreviewOn(p)}
                       className={`flex-1 rounded-full py-1.5 text-xs font-semibold transition-colors ${shownOn === p ? 'bg-wa-lightPanel dark:bg-wa-darkSecondary shadow-sm text-wa-green' : mutedText}`}>
-                      {p === 'facebook' ? 'Facebook' : 'Instagram'}
+                      {PLACEMENT_LABEL[p]}
                     </button>
                   ))}
                 </div>
               )}
               <div className="mt-3"><AdPreview placement={shownOn} name={name} avatar={avatar} text={text} media={media} /></div>
             </div>
-            <button type="button" disabled title="Add a payment method to publish"
-              className="mt-4 w-full rounded-full bg-wa-green py-3 text-sm font-semibold text-white disabled:opacity-40">
-              Publish ad
+            {error && <div className="mt-4"><ErrorNote message={error} /></div>}
+            <button type="button" onClick={() => void publish()} disabled={!canPublish} title={canPublish || publishing ? undefined : 'Add a description or media first'}
+              className="mt-4 w-full flex items-center justify-center gap-2 rounded-full bg-wa-green py-3 text-sm font-semibold text-white hover:bg-wa-greenDark disabled:opacity-40 transition-colors">
+              {publishing && <Loader2 className="w-4 h-4 animate-spin" />}
+              {publishing ? 'Publishing…' : 'Publish Campaign'}
             </button>
           </aside>
         </div>
@@ -300,12 +365,12 @@ export default function CreateAdView({ onBack }: { onBack: () => void }) {
       {seeAll && (
         <Modal title="All placements" onClose={() => setSeeAll(false)}>
           <div className="grid gap-5 sm:grid-cols-2">
-            {chosen.flatMap((p) => [false, true].map((story) => (
-              <figure key={`${p}-${story}`} className="min-w-0">
-                <figcaption className={`text-xs font-semibold mb-1.5 ${mutedText}`}>{p === 'facebook' ? 'Facebook' : 'Instagram'} {story ? 'Stories' : 'Feed'}</figcaption>
-                <AdPreview placement={p} name={name} avatar={avatar} text={text} media={media} story={story} />
+            {chosen.map((p) => (
+              <figure key={p} className="min-w-0">
+                <figcaption className={`text-xs font-semibold mb-1.5 ${mutedText}`}>{PLACEMENT_LABEL[p]}</figcaption>
+                <AdPreview placement={p} name={name} avatar={avatar} text={text} media={media} />
               </figure>
-            )))}
+            ))}
           </div>
         </Modal>
       )}

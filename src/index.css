@@ -109,18 +109,3 @@
   background-repeat: no-repeat;
 }
 .chat-wallpaper-tinted { background-blend-mode: multiply; }
-
-/* Range slider (Create new ad > Daily budget): a thin rounded track, filled in the accent colour up to the thumb
-   (the fill is an inline gradient), and a white thumb with a soft shadow, like WhatsApp Business. */
-:root { --slider-track: 233 237 239; }
-.dark { --slider-track: 59 74 84; }
-.ad-slider { -webkit-appearance: none; appearance: none; height: 6px; border-radius: 9999px; outline: none; cursor: pointer; }
-.ad-slider::-webkit-slider-thumb {
-  -webkit-appearance: none; appearance: none; width: 20px; height: 20px; border-radius: 9999px; background: #fff;
-  border: 2px solid rgb(var(--wa-green)); box-shadow: 0 1px 4px rgb(0 0 0 / 0.25); transition: transform 120ms;
-}
-.ad-slider::-moz-range-thumb {
-  width: 18px; height: 18px; border-radius: 9999px; background: #fff; border: 2px solid rgb(var(--wa-green)); box-shadow: 0 1px 4px rgb(0 0 0 / 0.25);
-}
-.ad-slider:active::-webkit-slider-thumb { transform: scale(1.15); }
-.ad-slider:focus-visible { box-shadow: 0 0 0 3px rgb(var(--wa-green) / 0.3); }

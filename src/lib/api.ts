@@ -10,7 +10,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type {
   Post, Comment, ReactionKind, ReactionCounts, ReactionType, NewPostInput, Profile, PublicProfile, Preferences,
   AppNotification, ReportTarget, ReportReason, ReportRow, VerificationRequest, ModerationLogRow, AccountStatus, AccountType,
-  ProfileStats, Status, NewStatusInput, ChatMessage, ConversationSummary, MessageRef, MessageMedia, ConversationPrefs, Channel, ChannelMessage, BusinessProfile, BusinessProfilePatch, VerificationRole, MessageReaction,
+  ProfileStats, Status, NewStatusInput, ChatMessage, ConversationSummary, MessageRef, MessageMedia, ConversationPrefs, Channel, ChannelMessage, BusinessProfile, BusinessProfilePatch, Promotion, NewPromotion, VerificationRole, MessageReaction,
 } from './types';
 
 export class ApiError extends Error {
@@ -298,6 +298,12 @@ export function createApi(c: SupabaseClient) {
       return unwrap(await c.from('business_profiles').insert({ user_id: userId, ...patch }).select('*').single()) as BusinessProfile;
     },
 
+    // ---------------------------------------------- promotions (migration 22)
+    /** Publish a free campaign; it is active straight away and the server works out when it ends. */
+    async createPromotion(input: NewPromotion) {
+      return unwrap(await c.from('promotions').insert(input).select('*').single()) as Promotion;
+    },
+
     // ----------------------------------------------------- notifications
     async listNotifications(limit = 50) {
       return unwrap(
@@ -473,18 +479,18 @@ export function createApi(c: SupabaseClient) {
       ) as ChannelMessage[];
       return rows.reverse();
     },
-    /** The channel's team only (RLS). Text, a photo / video, or both. */
-    async postChannelMessage(channelId: string, input: { body?: string | null; media?: MessageMedia | null }) {
-      const row: Record<string, unknown> = { channel_id: channelId, body: input.body?.trim() || null };
-      if (input.media) { row.media_url = input.media.media_url; row.media_type = input.media.media_type; }
-      return unwrap(await c.from('channel_messages').insert(row).select().single()) as ChannelMessage;
-    },
     /** What you posted to these channels, newest first (Business broadcast > Past broadcasts). */
     async myChannelPosts(userId: string, channelIds: string[], limit = 30) {
       if (channelIds.length === 0) return [] as ChannelMessage[];
       return unwrap(
         await c.from('channel_messages').select('*').in('channel_id', channelIds).eq('author_id', userId).order('created_at', { ascending: false }).limit(limit)
       ) as ChannelMessage[];
+    },
+    /** The channel's team only (RLS). Text, a photo / video, or both. */
+    async postChannelMessage(channelId: string, input: { body?: string | null; media?: MessageMedia | null }) {
+      const row: Record<string, unknown> = { channel_id: channelId, body: input.body?.trim() || null };
+      if (input.media) { row.media_url = input.media.media_url; row.media_type = input.media.media_type; }
+      return unwrap(await c.from('channel_messages').insert(row).select().single()) as ChannelMessage;
     },
     async deleteChannelMessage(id: string) {
       const rows = unwrap(await c.from('channel_messages').delete().eq('id', id).select('id')) as unknown[];

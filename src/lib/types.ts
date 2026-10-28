@@ -110,6 +110,27 @@ export type BusinessProfile = {
 };
 export type BusinessProfilePatch = Omit<BusinessProfile, 'user_id' | 'updated_at'>;
 
+export type PromotionPlacement = 'feed' | 'status' | 'directory';
+export type PromotionAudience = { suggested: true } | { suggested: false; locations: string; ageMin: number; ageMax: number; gender: 'All' | 'Men' | 'Women' };
+/** A free, native campaign (promotions, migration 22). The server sets starts_at / ends_at from duration_days. */
+export type Promotion = {
+  id: string;
+  user_id: string;
+  description: string | null;
+  media_url: string | null;
+  media_type: 'image' | 'video' | null;
+  placements: PromotionPlacement[];
+  audience: PromotionAudience;
+  special_categories: string[];
+  /** 1, 3 or 7; null = continuous */
+  duration_days: number | null;
+  status: 'active' | 'paused';
+  starts_at: string;
+  ends_at: string | null;
+  created_at: string;
+};
+export type NewPromotion = Pick<Promotion, 'description' | 'media_url' | 'media_type' | 'placements' | 'audience' | 'special_categories' | 'duration_days'>;
+
 /** Public subset shown next to posts/comments. */
 export type PublicProfile = Pick<Profile, 'id' | 'display_name' | 'avatar_url' | 'account_type' | 'is_verified' | 'status'>;
 
