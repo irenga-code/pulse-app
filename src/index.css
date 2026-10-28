@@ -95,30 +95,17 @@
 .dark .bubble-out { background-color: var(--bubble-bg-dark); color: #e9edef; --bubble-quote: var(--bubble-quote-dark); }
 .bubble-quote { background-color: var(--bubble-quote); border: 1px solid rgb(var(--wa-green) / 0.25); }
 
-/* Chat wallpaper: the cream doodle scene (assets/wallpaper_whatsapp_bolder.png, 1024x585, not a tile) on its own
-   layer behind the message list (ChatThread), so the filters below never touch the messages.
-   The picture is very faint (cream #f5f1eb, lines only down to ~#e9e0d4), so the filter boldens it: brightness(0.625)
-   then contrast(4.8) is a 3x stretch that holds the cream in place (contrast alone pivots on mid-grey and would wash
-   everything out to white), turning the lines into a clear tan (~#cfbca4); saturate() keeps the cream from going orange.
-   Light: the picture is multiplied onto the canvas colour, so the default near-white canvas leaves it as drawn.
-   Dark: the same bold picture is inverted, like WhatsApp's dark wallpaper: the cream becomes ~#0c1118 and the lines a
-   soft slate (~#374251). Its canvas is cream so it also inverts to dark before the picture has loaded.
-   A chat theme picked in Contact info (a Tailwind bg-* class, plus .chat-wallpaper-tinted) skips the filter, which
-   would garble the theme colour: the picture is multiplied (light) or soft-lit (dark) onto that colour instead.
-   :where() keeps the canvas colour at zero specificity so the theme class wins. */
-:where(.chat-wallpaper) { background-color: #fffaf3; }
-:where(.dark .chat-wallpaper) { background-color: #0b141a; }
+/* Chat wallpaper: our own picture, src/assets/wallpaper_whatsapp_bolder.png (1024x585, not a tile), shown exactly as the
+   file in light and dark mode: no filters, no invert, no blending. It sits on its own layer behind the message list
+   (ChatThread), covers it, stays centred and stays put while messages scroll. The canvas behind it is the picture's
+   own cream, so nothing flashes while it loads.
+   A chat theme picked in Contact info (a Tailwind bg-* class, plus .chat-wallpaper-tinted) is the one exception: the
+   picture is multiplied onto that colour so the theme still shows. :where() lets the theme class win. */
+:where(.chat-wallpaper) { background-color: #f5f1eb; }
 .chat-wallpaper {
   background-image: url('./assets/wallpaper_whatsapp_bolder.png');
   background-position: center;
   background-size: cover;
   background-repeat: no-repeat;
-  background-blend-mode: multiply;
 }
-.chat-wallpaper:not(.chat-wallpaper-tinted) { filter: brightness(0.625) contrast(4.8) saturate(0.7); }
-.dark .chat-wallpaper:not(.chat-wallpaper-tinted) {
-  background-color: #f5f1eb;
-  background-blend-mode: normal;
-  filter: brightness(0.625) contrast(4.8) saturate(0.4) invert(1);
-}
-.dark .chat-wallpaper-tinted { background-blend-mode: soft-light; }
+.chat-wallpaper-tinted { background-blend-mode: multiply; }

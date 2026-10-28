@@ -562,7 +562,7 @@ export default function ChatThread({ otherUserId, initialRef, onBack, onClose, e
         </div>
       )}
       <div className="relative flex-1 min-h-0 flex flex-col">
-      {/* the wallpaper is its own empty layer so its filter (index.css) never touches the messages */}
+      {/* the wallpaper (index.css .chat-wallpaper) is its own empty layer behind the scrolling messages */}
       {!secret && <div aria-hidden className={`absolute inset-0 pointer-events-none chat-wallpaper ${themeClass && `chat-wallpaper-tinted ${themeClass}`}`} />}
       {stickyDay && visible.length > 0 && (
         <div aria-hidden={!stickyShown} data-testid="sticky-day"
