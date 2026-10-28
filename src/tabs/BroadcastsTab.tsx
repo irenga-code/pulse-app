@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { Megaphone, Send, Loader2, Camera, Plus, Check, MessageSquareDot } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Megaphone, Send, Loader2, Camera, Plus, MessageSquareDot, ImagePlus, X, Users, Clock } from 'lucide-react';
 import SectionHeader from '@/components/nav/SectionHeader';
 import { ErrorNote, Field, inputClass, primaryBtn, ghostBtn, mutedText, bodyText } from '@/components/ui';
 import { api } from '@/lib/apiClient';
@@ -8,8 +8,15 @@ import { useChannels } from '@/hooks/useChannels';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/context/ToastContext';
 import { useQuickSnap } from '@/camera/QuickSnapContext';
+import { useAsync } from '@/hooks/useAsync';
+import { EmojiText } from '@/components/emoji/EmojiImg';
+import { formatDateTime, timeAgo } from '@/lib/time';
+import { userKey } from '@/lib/cache';
+import type { Channel } from '@/lib/types';
 
 const MAX = 2000;
+const MEDIA_MAX = 25 * 1024 * 1024;
+const MEDIA_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'video/mp4', 'video/webm', 'video/quicktime'];
 const card = 'bg-wa-lightPanel dark:bg-wa-darkSecondary rounded-2xl border border-wa-lightBorder dark:border-wa-darkBorder p-4';
 
 /** A channel for a business you run that has none yet (the database ties every channel to its owner). */
@@ -47,7 +54,10 @@ function CreateChannel({ ownerId, onCreated }: { ownerId: string; onCreated: () 
   );
 }
 
-/** Business broadcast: write once and post to one or more of the channels you run; Quick-Snap a photo / video too. */
+/**
+ * Business broadcast: pick an audience (all your channel followers or one channel), write once with an optional photo /
+ * video, and send; your recent broadcasts are listed underneath. A business without a channel is offered one.
+ */
 export default function BroadcastsTab() {
   const { user } = useAuth();
   const { show } = useToast();
@@ -56,34 +66,71 @@ export default function BroadcastsTab() {
   // ch.managed = the businesses you run; each can have one channel
   const channelOf = useMemo(() => new Map(ch.channels.map((c) => [c.venue_id, c])), [ch.channels]);
   const withoutChannel = ch.managed.filter((id) => !channelOf.has(id));
-  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const ready = useMemo(() => ch.managed.map((id) => channelOf.get(id)).filter((c): c is Channel => !!c), [ch.managed, channelOf]);
+  const readyIds = ready.map((c) => c.id).join();
+  const past = useAsync(() => (user ? api.myChannelPosts(user.id, ready.map((c) => c.id)) : Promise.resolve([])), [readyIds], user ? userKey(user.id, 'broadcasts') : null);
+  const byId = useMemo(() => new Map(ready.map((c) => [c.id, c])), [ready]);
+
+  const [audience, setAudience] = useState<'all' | string>('all');
   const [creating, setCreating] = useState<string | null>(null);
   const [text, setText] = useState('');
+  const [media, setMedia] = useState<{ file: File; url: string; video: boolean } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  useEffect(() => () => { if (media) URL.revokeObjectURL(media.url); }, [media]);
 
-  const ready = ch.managed.map((id) => channelOf.get(id)).filter((c): c is NonNullable<typeof c> => !!c);
-  // nothing ticked = every channel you run
-  const targets = picked.size > 0 ? ready.filter((c) => picked.has(c.id)) : ready;
+  const targets = audience === 'all' ? ready : ready.filter((c) => c.id === audience);
+  const reach = targets.reduce((n, c) => n + c.follower_count, 0);
 
-  const blast = async (e: React.FormEvent) => {
+  const pickMedia = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    e.target.value = '';
+    if (!f) return;
+    if (!MEDIA_TYPES.includes(f.type)) return setError('Choose a JPG, PNG or WebP photo, or an MP4 / WebM / MOV video.');
+    if (f.size > MEDIA_MAX) return setError('That file is too large (max 25 MB).');
+    setError(null);
+    setMedia({ file: f, url: URL.createObjectURL(f), video: f.type.startsWith('video/') });
+  };
+
+  const send = async (e: React.FormEvent) => {
     e.preventDefault();
     const body = text.trim();
-    if (!body || targets.length === 0) return;
+    if ((!body && !media) || targets.length === 0 || !user) return;
     setBusy(true);
     setError(null);
     const failed: string[] = [];
-    for (const c of targets) {
-      try { await api.postChannelMessage(c.id, { body }); } catch (err) { failed.push(`${c.name}: ${friendlyError(err)}`); }
+    try {
+      // upload once, then post the same file to every channel
+      const ext = media ? (media.file.type.split('/')[1] === 'quicktime' ? 'mov' : media.file.type.split('/')[1] === 'jpeg' ? 'jpg' : media.file.type.split('/')[1]) : '';
+      const url = media ? await api.uploadPostMedia(user.id, media.file, ext) : null;
+      const m = url && media ? { media_url: url, media_type: media.video ? 'video' as const : 'image' as const } : null;
+      for (const c of targets) {
+        try { await api.postChannelMessage(c.id, { body, media: m }); } catch (err) { failed.push(`${c.name}: ${friendlyError(err)}`); }
+      }
+    } catch (err) {
+      setError(friendlyError(err));
+      setBusy(false);
+      return;
     }
     setBusy(false);
     if (failed.length) setError(failed.join(' · '));
     if (failed.length < targets.length) {
-      show(`Broadcast sent to ${targets.length - failed.length} channel${targets.length - failed.length === 1 ? '' : 's'}`);
+      const sent = targets.length - failed.length;
+      show(`Broadcast sent to ${sent} channel${sent === 1 ? '' : 's'}`);
       setText('');
+      setMedia(null);
       void ch.reload();
+      void past.reload();
     }
   };
+
+  const createButton = (
+    <button type="button" onClick={() => setCreating(withoutChannel[0])} disabled={withoutChannel.length === 0}
+      className={`${primaryBtn} w-full`}>
+      <Plus className="w-4 h-4" />Create Business Channel
+    </button>
+  );
 
   if (!user) {
     return <div className="flex flex-col h-full"><SectionHeader title="Business broadcast" camera={false} /><p className={`px-4 text-sm ${mutedText}`}>Sign in to broadcast to your channels.</p></div>;
@@ -95,74 +142,96 @@ export default function BroadcastsTab() {
       <div className="px-4 md:px-6 space-y-4 max-w-2xl">
         {ch.loading ? (
           <p className={`text-sm ${mutedText}`}>Loading your channels…</p>
-        ) : ch.managed.length === 0 ? (
-          <div className={`${card} text-center py-10`}>
+        ) : ready.length === 0 ? (
+          <div className={`${card} text-center py-8`}>
             <Megaphone className="w-12 h-12 text-wa-quiet mx-auto mb-3" />
-            <p className={`text-sm font-medium ${bodyText}`}>Broadcasts are for business channels</p>
-            <p className={`text-xs mt-1 ${mutedText}`}>Once your account runs a business channel, you can send its followers one update from here.</p>
+            <p className={`text-sm font-medium ${bodyText}`}>You don't have a business channel yet</p>
+            <p className={`text-xs mt-1 mb-4 ${mutedText}`}>
+              {withoutChannel.length > 0
+                ? 'Create a channel for your business, then send updates to everyone who follows it.'
+                : 'Channels belong to a business. Once your account is linked to one, you can create its channel here.'}
+            </p>
+            {creating ? <div className="text-left"><CreateChannel ownerId={creating} onCreated={() => { setCreating(null); void ch.reload(); }} /></div> : createButton}
           </div>
         ) : (
           <>
-            {ready.length > 0 && (
-              <form onSubmit={blast} className={`${card} space-y-3`}>
-                <p className={`text-sm font-semibold ${bodyText}`}>New broadcast</p>
-                <textarea value={text} onChange={(e) => setText(e.target.value.slice(0, MAX))} rows={3} placeholder="Share an update with your followers…"
-                  aria-label="Broadcast message" className={`${inputClass} resize-none`} />
-                <div className="flex flex-wrap gap-2" role="group" aria-label="Send to channels">
-                  {ready.map((c) => {
-                    const on = picked.size === 0 || picked.has(c.id);
-                    return (
-                      <button key={c.id} type="button" aria-pressed={on}
-                        onClick={() => setPicked((s) => {
-                          const base = s.size === 0 ? new Set(ready.map((r) => r.id)) : new Set(s);
-                          if (base.has(c.id)) base.delete(c.id); else base.add(c.id);
-                          return base.size === ready.length ? new Set() : base;
-                        })}
-                        className={`flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-semibold border ${on ? 'bg-wa-green/15 text-wa-green border-wa-green/40' : `border-wa-lightBorder dark:border-wa-darkBorder ${mutedText}`}`}>
-                        {on && <Check className="w-3.5 h-3.5" />}{c.name} · {c.follower_count}
-                      </button>
-                    );
-                  })}
+            <form onSubmit={send} className={`${card} space-y-3`}>
+              <label className="block">
+                <span className={`flex items-center gap-1.5 text-xs font-semibold mb-1.5 ${mutedText}`}><Users className="w-3.5 h-3.5" />Send to</span>
+                <select value={audience} onChange={(e) => setAudience(e.target.value)} aria-label="Audience" className={`${inputClass} cursor-pointer`}>
+                  <option value="all">All channel followers ({ready.reduce((n, c) => n + c.follower_count, 0)})</option>
+                  {ready.map((c) => <option key={c.id} value={c.id}>{c.name} · {c.follower_count} follower{c.follower_count === 1 ? '' : 's'}</option>)}
+                </select>
+              </label>
+
+              <textarea value={text} onChange={(e) => setText(e.target.value.slice(0, MAX))} rows={4} placeholder="Share an update with your followers…"
+                aria-label="Broadcast message" className={`${inputClass} resize-none`} />
+              {media && (
+                <div className="relative w-32 aspect-square rounded-xl overflow-hidden border border-wa-lightBorder dark:border-wa-darkBorder">
+                  {media.video ? <video src={media.url} muted className="w-full h-full object-cover" /> : <img src={media.url} alt="Attached" className="w-full h-full object-cover" />}
+                  <button type="button" onClick={() => setMedia(null)} aria-label="Remove attachment" className="absolute top-1 right-1 p-1 rounded-full bg-black/60 text-white"><X className="w-4 h-4" /></button>
                 </div>
-                {error && <ErrorNote message={error} />}
-                <div className="flex items-center gap-2">
-                  <button type="submit" disabled={busy || !text.trim() || targets.length === 0} className={primaryBtn}>
-                    {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                    Send to {targets.length} channel{targets.length === 1 ? '' : 's'}
-                  </button>
-                  <button type="button" disabled={targets.length !== 1} title={targets.length === 1 ? undefined : 'Pick one channel for a snap'}
-                    onClick={() => targets[0] && openQuickSnap({ destination: { kind: 'channel', channelId: targets[0].id, label: targets[0].name }, onSent: () => { void ch.reload(); } })}
-                    className={`${ghostBtn} disabled:opacity-40`}>
-                    <Camera className="w-4 h-4" />Snap
-                  </button>
-                </div>
-              </form>
+              )}
+              <input ref={fileRef} type="file" accept={MEDIA_TYPES.join(',')} onChange={pickMedia} className="hidden" aria-label="Photo or video file" />
+              <div className="flex items-center gap-2">
+                <button type="button" onClick={() => fileRef.current?.click()} className={`${ghostBtn} !px-3`} aria-label="Attach photo or video"><ImagePlus className="w-4 h-4" />Photo / video</button>
+                <button type="button" disabled={targets.length !== 1} title={targets.length === 1 ? 'Open the camera' : 'Pick one channel for a snap'}
+                  onClick={() => targets[0] && openQuickSnap({ destination: { kind: 'channel', channelId: targets[0].id, label: targets[0].name }, onSent: () => { void ch.reload(); void past.reload(); } })}
+                  className={`${ghostBtn} !px-3 disabled:opacity-40`} aria-label="Quick-Snap"><Camera className="w-4 h-4" /></button>
+                <span className={`ml-auto text-[11px] ${mutedText}`}>{text.length}/{MAX}</span>
+              </div>
+              {error && <ErrorNote message={error} />}
+              <button type="submit" disabled={busy || (!text.trim() && !media)} className={`${primaryBtn} w-full !py-3 text-base`}>
+                {busy ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
+                Send Broadcast
+              </button>
+              <p className={`text-[11px] text-center ${mutedText}`}>
+                Goes to {targets.length} channel{targets.length === 1 ? '' : 's'} · {reach} follower{reach === 1 ? '' : 's'}
+              </p>
+            </form>
+
+            {withoutChannel.length > 0 && (
+              <div className={card}>
+                <p className={`text-sm mb-3 ${mutedText}`}>{withoutChannel.length === 1 ? 'A business you run has no channel yet.' : `${withoutChannel.length} businesses you run have no channel yet.`}</p>
+                {creating ? <CreateChannel ownerId={creating} onCreated={() => { setCreating(null); void ch.reload(); }} /> : createButton}
+              </div>
             )}
 
-            <div className="space-y-2">
-              <p className={`text-xs font-semibold uppercase tracking-wide ${mutedText}`}>Your channels</p>
-              {ready.map((c) => (
-                <div key={c.id} className={`${card} flex items-center gap-3`}>
-                  <MessageSquareDot className="w-11 h-11 p-2 text-wa-green flex-shrink-0" />
-                  <span className="min-w-0 flex-1">
-                    <span className={`block text-sm font-semibold truncate ${bodyText}`}>{c.name}</span>
-                    <span className={`block text-xs ${mutedText}`}>{c.follower_count} follower{c.follower_count === 1 ? '' : 's'}</span>
-                  </span>
-                </div>
-              ))}
-              {withoutChannel.map((id) => (
-                <div key={id} className={card}>
-                  <div className="flex items-center gap-3">
-                    <MessageSquareDot className={`w-11 h-11 p-2 flex-shrink-0 ${mutedText}`} />
-                    <span className={`flex-1 text-sm ${mutedText}`}>A business you run has no channel yet</span>
-                    {creating !== id && (
-                      <button onClick={() => setCreating(id)} className={`${ghostBtn} !px-3 !py-1.5 text-xs`}><Plus className="w-3.5 h-3.5" />Create channel</button>
-                    )}
-                  </div>
-                  {creating === id && <CreateChannel ownerId={id} onCreated={() => { setCreating(null); void ch.reload(); }} />}
-                </div>
-              ))}
-            </div>
+            <section aria-label="Past broadcasts" className="space-y-2">
+              <h2 className={`text-xs font-semibold uppercase tracking-wide pt-2 ${mutedText}`}>Past broadcasts</h2>
+              {past.loading && !past.data ? (
+                <p className={`text-sm ${mutedText}`}>Loading…</p>
+              ) : (past.data ?? []).length === 0 ? (
+                <p className={`text-sm ${mutedText}`}>Nothing sent yet. Your broadcasts will show up here.</p>
+              ) : (
+                (past.data ?? []).map((m) => {
+                  const c = byId.get(m.channel_id);
+                  const n = c?.follower_count ?? 0;
+                  return (
+                    <article key={m.id} className={`${card} flex gap-3`}>
+                      {m.media_url && (
+                        <div className="w-16 h-16 rounded-lg overflow-hidden flex-shrink-0 bg-black">
+                          {m.media_type === 'video' ? <video src={m.media_url} muted preload="metadata" className="w-full h-full object-cover" /> : <img src={m.media_url} alt="" loading="lazy" className="w-full h-full object-cover" />}
+                        </div>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <MessageSquareDot className="w-4 h-4 text-wa-green flex-shrink-0" />
+                          <span className={`text-sm font-semibold truncate ${bodyText}`}>{c?.name ?? 'Channel'}</span>
+                          <time dateTime={m.created_at} title={formatDateTime(m.created_at)} className={`ml-auto flex items-center gap-1 text-[11px] flex-shrink-0 ${mutedText}`}>
+                            <Clock className="w-3 h-3" />{timeAgo(m.created_at)}
+                          </time>
+                        </div>
+                        <p className={`text-sm mt-1 line-clamp-2 break-words ${bodyText}`}>{m.body ? <EmojiText text={m.body} /> : m.media_type === 'video' ? 'Video' : 'Photo'}</p>
+                        <p className={`flex items-center gap-1 text-xs mt-1.5 ${mutedText}`}>
+                          <Users className="w-3.5 h-3.5" />Sent to {n} follower{n === 1 ? '' : 's'}
+                        </p>
+                      </div>
+                    </article>
+                  );
+                })
+              )}
+            </section>
           </>
         )}
       </div>

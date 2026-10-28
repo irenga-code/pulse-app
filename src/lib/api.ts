@@ -479,6 +479,13 @@ export function createApi(c: SupabaseClient) {
       if (input.media) { row.media_url = input.media.media_url; row.media_type = input.media.media_type; }
       return unwrap(await c.from('channel_messages').insert(row).select().single()) as ChannelMessage;
     },
+    /** What you posted to these channels, newest first (Business broadcast > Past broadcasts). */
+    async myChannelPosts(userId: string, channelIds: string[], limit = 30) {
+      if (channelIds.length === 0) return [] as ChannelMessage[];
+      return unwrap(
+        await c.from('channel_messages').select('*').in('channel_id', channelIds).eq('author_id', userId).order('created_at', { ascending: false }).limit(limit)
+      ) as ChannelMessage[];
+    },
     async deleteChannelMessage(id: string) {
       const rows = unwrap(await c.from('channel_messages').delete().eq('id', id).select('id')) as unknown[];
       if (rows.length === 0) throw new ApiError('You can not delete this post.', '42501');
