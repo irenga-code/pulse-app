@@ -8,6 +8,29 @@
     <meta property="og:image" content="https://bolt.new/static/og_default.png" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:image" content="https://bolt.new/static/og_default.png" />
+    <!-- Resolve the theme before first paint so the page never flashes light, then fades to dark.
+         Mirrors ThemeProvider's initial state (src/context/ThemeContext.tsx); keep the two in sync. -->
+    <script>
+      (function () {
+        var d = document.documentElement, mode = null, accent = null;
+        try {
+          mode = localStorage.getItem('pulse_theme_mode') || localStorage.getItem('pulse-theme');
+          accent = localStorage.getItem('pulse_accent_color');
+        } catch (e) { /* storage unavailable */ }
+        if (mode !== 'light' && mode !== 'dark' && mode !== 'system') mode = 'dark';
+        var dark = mode === 'system'
+          ? !window.matchMedia || window.matchMedia('(prefers-color-scheme: dark)').matches
+          : mode === 'dark';
+        d.classList.toggle('dark', dark);
+        d.style.colorScheme = dark ? 'dark' : 'light';
+        d.dataset.accent = /^(emerald|blue|navy|violet|amber|yellow|orange|hotpink|softpink)$/.test(accent || '') ? accent : 'emerald';
+      })();
+    </script>
+    <!-- Page background before the stylesheet arrives (Vite injects CSS from JS in dev); matches wa.light / wa.dark -->
+    <style>
+      html { background: #f8fafc; }
+      html.dark { background: #0b141a; }
+    </style>
   </head>
   <body>
     <div id="root"></div>

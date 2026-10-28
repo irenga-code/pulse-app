@@ -1,4 +1,4 @@
-import { useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useContext, useEffect, useLayoutEffect, useState, type ReactNode } from 'react';
 import { stableContext } from '@/lib/stableContext';
 
 type Theme = 'light' | 'dark';
@@ -59,13 +59,16 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   const theme: Theme = preference === 'system' ? (systemDark ? 'dark' : 'light') : preference;
 
-  useEffect(() => {
+  // Layout effects so a theme change lands before the browser paints. The inline script in index.html
+  // already applied the stored theme before React loaded, so on mount these are no-ops, not a flash.
+  useLayoutEffect(() => {
     document.documentElement.classList.toggle('dark', theme === 'dark');
+    document.documentElement.style.colorScheme = theme;
     write(MODE_KEY, preference);
   }, [theme, preference]);
 
   const activeAccent = accent === 'auto' ? 'emerald' : accent;
-  useEffect(() => {
+  useLayoutEffect(() => {
     // the accent colour variables in index.css switch on this attribute
     document.documentElement.dataset.accent = activeAccent;
     write(ACCENT_KEY, accent);
