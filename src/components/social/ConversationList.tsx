@@ -12,6 +12,7 @@ import { friendlyError } from '@/lib/api';
 import { chatListTime } from '@/lib/time';
 import { NO_LISTS, clearChat, deleteChat, getChatPrefs, isMutedIn, muteChat, subscribeChatPrefs, unmuteChat } from '@/lib/chatPrefs';
 import { contactLabel, useContacts } from '@/lib/contacts';
+import { useChatActivities } from '@/lib/chatActivity';
 import { useAsync } from '@/hooks/useAsync';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/context/ToastContext';
@@ -123,6 +124,7 @@ export default function ConversationList({ onOpen, query = '', selectedId = null
   const rows = data.data?.rows ?? [];
   const shown = filterConversations(rows, prefs, filter, query, names, device.deletedAt);
   const count = (f: ChatFilter) => filterConversations(rows, prefs, f, '', {}, device.deletedAt).length;
+  const live = useChatActivities(shown.map((c) => c.conversation_id), user?.id ?? null);
   // chat context menu (⌄ / right-click / long-press) and the confirmations it opens
   const [menuFor, setMenuFor] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<{ kind: 'block' | 'clear' | 'delete'; c: ConversationSummary; name: string } | null>(null);
@@ -265,8 +267,14 @@ export default function ConversationList({ onOpen, query = '', selectedId = null
                       </span>
                       <span className={`flex items-center gap-2 text-xs mt-0.5 ${unread ? `font-medium ${bodyText}` : mutedText}`}>
                         {mineLast && <CheckCheck className="w-4 h-4 flex-shrink-0 text-wa-lightTextSecondary dark:text-wa-darkTextSecondary" aria-label="Sent" />}
-                        <span className="truncate flex-1">
-                          {c.last_vanish && c.last_kind === 'text' && '👻 '}<EmojiText text={mineLast ? (c.last_body ?? '') : preview(c)} />
+                        {/* "typing…" / "recording audio…" fades in over the last message, like WhatsApp */}
+                        <span className="grid flex-1 min-w-0">
+                          <span className={`[grid-area:1/1] truncate transition-opacity duration-300 ${live[c.conversation_id] ? 'opacity-0' : 'opacity-100'}`} aria-hidden={!!live[c.conversation_id]}>
+                            {c.last_vanish && c.last_kind === 'text' && '👻 '}<EmojiText text={mineLast ? (c.last_body ?? '') : preview(c)} />
+                          </span>
+                          <span className={`[grid-area:1/1] truncate transition-opacity duration-300 text-wa-green font-medium ${live[c.conversation_id] ? 'opacity-100' : 'opacity-0'}`} aria-hidden={!live[c.conversation_id]}>
+                            {live[c.conversation_id] === 'recording' ? 'recording audio…' : 'typing…'}
+                          </span>
                         </span>
                         {muted && <BellOff className={`w-3.5 h-3.5 flex-shrink-0 ${mutedText}`} aria-label="Muted" />}
                         {pref?.is_pinned && <Pin className={`w-3.5 h-3.5 flex-shrink-0 ${mutedText}`} aria-label="Pinned" />}

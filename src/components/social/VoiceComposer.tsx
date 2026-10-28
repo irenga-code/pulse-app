@@ -149,5 +149,7 @@ export function useVoiceComposer({ disabled, secret, onSend }: {
     </div>
   ) : null;
 
-  return { active, bar, micProps, micIcon, micClass };
+  // recording right now (not while the finished note uploads): drives the live "recording audio…" status
+  const recording = recorder.state !== 'idle';
+  return { active, recording, bar, micProps, micIcon, micClass };
 }

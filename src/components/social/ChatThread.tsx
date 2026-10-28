@@ -26,6 +26,7 @@ import type { ChatMessage, MessageRef, PublicProfile } from '@/lib/types';
 import { ChatSkeleton } from '@/components/Skeleton';
 import { CHAT_THEMES, NO_CALLS, NO_LISTS, clearChat, deleteChat, getChatPrefs, isMutedIn, muteChat, setChatTheme, subscribeChatPrefs, unmuteChat } from '@/lib/chatPrefs';
 import { exportChat } from '@/lib/exportChat';
+import { useChatActivity, useChatActivitySender } from '@/lib/chatActivity';
 import { appendToContactNote, contactLabel, useContacts } from '@/lib/contacts';
 
 let channelCounter = 0;
@@ -323,6 +324,7 @@ export default function ChatThread({ otherUserId, initialRef, onBack, onClose, e
     if (!id || !me) return;
     const url = await withTimeout(api.uploadVoiceNote(id, me, rec.blob, rec.ext), 60_000, 'Uploading the voice message is taking too long. Check your connection and try again.');
     const m = await withTimeout(api.sendMessage(id, VOICE_BODY, null, {
+      activity.stopped();
       media_url: url, media_type: 'audio', media_duration_ms: rec.durationMs, media_waveform: rec.waveform,
     }), SEND_TIMEOUT_MS, SEND_TIMEOUT_TEXT);
     setMessages((list) => (list.some((x) => x.id === m.id) ? list : [...list, m].sort(byTime)));
@@ -345,6 +347,9 @@ export default function ChatThread({ otherUserId, initialRef, onBack, onClose, e
     document.getElementById(`msg-${id}`)?.scrollIntoView?.({ block: 'center', behavior: 'smooth' });
     setFlash(id);
     window.setTimeout(() => setFlash((f) => (f === id ? null : f)), 1600);
+  // live "typing…" / "recording audio…": ours goes out, theirs shows under the name
+  const activity = useChatActivitySender(convId, me || null, voice.recording, !blocked);
+  const theirActivity = useChatActivity(convId, me || null);
   }, []);
 
   const togglePin = async (m: ChatMessage) => {
@@ -489,7 +494,15 @@ export default function ChatThread({ otherUserId, initialRef, onBack, onClose, e
           <Avatar name={contacts[otherUserId]?.name ?? other?.display_name ?? '?'} url={other?.avatar_url} size={36} />
           <span className="min-w-0">
             <span className="block text-[15px] font-medium truncate">{label.title}</span>
-            <span className={`block text-[11px] ${sub}`}>{secret ? 'Secret mode: messages vanish after being read' : label.subtitle ?? (onInfo ? 'Click here for contact info' : 'Private chat')}</span>
+            {/* the live status fades in over the usual subtitle and back out, like WhatsApp */}
+            <span className="grid text-[11px]" aria-live="polite">
+              <span className={`[grid-area:1/1] truncate transition-opacity duration-300 ${sub} ${theirActivity ? 'opacity-0' : 'opacity-100'}`} aria-hidden={!!theirActivity}>
+                {secret ? 'Secret mode: messages vanish after being read' : label.subtitle ?? (onInfo ? 'Click here for contact info' : 'Private chat')}
+              </span>
+              <span className={`[grid-area:1/1] truncate transition-opacity duration-300 text-wa-green ${theirActivity ? 'opacity-100' : 'opacity-0'}`} aria-hidden={!theirActivity}>
+                {theirActivity === 'recording' ? 'recording audio…' : 'typing…'}
+              </span>
+            </span>
           </span>
         </button>
         <button onClick={noCalls} aria-label="Video call" title="Video call" className="p-2 rounded-full hover:bg-black/10 dark:hover:bg-white/10"><Video className="w-5 h-5" /></button>
@@ -627,7 +640,11 @@ export default function ChatThread({ otherUserId, initialRef, onBack, onClose, e
               <input
                 ref={inputRef}
                 value={text}
-                onChange={(e) => setText(e.target.value.slice(0, MAX))}
+                onChange={(e) => {
+                  const v = e.target.value.slice(0, MAX);
+                  setText(v);
+                  if (v.trim()) activity.typed(); else activity.stopped();
+                }}
                 placeholder={secret ? 'Secret message…' : 'Message'}
                 aria-label="Write a message"
                 disabled={!convId}
