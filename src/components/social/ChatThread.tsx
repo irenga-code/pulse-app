@@ -569,7 +569,7 @@ export default function ChatThread({ otherUserId, initialRef, onBack, onClose, e
         </div>
       )}
       <div ref={listRef} onScroll={onListScroll}
-        className={`flex-1 overflow-y-auto px-3 py-3 space-y-1.5 ${secret ? '' : `chat-wallpaper ${themeClass}`}`} aria-live="polite" data-testid="chat-messages">
+        className={`flex-1 overflow-y-auto px-3 py-3 space-y-1.5 ${secret ? '' : `chat-wallpaper ${themeClass && `chat-wallpaper-tinted ${themeClass}`}`}`} aria-live="polite" data-testid="chat-messages">
         {!loading && !error && hasOlder && (
           <div className="flex justify-center pb-1">
             <button type="button" onClick={() => void loadOlder()} disabled={loadingOlder} className={`${PILL} flex items-center gap-1.5 hover:bg-white dark:hover:bg-zinc-800 disabled:opacity-70`}>
