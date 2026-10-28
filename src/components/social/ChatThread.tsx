@@ -28,14 +28,15 @@ import { CHAT_THEMES, NO_CALLS, NO_LISTS, clearChat, deleteChat, getChatPrefs, i
 import { exportChat } from '@/lib/exportChat';
 import { useChatActivity, useChatActivitySender } from '@/lib/chatActivity';
 import { appendToContactNote, contactLabel, useContacts } from '@/lib/contacts';
+import { FIRST_PAGE, chatKey, loadChat, seedChat } from '@/lib/chatCache';
+import { writeCache } from '@/lib/cache';
 
 let channelCounter = 0;
 const MAX = 2000;
 const VOICE_BODY = '🎤 Voice message';
 /** The send button never spins longer than this; the request may still land (Realtime then shows it). */
 const SEND_TIMEOUT_MS = 15_000;
-/** First screen of history, then older pages of this size. */
-const FIRST_PAGE = 100;
+/** Older history comes in pages of this size (the first screen is FIRST_PAGE). */
 const OLDER_PAGE = 50;
 /** WhatsApp's floating date / info pill. */
 const PILL = 'bg-white/90 dark:bg-zinc-800/90 shadow-sm rounded-full px-3 py-1 text-xs text-gray-600 dark:text-zinc-300';
@@ -45,6 +46,15 @@ const isLive = (m: ChatMessage, now: number) => !m.expires_at || new Date(m.expi
 const byTime = (a: ChatMessage, b: ChatMessage) => a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id);
 /** Countdown starts when the other person has read the message (unread ones only carry the 24 h fallback). */
 const secondsLeft = (m: ChatMessage, now: number) => (m.expires_at && m.read_at ? Math.max(0, Math.ceil((new Date(m.expires_at).getTime() - now) / 1000)) : null);
+/** Fold the latest page from the server into what is on screen: everything inside the fresh window comes from the server;
+ *  older pages loaded on demand stay, and so do messages we just sent that the server has not returned yet. */
+function mergeFresh(list: ChatMessage[], rows: ChatMessage[]) {
+  const fresh = new Map(rows.map((m) => [m.id, m]));
+  const seen = new Set<string>();
+  const oldestFresh = rows.length >= FIRST_PAGE ? rows[0].created_at : '';
+  const merged = [...list.filter((m) => !fresh.has(m.id) && ((oldestFresh && m.created_at < oldestFresh) || Date.now() - new Date(m.created_at).getTime() < 15_000)), ...rows];
+  return merged.filter((m) => (seen.has(m.id) ? false : (seen.add(m.id), true))).sort(byTime);
+}
 
 /** One private conversation with live updates and Secret (vanish) mode. */
 /** What the desktop Contact info drawer needs from the open chat. */
@@ -75,26 +85,28 @@ export default function ChatThread({ otherUserId, initialRef, onBack, onClose, e
   const noCalls = () => show(NO_CALLS);
   const { openQuickSnap } = useQuickSnap();
   const me = user?.id ?? '';
-  const [convId, setConvId] = useState<string | null>(null);
-  const [other, setOther] = useState<PublicProfile | null>(null);
-  const [vanish, setVanish] = useState(false);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [loading, setLoading] = useState(true);
+  // paint at once from what the app already knows (an earlier visit, a prefetch, or the inbox row); the network refreshes it
+  const [seed] = useState(() => (me ? seedChat(me, otherUserId) : null));
+  const [convId, setConvId] = useState<string | null>(seed?.convId ?? null);
+  const [other, setOther] = useState<PublicProfile | null>(seed?.other ?? null);
+  const [vanish, setVanish] = useState(seed?.vanish ?? false);
+  const [messages, setMessages] = useState<ChatMessage[]>(seed?.messages ?? []);
+  const [loading, setLoading] = useState(!seed?.messages);
   const [error, setError] = useState<string | null>(null);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const [ref, setRef] = useState<MessageRef | null>(initialRef);
   const [now, setNow] = useState(() => Date.now());
   // message actions (migration 19)
-  const [pinnedId, setPinnedId] = useState<string | null>(null);
+  const [pinnedId, setPinnedId] = useState<string | null>(seed?.pinnedId ?? null);
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
   const [deleting, setDeleting] = useState<ChatMessage | null>(null);
   const [infoFor, setInfoFor] = useState<ChatMessage | null>(null);
   const [forwarding, setForwarding] = useState<ChatMessage[] | null>(null);
   const [reporting, setReporting] = useState<ChatMessage | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
-  const [blocked, setBlocked] = useState(false);
-  const [favorite, setFavorite] = useState(false);
+  const [blocked, setBlocked] = useState(seed?.blocked ?? false);
+  const [favorite, setFavorite] = useState(seed?.favorite ?? false);
   const [confirm, setConfirm] = useState<'block' | 'clear' | 'delete' | null>(null);
   const [reportingUser, setReportingUser] = useState(false);
   // "Select messages": ids picked, or null when not selecting
@@ -104,50 +116,43 @@ export default function ChatThread({ otherUserId, initialRef, onBack, onClose, e
   const endRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   // older history (paged) and the floating day badge
-  const [hasOlder, setHasOlder] = useState(false);
+  const [hasOlder, setHasOlder] = useState(seed?.hasOlder ?? false);
   const [loadingOlder, setLoadingOlder] = useState(false);
   const keepScroll = useRef<{ height: number; top: number } | null>(null);
   const [stickyDay, setStickyDay] = useState<string | null>(null);
   const [stickyShown, setStickyShown] = useState(false);
   const stickyTimer = useRef<number | undefined>(undefined);
   const readTimer = useRef<number | undefined>(undefined);
-  const convRef = useRef<string | null>(null);
+  const convRef = useRef<string | null>(seed?.convId ?? null);
   const insertEmoji = useEmojiInsert(inputRef, text, setText, MAX);
 
-  // 1. find or create the conversation, and who we are talking to
+  // 1. find or create the conversation, and who we are talking to (a known conversation skips the round trip;
+  //    the profile is still refreshed in the background)
   useEffect(() => {
     let alive = true;
     (async () => {
       try {
-        const [id, people] = await Promise.all([api.startConversation(otherUserId), api.profilesByIds([otherUserId])]);
+        const [id, people] = await Promise.all([seed?.convId ?? api.startConversation(otherUserId), api.profilesByIds([otherUserId])]);
         if (!alive) return;
-        setOther(people[otherUserId] ?? null);
+        setOther((o) => people[otherUserId] ?? o);
         convRef.current = id;
         setConvId(id);
       } catch (e) {
-        if (!alive) return;
+        if (!alive || seed?.convId) return; // already showing the chat: keep it
         setError(friendlyError(e));
         setLoading(false);
       }
     })();
     return () => { alive = false; };
-  }, [otherUserId]);
+  }, [otherUserId, seed]);
 
   /** Re-read the history (picks up read receipts and vanish times even if a Realtime event was missed). */
   const syncMessages = useCallback(async () => {
     const id = convRef.current;
     if (!id) return;
     try {
-      const rows = await api.listMessages(id);
-      setMessages((list) => {
-        const fresh = new Map(rows.map((m) => [m.id, m]));
-        const seen = new Set<string>();
-        // keep older pages loaded on demand and messages we just sent that the server has not returned yet;
-        // everything inside the fresh window comes from the server
-        const oldestFresh = rows.length >= FIRST_PAGE ? rows[0].created_at : '';
-        const merged = [...list.filter((m) => !fresh.has(m.id) && ((oldestFresh && m.created_at < oldestFresh) || Date.now() - new Date(m.created_at).getTime() < 15_000)), ...rows];
-        return merged.filter((m) => (seen.has(m.id) ? false : (seen.add(m.id), true))).sort(byTime);
-      });
+      const rows = await api.listMessages(id, FIRST_PAGE);
+      setMessages((list) => mergeFresh(list, rows));
     } catch { /* keep what is on screen */ }
   }, []);
 
@@ -179,13 +184,16 @@ export default function ChatThread({ otherUserId, initialRef, onBack, onClose, e
       return next;
     });
 
-    Promise.all([api.listMessages(convId), api.getConversation(convId)])
-      .then(([rows, conv]) => {
+    // shares the request with a prefetch from the chat list that is still running
+    const shown = !!seed?.messages;
+    loadChat(me, otherUserId, convId, other)
+      .then((snap) => {
         if (!alive) return;
-        setMessages(rows);
-        setHasOlder(rows.length >= FIRST_PAGE);
-        setVanish(!!conv?.vanish_mode);
-        setPinnedId(conv?.pinned_message_id ?? null);
+        // a chat painted from the cache keeps its older pages and scroll place
+        setMessages((list) => (shown ? mergeFresh(list, snap.messages) : snap.messages));
+        if (!shown) setHasOlder(snap.hasOlder);
+        setVanish(snap.vanish);
+        setPinnedId(snap.pinnedId);
         setLoading(false);
         markRead();
         // opening the chat undoes "Mark as unread" (no-op before migration 20)
@@ -194,7 +202,7 @@ export default function ChatThread({ otherUserId, initialRef, onBack, onClose, e
         if (me) Promise.resolve().then(() => api.myBlockedIds(me)).then((ids) => { if (alive) setBlocked(ids.includes(otherUserId)); }).catch(() => undefined);
         if (me) Promise.resolve().then(() => api.myConversationPrefs(me)).then((rows) => { if (alive) setFavorite(!!rows.find((r) => r.conversation_id === convId)?.is_favorite); }).catch(() => undefined);
       })
-      .catch((e) => { if (alive) { setError(friendlyError(e)); setLoading(false); } });
+      .catch((e) => { if (alive && !shown) { setError(friendlyError(e)); setLoading(false); } });
 
     const channel = supabase
       .channel(`chat-${convId}-${++channelCounter}`)
@@ -221,7 +229,15 @@ export default function ChatThread({ otherUserId, initialRef, onBack, onClose, e
       document.removeEventListener('visibilitychange', onVisible);
       supabase.removeChannel(channel);
     };
+    // `other` and `seed` only feed the first paint: leaving them out keeps the subscription from restarting
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [convId, me, otherUserId, markRead, markReadSoon, syncMessages]);
+
+  // keep the snapshot current so the next open of this chat paints instantly
+  useEffect(() => {
+    if (!me || !convId || loading || error) return;
+    writeCache(chatKey(me, otherUserId), { convId, other, messages, hasOlder, vanish, pinnedId });
+  }, [me, otherUserId, convId, other, messages, hasOlder, vanish, pinnedId, loading, error]);
 
   // 3. vanish countdown: only runs while something is counting down
   const counting = useMemo(() => messages.some((m) => m.expires_at && m.read_at), [messages]);
@@ -246,7 +262,8 @@ export default function ChatThread({ otherUserId, initialRef, onBack, onClose, e
   const byId = useMemo(() => new Map(messages.map((m) => [m.id, m])), [messages]);
   // follow the newest message (not when older history is added at the top)
   const lastVisibleId = visible[visible.length - 1]?.id;
-  useEffect(() => { endRef.current?.scrollIntoView?.({ block: 'end' }); }, [lastVisibleId, loading]);
+  // (before paint, so a chat opened from the cache never flashes its oldest messages first)
+  useLayoutEffect(() => { endRef.current?.scrollIntoView?.({ block: 'end' }); }, [lastVisibleId, loading]);
 
   /** Load the page of history before the oldest message on screen, keeping the reader's place. */
   const loadOlder = useCallback(async () => {
@@ -307,6 +324,7 @@ export default function ChatThread({ otherUserId, initialRef, onBack, onClose, e
       const m = await withTimeout(api.sendMessage(convId, body, ref, null, { replyToId: replyTo?.id ?? null }), SEND_TIMEOUT_MS, SEND_TIMEOUT_TEXT);
       setMessages((list) => (list.some((x) => x.id === m.id) ? list : [...list, m].sort(byTime)));
       setText('');
+      activity.stopped();
       setRef(null);
       setReplyTo(null);
     } catch (err) {
@@ -324,12 +342,14 @@ export default function ChatThread({ otherUserId, initialRef, onBack, onClose, e
     if (!id || !me) return;
     const url = await withTimeout(api.uploadVoiceNote(id, me, rec.blob, rec.ext), 60_000, 'Uploading the voice message is taking too long. Check your connection and try again.');
     const m = await withTimeout(api.sendMessage(id, VOICE_BODY, null, {
-      activity.stopped();
       media_url: url, media_type: 'audio', media_duration_ms: rec.durationMs, media_waveform: rec.waveform,
     }), SEND_TIMEOUT_MS, SEND_TIMEOUT_TEXT);
     setMessages((list) => (list.some((x) => x.id === m.id) ? list : [...list, m].sort(byTime)));
   }, [me]);
   const voice = useVoiceComposer({ disabled: !convId, secret: vanish, onSend: sendVoice });
+  // live "typing…" / "recording audio…": ours goes out, theirs shows under the name
+  const activity = useChatActivitySender(convId, me || null, voice.recording, !blocked);
+  const theirActivity = useChatActivity(convId, me || null);
 
   const toggleVanish = async () => {
     if (!convId) return;
@@ -347,9 +367,6 @@ export default function ChatThread({ otherUserId, initialRef, onBack, onClose, e
     document.getElementById(`msg-${id}`)?.scrollIntoView?.({ block: 'center', behavior: 'smooth' });
     setFlash(id);
     window.setTimeout(() => setFlash((f) => (f === id ? null : f)), 1600);
-  // live "typing…" / "recording audio…": ours goes out, theirs shows under the name
-  const activity = useChatActivitySender(convId, me || null, voice.recording, !blocked);
-  const theirActivity = useChatActivity(convId, me || null);
   }, []);
 
   const togglePin = async (m: ChatMessage) => {

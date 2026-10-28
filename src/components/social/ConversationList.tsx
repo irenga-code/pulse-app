@@ -13,6 +13,7 @@ import { chatListTime } from '@/lib/time';
 import { NO_LISTS, clearChat, deleteChat, getChatPrefs, isMutedIn, muteChat, subscribeChatPrefs, unmuteChat } from '@/lib/chatPrefs';
 import { contactLabel, useContacts } from '@/lib/contacts';
 import { useChatActivities } from '@/lib/chatActivity';
+import { prefetchChat } from '@/lib/chatCache';
 import { useAsync } from '@/hooks/useAsync';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/context/ToastContext';
@@ -123,8 +124,8 @@ export default function ConversationList({ onOpen, query = '', selectedId = null
   }, [data.data, contacts]);
   const rows = data.data?.rows ?? [];
   const shown = filterConversations(rows, prefs, filter, query, names, device.deletedAt);
-  const count = (f: ChatFilter) => filterConversations(rows, prefs, f, '', {}, device.deletedAt).length;
   const live = useChatActivities(shown.map((c) => c.conversation_id), user?.id ?? null);
+  const count = (f: ChatFilter) => filterConversations(rows, prefs, f, '', {}, device.deletedAt).length;
   // chat context menu (⌄ / right-click / long-press) and the confirmations it opens
   const [menuFor, setMenuFor] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<{ kind: 'block' | 'clear' | 'delete'; c: ConversationSummary; name: string } | null>(null);
@@ -250,13 +251,17 @@ export default function ConversationList({ onOpen, query = '', selectedId = null
               const muted = isMutedIn(device, c.conversation_id);
               const unread = isUnread(c, pref);
               const mineLast = c.last_sender_id === user?.id && c.last_kind === 'text';
+              const warm = () => { if (user) prefetchChat(user.id, c.other_user_id, c.conversation_id, p ?? null); };
               return (
                 <li key={c.conversation_id}
                   onContextMenu={(e) => { e.preventDefault(); setMenuFor(c.conversation_id); }}
                   onTouchStart={() => { press.current = window.setTimeout(() => setMenuFor(c.conversation_id), LONG_PRESS_MS); }}
                   onTouchEnd={() => window.clearTimeout(press.current)} onTouchMove={() => window.clearTimeout(press.current)}
                   className={`group relative flex items-center transition-colors ${open ? 'bg-wa-lightSecondary dark:bg-wa-darkSecondary' : 'hover:bg-wa-lightSecondary dark:hover:bg-wa-darkSecondary/60'}`}>
-                  <button onClick={() => onOpen(c.other_user_id)} aria-current={open ? 'true' : undefined} className="flex items-center gap-3 flex-1 min-w-0 pl-4 py-3 text-left">
+                  <button onClick={() => onOpen(c.other_user_id)}
+                    // start loading the history the moment the pointer arrives, so the chat is ready by the click
+                    onPointerEnter={warm} onPointerDown={warm} onFocus={warm}
+                    aria-current={open ? 'true' : undefined} className="flex items-center gap-3 flex-1 min-w-0 pl-4 py-3 text-left">
                     <Avatar name={contacts[c.other_user_id]?.name ?? p?.display_name ?? '?'} url={p?.avatar_url} size={48} />
                     <span className="min-w-0 flex-1">
                       <span className="flex items-center gap-1.5">
