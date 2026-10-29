@@ -7,10 +7,27 @@
   html { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; text-rendering: optimizeLegibility; }
 }
 
+/* Dark theme surfaces and grey text, WhatsApp Web's own (space-separated RGB so Tailwind's /opacity works).
+   The wa-dark* tokens in tailwind.config.js read these; accents and bubbles you send are set separately below. */
+:root {
+  --bg-app: 22 23 23;           /* #161717 chat list, top header, chat header, conversation area */
+  --bg-rail: 29 31 31;          /* #1d1f1f far-left icon rail */
+  --bg-input: 36 38 38;         /* #242626 message box and its bar; menus, cards and other raised surfaces */
+  --bg-search: 46 47 47;        /* #2e2f2f "Search or start a new chat" */
+  --bg-hover: 46 47 47;         /* #2e2f2f hovered / selected chat row, active rail icon */
+  --border: 46 47 47;           /* #2e2f2f dividers between panels */
+  --bubble-in: 36 38 38;        /* #242626 received bubbles; also the wallpaper doodles */
+  --system-pill: 29 31 31;      /* #1d1f1f date pill */
+  --text-primary: 250 250 250;  /* #fafafa */
+  --text-secondary: 165 165 165; /* #a5a5a5 timestamps, previews, placeholders */
+}
+
 /* Accent colour (space-separated RGB so Tailwind's /opacity works). ThemeContext sets data-accent:
    Emerald Green (#10b981) by default in both modes, or the colour picked in Settings > Appearance.
    Navy and the pinks are lifted in dark mode, Yellow and Soft Pink deepened in light mode, so accent text stays readable. */
 :root, :root[data-accent='emerald'] { --wa-green: 16 185 129; --wa-green-dark: 5 150 105; --wa-green-light: 52 211 153; }
+/* Dark mode default: WhatsApp Web's own greens (#00a884 buttons, #25d366 highlights) so actions pop on #161717 */
+:root.dark, :root.dark[data-accent='emerald'] { --wa-green: 0 168 132; --wa-green-dark: 0 128 105; --wa-green-light: 37 211 102; }
 :root[data-accent='blue'] { --wa-green: 37 99 235; --wa-green-dark: 29 78 216; --wa-green-light: 59 130 246; }
 :root[data-accent='navy'] { --wa-green: 67 56 202; --wa-green-dark: 55 48 163; --wa-green-light: 99 102 241; }
 :root.dark[data-accent='navy'] { --wa-green: 99 102 241; --wa-green-dark: 67 56 202; --wa-green-light: 129 140 248; }
@@ -82,7 +99,7 @@
 /* Sent chat bubbles (WhatsApp style): buttons, tabs and headers keep the bold accent; the bubble you send is a soft
    tint of it. Every accent has its own pair, chosen for readable text (light: dark text on a ~20% tint, at least
    12:1 contrast; dark: light text on a deep muted shade, at least 6:1). Quoted replies inside are a shade darker. */
-:root, :root[data-accent='emerald'] { --bubble-bg-light: #cff1e6; --bubble-quote-light: #c3e3d8; --bubble-bg-dark: #0d4f3f; --bubble-quote-dark: #0a3e31; }
+:root, :root[data-accent='emerald'] { --bubble-bg-light: #cff1e6; --bubble-quote-light: #c3e3d8; --bubble-bg-dark: #005c4b; --bubble-quote-dark: #025144; }
 :root[data-accent='blue'] { --bubble-bg-light: #d3e0fb; --bubble-quote-light: #c6d3ec; --bubble-bg-dark: #143065; --bubble-quote-dark: #10254f; }
 :root[data-accent='navy'] { --bubble-bg-light: #d9d7f4; --bubble-quote-light: #cccae5; --bubble-bg-dark: #1f2159; --bubble-quote-dark: #181a45; }
 :root[data-accent='violet'] { --bubble-bg-light: #e8defd; --bubble-quote-light: #dad1ee; --bubble-bg-dark: #392e69; --bubble-quote-dark: #2c2452; }
@@ -92,16 +109,31 @@
 :root[data-accent='hotpink'] { --bubble-bg-light: #fbdaeb; --bubble-quote-light: #eccddd; --bubble-bg-dark: #5c2748; --bubble-quote-dark: #481e38; }
 :root[data-accent='softpink'] { --bubble-bg-light: #fee3e7; --bubble-quote-light: #efd5d9; --bubble-bg-dark: #613541; --bubble-quote-dark: #4c2933; }
 .bubble-out { background-color: var(--bubble-bg-light); color: #111b21; --bubble-quote: var(--bubble-quote-light); }
-.dark .bubble-out { background-color: var(--bubble-bg-dark); color: #e9edef; --bubble-quote: var(--bubble-quote-dark); }
+.dark .bubble-out { background-color: var(--bubble-bg-dark); color: #ffffff; --bubble-quote: var(--bubble-quote-dark); }
 .bubble-quote { background-color: var(--bubble-quote); border: 1px solid rgb(var(--wa-green) / 0.25); }
 
-/* Chat wallpaper: our own picture, src/assets/wallpaper_whatsapp_bolder.png (1024x585, not a tile), shown exactly as the
-   file in light and dark mode: no filters, no invert, no blending. It sits on its own layer behind the message list
-   (ChatThread), covers it, stays centred and stays put while messages scroll. The canvas behind it is the picture's
-   own cream, so nothing flashes while it loads.
-   A chat theme picked in Contact info (a Tailwind bg-* class, plus .chat-wallpaper-tinted) is the one exception: the
-   picture is multiplied onto that colour so the theme still shows. :where() lets the theme class win. */
+/* Voice note waveform (VoiceNote): square-ended 3px bars with a crisp played / unplayed split, like WhatsApp.
+   Received bubbles: accent bars over grey. Sent bubbles: in light mode the accent over a darker grey; in dark mode,
+   on #005c4b (or the accent's deep shade), near-white played bars over translucent ones, since green on green blurs.
+   Received bubbles in dark mode are --bubble-in (#242626). */
+.wave-played.wave-in, .wave-played.wave-out { background-color: rgb(var(--wa-green)); }
+.wave-unplayed.wave-in { background-color: rgb(102 119 129 / 0.45); }
+.wave-unplayed.wave-out { background-color: rgb(17 27 33 / 0.3); }
+.dark .wave-played.wave-in { background-color: rgb(var(--wa-green-light)); }
+.dark .wave-unplayed.wave-in { background-color: rgb(134 150 160 / 0.5); }
+.dark .wave-played.wave-out { background-color: #ffffff; }
+.dark .wave-unplayed.wave-out { background-color: rgb(255 255 255 / 0.35); }
+
+/* Chat wallpaper: our own picture, src/assets/wallpaper_whatsapp_bolder.png (1024x585, not a tile), on its own layer
+   behind the message list (ChatThread); it covers the layer, stays centred and stays put while messages scroll.
+   Light mode: the picture exactly as the file, no filters, on its own cream so nothing flashes while it loads.
+   Dark mode, like WhatsApp Web: --bg-app (#161717) with the doodles in --bubble-in (#242626). The doodles come from
+   src/assets/wallpaper_doodles_mask.png, the same picture turned into an alpha mask (cream transparent, the darkest
+   lines opaque), so a ::before filled with the doodle colour and masked by it draws them in exactly that colour.
+   A chat theme picked in Contact info (a Tailwind bg-* class, plus .chat-wallpaper-tinted) replaces the base colour:
+   in light mode the picture is multiplied onto it; in dark mode the doodles sit on it. :where() lets it win. */
 :where(.chat-wallpaper) { background-color: #f5f1eb; }
+:where(.dark .chat-wallpaper) { background-color: rgb(var(--bg-app)); }
 .chat-wallpaper {
   background-image: url('./assets/wallpaper_whatsapp_bolder.png');
   background-position: center;
@@ -109,3 +141,13 @@
   background-repeat: no-repeat;
 }
 .chat-wallpaper-tinted { background-blend-mode: multiply; }
+.dark .chat-wallpaper { background-image: none; }
+.dark .chat-wallpaper::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-color: rgb(var(--bubble-in));
+  -webkit-mask: url('./assets/wallpaper_doodles_mask.png') center / cover no-repeat;
+  mask: url('./assets/wallpaper_doodles_mask.png') center / cover no-repeat;
+  pointer-events: none;
+}

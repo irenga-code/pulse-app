@@ -142,7 +142,7 @@ function ChatsDesktop() {
   };
 
   const iconBtn = `p-2 rounded-full hover:bg-black/5 dark:hover:bg-white/10 ${mutedText}`;
-  const menuItem = `w-full flex items-center gap-3 px-4 py-2.5 text-sm text-left hover:bg-wa-lightSecondary dark:hover:bg-wa-darkSecondary ${bodyText}`;
+  const menuItem = `w-full flex items-center gap-3 px-4 py-2.5 text-sm text-left hover:bg-wa-lightSecondary dark:hover:bg-wa-darkHover ${bodyText}`;
 
   return (
     <div className="flex flex-1 h-full min-h-0 overflow-hidden" data-testid="chats-desktop">
@@ -168,10 +168,10 @@ function ChatsDesktop() {
           <div className="relative">
             <Search className={`w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 ${mutedText}`} />
             <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search or start a new chat" aria-label="Search or start a new chat"
-              className={`${inputClass} pl-9 !rounded-lg !py-2 !bg-wa-lightSecondary dark:!bg-wa-darkSecondary !border-transparent`} />
+              className={`${inputClass} pl-9 !rounded-lg !py-2 !bg-wa-lightSecondary dark:!bg-wa-darkSearch !border-transparent`} />
           </div>
           {looksLikePhone(query) && (
-            <button type="button" onClick={() => setNewChat(query)} className="mt-2 w-full flex items-center gap-3 rounded-lg px-3 py-2 text-left text-sm hover:bg-wa-lightSecondary dark:hover:bg-wa-darkSecondary">
+            <button type="button" onClick={() => setNewChat(query)} className="mt-2 w-full flex items-center gap-3 rounded-lg px-3 py-2 text-left text-sm hover:bg-wa-lightSecondary dark:hover:bg-wa-darkHover">
               <MessageCirclePlus className="w-5 h-5 text-wa-green" /><span className={bodyText}>Start a new chat with <b>{query.trim()}</b></span>
             </button>
           )}

@@ -31,7 +31,7 @@ export function Flag({ iso, className = '' }: { iso: string; className?: string 
   );
 }
 
-const shell = 'relative flex items-stretch rounded-xl border bg-wa-light dark:bg-slate-900 border-wa-lightBorder dark:border-slate-800 '
+const shell = 'relative flex items-stretch rounded-xl border bg-wa-light dark:bg-wa-darkPanel border-wa-lightBorder dark:border-wa-darkBorder '
   + 'focus-within:border-wa-green focus-within:ring-2 focus-within:ring-wa-green/30 transition-colors';
 
 /** `[ 🇺🇬 +256 ▾ ] [ phone number ]` with a searchable country list. Pasting "+44..." switches the country. */
@@ -105,7 +105,7 @@ export default function CountryPhoneInput({ country, onCountry, value, onChange,
       <div className={shell}>
         <button type="button" onClick={() => setOpen((o) => !o)} aria-haspopup="listbox" aria-expanded={open}
           aria-label={`Country code: ${country.name} +${country.dial}`}
-          className="flex items-center gap-1.5 pl-3 pr-2 rounded-l-xl border-r border-wa-lightBorder dark:border-slate-800 hover:bg-black/5 dark:hover:bg-white/5 text-sm font-semibold text-wa-lightText dark:text-slate-100 focus:outline-none">
+          className="flex items-center gap-1.5 pl-3 pr-2 rounded-l-xl border-r border-wa-lightBorder dark:border-wa-darkBorder hover:bg-black/5 dark:hover:bg-white/5 text-sm font-semibold text-wa-lightText dark:text-slate-100 focus:outline-none">
           <Flag iso={country.iso} />
           <span className="tabular-nums">+{country.dial}</span>
           <ChevronDown className={`w-4 h-4 ${mutedText} transition-transform ${open ? 'rotate-180' : ''}`} />
@@ -117,13 +117,13 @@ export default function CountryPhoneInput({ country, onCountry, value, onChange,
       {hint && <p className={`text-[11px] mt-1 ${mutedText}`}>{hint}</p>}
 
       {open && (
-        <div className="absolute left-0 right-0 top-full mt-1.5 z-30 rounded-xl border border-wa-lightBorder dark:border-slate-800 bg-wa-lightPanel dark:bg-slate-900 shadow-2xl overflow-hidden animate-fade-in">
-          <div className="relative p-2 border-b border-wa-lightBorder dark:border-slate-800">
+        <div className="absolute left-0 right-0 top-full mt-1.5 z-30 rounded-xl border border-wa-lightBorder dark:border-wa-darkBorder bg-wa-lightPanel dark:bg-wa-darkPanel shadow-2xl overflow-hidden animate-fade-in">
+          <div className="relative p-2 border-b border-wa-lightBorder dark:border-wa-darkBorder">
             <Search className={`w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 ${mutedText}`} />
             <input ref={search} value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={onListKey}
               role="combobox" aria-expanded="true" aria-controls={listId} aria-activedescendant={options[active] ? `${id}-opt-${active}` : undefined}
               aria-label="Search countries" placeholder="Search country or code"
-              className="w-full rounded-lg pl-8 pr-3 py-2 text-sm bg-wa-light dark:bg-slate-950 text-wa-lightText dark:text-slate-100 placeholder:text-wa-lightTextSecondary dark:placeholder:text-slate-500 border border-wa-lightBorder dark:border-slate-800 focus:outline-none focus:border-wa-green" />
+              className="w-full rounded-lg pl-8 pr-3 py-2 text-sm bg-wa-light dark:bg-wa-dark text-wa-lightText dark:text-slate-100 placeholder:text-wa-lightTextSecondary dark:placeholder:text-slate-500 border border-wa-lightBorder dark:border-wa-darkBorder focus:outline-none focus:border-wa-green" />
           </div>
           <ul id={listId} role="listbox" aria-label="Countries" className="max-h-60 overflow-y-auto overscroll-contain py-1">
             {options.length === 0 && <li className={`px-4 py-3 text-sm ${mutedText}`}>No country matches.</li>}
@@ -133,7 +133,7 @@ export default function CountryPhoneInput({ country, onCountry, value, onChange,
                 <li key={`${c.iso}-${i}`} id={`${id}-opt-${i}`} role="option" aria-selected={selected}
                   onMouseDown={(e) => e.preventDefault()} onClick={() => pick(c)} onMouseEnter={() => setActive(i)}
                   className={`flex items-center gap-3 px-3 py-2 cursor-pointer text-sm ${i === active ? 'bg-wa-green/10' : ''} ${
-                    !query && i === SUGGESTED_ISOS.length ? 'border-t border-wa-lightBorder dark:border-slate-800' : ''}`}>
+                    !query && i === SUGGESTED_ISOS.length ? 'border-t border-wa-lightBorder dark:border-wa-darkBorder' : ''}`}>
                   <Flag iso={c.iso} />
                   <span className={`flex-1 min-w-0 truncate ${bodyText} dark:text-slate-100`}>{c.name}</span>
                   <span className={`tabular-nums ${mutedText}`}>+{c.dial}</span>

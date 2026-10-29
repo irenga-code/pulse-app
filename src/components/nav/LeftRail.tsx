@@ -38,9 +38,9 @@ function useRailDots(active: SectionId): Partial<Record<SectionId, boolean>> {
 }
 
 const itemBase = 'relative p-3 rounded-2xl cursor-pointer flex items-center justify-center transition-[background-color,color,transform] duration-200 active:scale-95';
-const idle = 'text-zinc-600 dark:text-wa-darkTextSecondary hover:bg-slate-200/80 dark:hover:bg-white/10';
-const current = 'bg-zinc-800 text-white dark:bg-white/15';
-const dotClass = 'absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-wa-green border-2 border-[#f0f2f5] dark:border-wa-darkPanel';
+const idle = 'text-zinc-600 dark:text-wa-darkTextSecondary hover:bg-slate-200/80 dark:hover:bg-wa-darkHover';
+const current = 'bg-zinc-800 text-white dark:bg-wa-darkHover';
+const dotClass = 'absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-wa-green border-2 border-[#f0f2f5] dark:border-wa-darkRail';
 
 function RailButton({ def, active, badge, dot, onClick }: { def: SectionDef; active: boolean; badge?: number; dot?: boolean; onClick: () => void }) {
   const Icon = def.icon;
@@ -50,7 +50,7 @@ function RailButton({ def, active, badge, dot, onClick }: { def: SectionDef; act
       className={`${itemBase} ${active ? current : idle}`}>
       <Icon className="w-[22px] h-[22px]" strokeWidth={active ? 2.2 : 1.8} />
       {!!badge && (
-        <span className="absolute -top-1 -right-1 min-w-[1.15rem] h-[1.15rem] px-1 rounded-full bg-wa-green text-white text-[10px] font-bold flex items-center justify-center border-2 border-[#f0f2f5] dark:border-wa-darkPanel">
+        <span className="absolute -top-1 -right-1 min-w-[1.15rem] h-[1.15rem] px-1 rounded-full bg-wa-green text-white text-[10px] font-bold flex items-center justify-center border-2 border-[#f0f2f5] dark:border-wa-darkRail">
           {badge > 99 ? '99+' : badge}
         </span>
       )}
@@ -67,7 +67,7 @@ export default function LeftRail({ active, onSelect, onSettings, badges = {} }: 
     defs.map((d) => <RailButton key={d.id} def={d} active={active === d.id} badge={badges[d.id]} dot={dots[d.id]} onClick={() => onSelect(d.id)} />);
 
   return (
-    <nav aria-label="Main" className="hidden md:flex w-16 h-full flex-shrink-0 flex-col items-center justify-between py-4 bg-[#f0f2f5] dark:bg-wa-darkPanel border-r border-gray-200 dark:border-wa-darkBorder">
+    <nav aria-label="Main" className="hidden md:flex w-16 h-full flex-shrink-0 flex-col items-center justify-between py-4 bg-[#f0f2f5] dark:bg-wa-darkRail border-r border-gray-200 dark:border-wa-darkBorder">
       <div className="flex flex-col items-center gap-1">
         {render(RAIL_TOP)}
         <div className="border-b border-gray-300 dark:border-wa-darkBorder w-8 my-2" role="separator" />

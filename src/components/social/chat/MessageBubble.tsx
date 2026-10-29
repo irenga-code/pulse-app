@@ -40,10 +40,11 @@ export default function MessageBubble({ m, mine, statusLine, replyTo, replyName,
   };
   const endPress = () => window.clearTimeout(press.current);
 
-  // sent bubbles are a soft tint of the accent (index.css .bubble-out), not the bright brand colour
+  // sent bubbles are a soft tint of the accent (index.css .bubble-out), not the bright brand colour; like WhatsApp the
+  // corner on the sender's side is sharp
   const bubble = mine
-    ? m.vanish ? 'bg-purple-600 text-white rounded-br-md' : 'bubble-out rounded-br-md'
-    : m.vanish ? 'bg-zinc-800 text-zinc-100 rounded-bl-md' : 'bg-wa-lightPanel dark:bg-wa-darkSecondary text-wa-lightText dark:text-wa-darkText rounded-bl-md';
+    ? m.vanish ? 'bg-purple-600 text-white rounded-tr-none' : 'bubble-out rounded-tr-none'
+    : m.vanish ? 'bg-zinc-800 text-zinc-100 rounded-tl-none' : 'bg-wa-lightPanel dark:bg-wa-darkBubbleIn text-wa-lightText dark:text-wa-darkText rounded-tl-none';
   // white-on-colour details only on the strong secret-mode bubbles; soft bubbles use the normal (readable) styling
   const onColor = m.vanish;
 
@@ -60,7 +61,7 @@ export default function MessageBubble({ m, mine, statusLine, replyTo, replyName,
         data-testid="chat-bubble"
         onTouchStart={startPress} onTouchEnd={endPress} onTouchMove={endPress}
         onContextMenu={(e) => { e.preventDefault(); setBar(false); setMenu({ x: e.clientX, y: e.clientY }); }}
-        className={`relative max-w-[80%] rounded-2xl px-3 py-2 text-sm leading-snug shadow-sm transition-[box-shadow] ${bubble} ${highlighted ? 'ring-4 ring-wa-green/40' : ''}`}
+        className={`relative max-w-[80%] md:max-w-[65%] rounded-lg px-2.5 py-1.5 text-sm leading-snug shadow-[0_1px_0.5px_rgba(11,20,26,0.13)] transition-[box-shadow] ${bubble} ${highlighted ? 'ring-4 ring-wa-green/40' : ''}`}
       >
         <button type="button" aria-label="Message options" aria-haspopup="menu" aria-expanded={!!menu}
           onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setBar(false); setMenu(menu ? null : { x: mine ? r.right - 220 : r.left, y: r.bottom + 4 }); }}
@@ -96,7 +97,7 @@ export default function MessageBubble({ m, mine, statusLine, replyTo, replyName,
         )}
         {/* a snap or voice note without a caption carries a placeholder body; the media says it already */}
         {text && <p className="whitespace-pre-wrap break-words pr-4"><EmojiText text={text} /></p>}
-        <p className="mt-0.5 text-[10px] opacity-75 text-right flex items-center justify-end gap-1">
+        <p className={`mt-0.5 text-[10px] text-right flex items-center justify-end gap-1 ${onColor ? 'text-white/75' : 'text-wa-lightTextSecondary dark:text-wa-darkTextSecondary'}`}>
           {pinned && <Pin className="w-3 h-3" aria-label="Pinned" />}
           {starred && <Star className="w-3 h-3 fill-current" aria-label="Starred" />}
           {m.vanish && <Ghost className="w-3 h-3" />}

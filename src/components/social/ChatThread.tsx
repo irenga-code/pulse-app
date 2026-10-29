@@ -1,5 +1,5 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
-import { ArrowLeft, X, Send, Loader2, Search, Pin, Video, Phone, EllipsisVertical, Paperclip, Star, Copy, Trash2, Check, Forward } from 'lucide-react';
+import { ArrowLeft, X, Send, Loader2, Search, Pin, Video, Phone, EllipsisVertical, Paperclip, Star, Copy, Trash2, Check, CheckCheck, Forward } from 'lucide-react';
 import Avatar from '@/components/Avatar';
 import ChatShell from '@/components/social/ChatShell';
 import RefPreview from '@/components/social/RefPreview';
@@ -39,7 +39,7 @@ const SEND_TIMEOUT_MS = 15_000;
 /** Older history comes in pages of this size (the first screen is FIRST_PAGE). */
 const OLDER_PAGE = 50;
 /** WhatsApp's floating date / info pill. */
-const PILL = 'bg-white/90 dark:bg-zinc-800/90 shadow-sm rounded-full px-3 py-1 text-xs text-gray-600 dark:text-zinc-300';
+const PILL = 'bg-white/90 dark:bg-wa-darkPill shadow-sm rounded-lg px-3 py-1 text-xs text-gray-600 dark:text-wa-darkTextSecondary';
 const SEND_TIMEOUT_TEXT = 'Sending is taking too long. Check your connection; the message may still arrive, so look before sending it again.';
 
 const isLive = (m: ChatMessage, now: number) => !m.expires_at || new Date(m.expires_at).getTime() > now;
@@ -571,10 +571,10 @@ export default function ChatThread({ otherUserId, initialRef, onBack, onClose, e
         </div>
       )}
       <div ref={listRef} onScroll={onListScroll}
-        className="relative flex-1 overflow-y-auto px-3 py-3 space-y-1.5" aria-live="polite" data-testid="chat-messages">
+        className="relative flex-1 overflow-y-auto px-3 sm:px-[6%] py-3 space-y-1.5" aria-live="polite" data-testid="chat-messages">
         {!loading && !error && hasOlder && (
           <div className="flex justify-center pb-1">
-            <button type="button" onClick={() => void loadOlder()} disabled={loadingOlder} className={`${PILL} flex items-center gap-1.5 hover:bg-white dark:hover:bg-zinc-800 disabled:opacity-70`}>
+            <button type="button" onClick={() => void loadOlder()} disabled={loadingOlder} className={`${PILL} flex items-center gap-1.5 hover:bg-white dark:hover:bg-wa-darkHover disabled:opacity-70`}>
               {loadingOlder ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Loading older messages…</> : 'Click here to get older messages'}
             </button>
           </div>
@@ -600,7 +600,9 @@ export default function ChatThread({ otherUserId, initialRef, onBack, onClose, e
             const reply = m.reply_to_id ? byId.get(m.reply_to_id) : undefined;
             const bubble = (
               <MessageBubble m={m} mine={mine}
-                statusLine={<>{left !== null ? `vanishes in ${left}s` : m.vanish ? (mine ? 'vanishes after read' : 'vanishes once read') : ''}{mine && !m.vanish && m.read_at ? 'Seen' : ''}</>}
+                statusLine={<>{left !== null ? `vanishes in ${left}s` : m.vanish ? (mine ? 'vanishes after read' : 'vanishes once read') : ''}{mine && !m.vanish && (m.read_at
+                  ? <CheckCheck className="w-4 h-4 text-wa-tick" aria-label="Seen" />
+                  : <Check className="w-3.5 h-3.5" aria-label="Sent" />)}</>}
                 replyTo={reply} replyName={reply ? (reply.sender_id === me ? 'You' : label.title) : undefined}
                 reactions={extras.summary[m.id]} myReaction={extras.myReaction(m.id)} starred={extras.starred.has(m.id)} pinned={pinnedId === m.id}
                 highlighted={flash === m.id} onReact={(e) => { void extras.react(m.id, e); }} onAction={(a) => onAction(m, a)} onJump={jumpTo} />
@@ -631,7 +633,7 @@ export default function ChatThread({ otherUserId, initialRef, onBack, onClose, e
       <form onSubmit={send} className={`px-2 pt-2 pb-3 border-t ${secret ? 'border-purple-500/30 bg-zinc-900' : 'border-wa-lightBorder dark:border-wa-darkBorder bg-wa-lightPanel dark:bg-wa-darkPanel'}`} style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}>
         {ref && <div className="px-1 pb-2"><RefPreview type={ref.type} id={ref.id} onRemove={() => setRef(null)} /></div>}
         {blocked && (
-          <div className={`flex items-center justify-center gap-2 px-3 py-2 mb-2 rounded-xl text-sm ${secret ? 'bg-zinc-800 text-zinc-300' : 'bg-wa-lightSecondary dark:bg-wa-darkSecondary'}`} data-testid="blocked-bar">
+          <div className={`flex items-center justify-center gap-2 px-3 py-2 mb-2 rounded-xl text-sm ${secret ? 'bg-zinc-800 text-zinc-300' : 'bg-wa-lightSecondary dark:bg-wa-darkInput'}`} data-testid="blocked-bar">
             <span>You blocked this contact.</span>
             <button type="button" className="font-medium text-wa-green" onClick={async () => {
               try { await api.setBlocked(me, otherUserId, false); setBlocked(false); show(`${label.title} unblocked`); } catch (err) { show(friendlyError(err), 'error'); }
@@ -641,7 +643,10 @@ export default function ChatThread({ otherUserId, initialRef, onBack, onClose, e
         {replyTo && <ReplyBar name={replyTo.sender_id === me ? 'yourself' : label.title} text={messagePreview(replyTo)} onCancel={() => setReplyTo(null)} />}
         <div className="flex items-center gap-1">
           {voice.active ? voice.bar : (
-            <>
+            <div className={`flex-1 min-w-0 flex items-center gap-0.5 rounded-full pl-1 pr-3 border ${
+              secret ? 'bg-zinc-800 border-purple-500/30 focus-within:border-purple-400'
+                     : 'bg-wa-light dark:bg-wa-darkInput border-wa-lightBorder dark:border-transparent focus-within:border-wa-green'
+            }`}>
               <button
                 type="button"
                 disabled={!convId}
@@ -667,12 +672,12 @@ export default function ChatThread({ otherUserId, initialRef, onBack, onClose, e
                 placeholder={secret ? 'Secret message…' : 'Message'}
                 aria-label="Write a message"
                 disabled={!convId}
-                className={`flex-1 min-w-0 rounded-full px-4 py-2.5 text-sm focus:outline-none border ${
-                  secret ? 'bg-zinc-800 border-purple-500/30 text-zinc-100 placeholder:text-zinc-500 focus:border-purple-400'
-                         : 'bg-wa-light dark:bg-wa-dark text-wa-lightText dark:text-wa-darkText border-wa-lightBorder dark:border-wa-darkBorder placeholder:text-wa-lightTextSecondary dark:placeholder:text-wa-darkTextSecondary focus:border-wa-green'
+                className={`flex-1 min-w-0 bg-transparent px-2 py-2.5 text-sm focus:outline-none ${
+                  secret ? 'text-zinc-100 placeholder:text-zinc-500'
+                         : 'text-wa-lightText dark:text-wa-darkText placeholder:text-wa-lightTextSecondary dark:placeholder:text-wa-darkTextSecondary'
                 }`}
               />
-            </>
+            </div>
           )}
           {text.trim() && !voice.active ? (
             <button key="action" type="submit" disabled={sending || !convId} aria-label="Send message" className={`p-2.5 rounded-full text-white disabled:opacity-40 transition-colors ${secret ? 'bg-purple-600 hover:bg-purple-500' : 'bg-wa-green hover:bg-wa-greenDark'}`}>

@@ -110,10 +110,10 @@ function AppearancePane() {
             return (
               <button key={m.id} type="button" role="radio" aria-checked={on} onClick={() => setThemePreference(m.id)}
                 className={`relative flex flex-col items-center gap-2 rounded-xl border px-2 py-4 transition-colors ${
-                  on ? 'border-wa-green bg-wa-green/10' : 'border-wa-lightBorder dark:border-slate-800 hover:border-wa-green/50'}`}>
+                  on ? 'border-wa-green bg-wa-green/10' : 'border-wa-lightBorder dark:border-wa-darkBorder hover:border-wa-green/50'}`}>
                 {/* a tiny preview of the theme */}
-                <span className={`w-full h-12 rounded-lg overflow-hidden flex border ${m.id === 'light' ? 'bg-slate-50 border-slate-200' : m.id === 'dark' ? 'bg-[#0b141a] border-slate-800' : 'bg-gradient-to-r from-slate-50 from-50% to-[#0b141a] to-50% border-slate-300 dark:border-slate-700'}`} aria-hidden="true">
-                  <span className={`w-1/4 h-full ${m.id === 'light' ? 'bg-white' : m.id === 'dark' ? 'bg-[#111b21]' : 'bg-white'}`} />
+                <span className={`w-full h-12 rounded-lg overflow-hidden flex border ${m.id === 'light' ? 'bg-slate-50 border-slate-200' : m.id === 'dark' ? 'bg-[#161717] border-[#2e2f2f]' : 'bg-gradient-to-r from-slate-50 from-50% to-[#161717] to-50% border-slate-300 dark:border-wa-darkBorder'}`} aria-hidden="true">
+                  <span className={`w-1/4 h-full ${m.id === 'light' ? 'bg-white' : m.id === 'dark' ? 'bg-[#1d1f1f]' : 'bg-white'}`} />
                 </span>
                 <span className={`flex items-center gap-1.5 text-sm font-semibold ${on ? 'text-wa-green' : bodyText}`}><Icon className="w-4 h-4" />{m.label}</span>
                 <span className={`text-[11px] ${mutedText}`}>{m.hint}</span>
@@ -128,7 +128,7 @@ function AppearancePane() {
         <div role="radiogroup" aria-label="Accent colour" className="p-4 space-y-3">
           <button type="button" role="radio" aria-checked={accent === 'auto'} onClick={() => setAccent('auto')}
             className={`w-full flex items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition-colors ${
-              accent === 'auto' ? 'border-wa-green bg-wa-green/10' : 'border-wa-lightBorder dark:border-slate-800 hover:border-wa-green/50'}`}>
+              accent === 'auto' ? 'border-wa-green bg-wa-green/10' : 'border-wa-lightBorder dark:border-wa-darkBorder hover:border-wa-green/50'}`}>
             <span className="w-8 h-8 rounded-full flex-shrink-0 bg-[#10b981]" aria-hidden="true" />
             <span className="min-w-0 flex-1">
               <span className={`flex items-center gap-1.5 text-sm font-semibold ${bodyText}`}><Sparkles className="w-3.5 h-3.5 text-wa-green" />Pulse green (default)</span>
@@ -142,8 +142,8 @@ function AppearancePane() {
               return (
                 <button key={a.id} type="button" role="radio" aria-checked={on} onClick={() => setAccent(a.id)}
                   className={`flex flex-col items-center gap-2 rounded-xl border px-2 py-3 transition-colors ${
-                    on ? 'border-wa-green bg-wa-green/10' : 'border-wa-lightBorder dark:border-slate-800 hover:border-wa-green/50'}`}>
-                  <span className="w-9 h-9 rounded-full flex items-center justify-center ring-2 ring-offset-2 ring-offset-white dark:ring-offset-slate-900"
+                    on ? 'border-wa-green bg-wa-green/10' : 'border-wa-lightBorder dark:border-wa-darkBorder hover:border-wa-green/50'}`}>
+                  <span className="w-9 h-9 rounded-full flex items-center justify-center ring-2 ring-offset-2 ring-offset-white dark:ring-offset-wa-darkPanel"
                     style={{ backgroundColor: a.swatch, ['--tw-ring-color' as string]: on ? a.swatch : 'transparent' }} aria-hidden="true">
                     {on && <Check className={`w-4 h-4 ${a.id === 'yellow' || a.id === 'softpink' ? 'text-slate-900' : 'text-white'}`} strokeWidth={3} />}
                   </span>
@@ -226,19 +226,19 @@ export default function SettingsModal({ onClose, initialSection }: { onClose: ()
     <div className="fixed inset-0 z-50 flex items-stretch md:items-center justify-center md:p-6 bg-black/60 backdrop-blur-sm animate-fade-in"
       onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div role="dialog" aria-modal="true" aria-label="Settings"
-        className="relative w-full md:max-w-5xl h-viewport md:h-[min(760px,calc(100vh-3rem))] flex md:rounded-2xl overflow-hidden shadow-2xl bg-wa-lightSecondary dark:bg-slate-950 md:border border-wa-lightBorder dark:border-slate-800">
+        className="relative w-full md:max-w-5xl h-viewport md:h-[min(760px,calc(100vh-3rem))] flex md:rounded-2xl overflow-hidden shadow-2xl bg-wa-lightSecondary dark:bg-wa-dark md:border border-wa-lightBorder dark:border-wa-darkBorder">
         <button type="button" onClick={onClose} aria-label="Close settings"
-          className={`absolute top-3 right-3 z-10 p-2 rounded-full hover:bg-black/5 dark:hover:bg-slate-800 ${mutedText}`}>
+          className={`absolute top-3 right-3 z-10 p-2 rounded-full hover:bg-black/5 dark:hover:bg-wa-darkHover ${mutedText}`}>
           <X className="w-5 h-5" />
         </button>
 
         {/* left: sections */}
         <nav aria-label="Settings sections"
-          className={`${section ? 'hidden md:flex' : 'flex'} w-full md:w-80 flex-shrink-0 flex-col bg-wa-lightPanel dark:bg-slate-900 md:border-r border-wa-lightBorder dark:border-slate-800`}>
+          className={`${section ? 'hidden md:flex' : 'flex'} w-full md:w-80 flex-shrink-0 flex-col bg-wa-lightPanel dark:bg-wa-darkPanel md:border-r border-wa-lightBorder dark:border-wa-darkBorder`}>
           <h2 className={`text-xl font-bold px-5 pt-5 pb-4 ${bodyText}`}>Settings</h2>
           {user && profile ? (
             <button type="button" onClick={() => setSection('profile')}
-              className="flex items-center gap-3 mx-3 mb-2 px-3 py-3 rounded-xl text-left hover:bg-black/[0.03] dark:hover:bg-slate-800/60">
+              className="flex items-center gap-3 mx-3 mb-2 px-3 py-3 rounded-xl text-left hover:bg-black/[0.03] dark:hover:bg-wa-darkHover">
               <Avatar name={profile.display_name} url={profile.avatar_url} size={52} />
               <span className="min-w-0 flex-1">
                 <span className={`block text-base font-semibold truncate ${bodyText}`}>{profile.display_name}</span>
@@ -256,7 +256,7 @@ export default function SettingsModal({ onClose, initialSection }: { onClose: ()
                 <li key={s.id}>
                   <button type="button" onClick={() => setSection(s.id)} aria-current={on ? 'page' : undefined}
                     className={`relative w-full flex items-center gap-4 rounded-xl px-3 py-3 text-left transition-colors ${
-                      on ? 'md:bg-wa-green/10 dark:md:bg-slate-800' : 'hover:bg-black/[0.03] dark:hover:bg-slate-800/60'}`}>
+                      on ? 'md:bg-wa-green/10 dark:md:bg-wa-darkHover' : 'hover:bg-black/[0.03] dark:hover:bg-wa-darkHover'}`}>
                     {on && <span className="hidden md:block absolute left-0 top-2.5 bottom-2.5 w-1 rounded-r-full bg-wa-green" aria-hidden="true" />}
                     <Icon className={`w-5 h-5 flex-shrink-0 ${on ? 'md:text-wa-green' : ''} ${mutedText}`} />
                     <span className="min-w-0 flex-1">
@@ -274,7 +274,7 @@ export default function SettingsModal({ onClose, initialSection }: { onClose: ()
         {/* right: the chosen section */}
         <section aria-label={current.label} className={`${section ? 'flex' : 'hidden md:flex'} flex-1 min-w-0 flex-col`}>
           <header className="flex items-center gap-2 px-4 md:px-8 pt-4 pb-3 pr-14">
-            <button type="button" onClick={() => setSection(null)} aria-label="Back to settings" className={`md:hidden p-2 -ml-2 rounded-full hover:bg-black/5 dark:hover:bg-slate-800 ${bodyText}`}>
+            <button type="button" onClick={() => setSection(null)} aria-label="Back to settings" className={`md:hidden p-2 -ml-2 rounded-full hover:bg-black/5 dark:hover:bg-wa-darkHover ${bodyText}`}>
               <ArrowLeft className="w-5 h-5" />
             </button>
             <h2 className={`text-lg md:text-xl font-bold ${bodyText}`}>{current.label}</h2>

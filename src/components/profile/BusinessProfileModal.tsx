@@ -85,7 +85,7 @@ function MapPreview({ address }: { address: string }) {
       <MapPin className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-full w-8 h-8 text-red-500 fill-red-500/30 drop-shadow" />
       {q && (
         <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`} target="_blank" rel="noopener noreferrer"
-          className="absolute bottom-2 right-2 inline-flex items-center gap-1 rounded-full bg-white/95 dark:bg-zinc-900/90 px-2.5 py-1 text-[11px] font-semibold text-wa-green shadow-sm">
+          className="absolute bottom-2 right-2 inline-flex items-center gap-1 rounded-full bg-white/95 dark:bg-wa-darkPanel/90 px-2.5 py-1 text-[11px] font-semibold text-wa-green shadow-sm">
           <ExternalLink className="w-3 h-3" />Open in Maps
         </a>
       )}

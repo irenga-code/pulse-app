@@ -18,13 +18,21 @@ export default {
           lightBorder: '#e9edef',
           lightText: '#111b21',
           lightTextSecondary: '#667781',
-          // Dark mode surfaces
-          dark: '#0b141a',
-          darkPanel: '#111b21',
-          darkSecondary: '#202c33',
-          darkBorder: '#222d34',
-          darkText: '#e9edef',
-          darkTextSecondary: '#8696a0',
+          // Dark mode surfaces and text: WhatsApp Web's, defined once as CSS variables in index.css
+          dark: 'rgb(var(--bg-app) / <alpha-value>)',
+          darkPanel: 'rgb(var(--bg-app) / <alpha-value>)',
+          darkRail: 'rgb(var(--bg-rail) / <alpha-value>)',
+          darkSecondary: 'rgb(var(--bg-input) / <alpha-value>)',
+          darkInput: 'rgb(var(--bg-input) / <alpha-value>)',
+          darkSearch: 'rgb(var(--bg-search) / <alpha-value>)',
+          darkHover: 'rgb(var(--bg-hover) / <alpha-value>)',
+          darkBorder: 'rgb(var(--border) / <alpha-value>)',
+          darkBubbleIn: 'rgb(var(--bubble-in) / <alpha-value>)',
+          darkPill: 'rgb(var(--system-pill) / <alpha-value>)',
+          darkText: 'rgb(var(--text-primary) / <alpha-value>)',
+          darkTextSecondary: 'rgb(var(--text-secondary) / <alpha-value>)',
+          // read receipts (double ticks)
+          tick: '#53bdeb',
           // Accent (green by default; Settings > Appearance can switch it, see --wa-green in index.css)
           green: 'rgb(var(--wa-green) / <alpha-value>)',
           greenDark: 'rgb(var(--wa-green-dark) / <alpha-value>)',

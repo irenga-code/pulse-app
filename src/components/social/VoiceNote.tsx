@@ -25,8 +25,8 @@ function resample(wave: number[] | null | undefined, seed: string): number[] {
 let playing: HTMLAudioElement | null = null;
 
 /** A voice note in a chat bubble: play / pause, waveform that fills as it plays (tap to seek), time and 1x / 1.5x / 2x. */
-export default function VoiceNote({ id, url, durationMs, waveform, tone = 'normal' }: {
-  id: string; url: string; durationMs?: number | null; waveform?: number[] | null; /** Sent by you (styling is the same on the soft sent bubble). */ mine: boolean; tone?: 'normal' | 'secret';
+export default function VoiceNote({ id, url, durationMs, waveform, mine, tone = 'normal' }: {
+  id: string; url: string; durationMs?: number | null; waveform?: number[] | null; /** Sent by you: picks the waveform colours for the sent bubble. */ mine: boolean; tone?: 'normal' | 'secret';
 }) {
   const audio = useRef<HTMLAudioElement | null>(null);
   const raf = useRef<number | undefined>(undefined);
@@ -125,24 +125,26 @@ export default function VoiceNote({ id, url, durationMs, waveform, tone = 'norma
   };
 
   const progress = total ? Math.min(1, pos / total) : 0;
-  // white details only on the strong secret-mode bubbles; sent bubbles are a soft tint with dark text
+  // white details only on the strong secret-mode bubbles; the others use index.css's .wave-* colours, which pick a
+  // crisp played / unplayed pair for the sent (#005c4b in dark mode) or received (#242626) bubble
   const onColor = tone === 'secret';
-  const played = onColor ? 'bg-white' : 'bg-wa-green';
-  const unplayed = onColor ? 'bg-white/40' : 'bg-wa-lightTextSecondary/40 dark:bg-wa-darkTextSecondary/40';
+  const side = mine ? 'wave-out' : 'wave-in';
+  const played = onColor ? 'bg-white' : `wave-played ${side}`;
+  const unplayed = onColor ? 'bg-white/40' : `wave-unplayed ${side}`;
   const showTime = isPlaying || pos > 0 ? pos : total;
 
   return (
     <div className="flex items-center gap-2.5 w-60 max-w-full py-0.5" data-testid="voice-note">
       <button type="button" onClick={toggle} aria-label={isPlaying ? 'Pause voice message' : 'Play voice message'}
-        className={`w-10 h-10 flex-shrink-0 rounded-full flex items-center justify-center ${onColor ? 'bg-white/20 hover:bg-white/30' : 'bg-wa-green/15 text-wa-green hover:bg-wa-green/25'}`}>
+        className={`w-10 h-10 flex-shrink-0 rounded-full flex items-center justify-center ${onColor ? 'bg-white/20 hover:bg-white/30' : 'bg-wa-green/15 text-wa-green hover:bg-wa-green/25 dark:bg-wa-green dark:text-white dark:hover:bg-wa-greenLight'}`}>
         {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : isPlaying ? <Pause className="w-5 h-5 fill-current" /> : <Play className="w-5 h-5 fill-current ml-0.5" />}
       </button>
       <div className="flex-1 min-w-0">
         <div role="slider" tabIndex={0} aria-label="Voice message position" aria-valuemin={0} aria-valuemax={Math.round(total / 1000)}
           aria-valuenow={Math.round(pos / 1000)} aria-valuetext={`${formatVoiceTime(pos)} of ${formatVoiceTime(total)}`}
-          onClick={seek} onKeyDown={seek} className="flex items-center gap-[2px] h-7 cursor-pointer select-none">
+          onClick={seek} onKeyDown={seek} className="flex items-center justify-between gap-[2px] h-7 cursor-pointer select-none">
           {bars.map((h, i) => (
-            <span key={i} className={`flex-1 rounded-full transition-colors ${(i + 0.5) / bars.length <= progress ? played : unplayed}`}
+            <span key={i} className={`flex-1 max-w-[3px] rounded-[1px] transition-colors duration-75 ${(i + 0.5) / bars.length <= progress ? played : unplayed}`}
               style={{ height: `${Math.max(12, h)}%` }} />
           ))}
         </div>
@@ -152,7 +154,7 @@ export default function VoiceNote({ id, url, durationMs, waveform, tone = 'norma
             <button type="button" onClick={cycleSpeed} aria-label={`Playback speed ${speed}x`}
               className={`ml-auto rounded-full px-1.5 text-[10px] font-medium ${onColor ? 'bg-white/25' : 'bg-black/10 dark:bg-white/10'}`}>{speed}×</button>
           )}
-          {!isPlaying && speed === 1 && <Mic className={`ml-auto w-3.5 h-3.5 ${onColor ? '' : 'text-wa-green'}`} aria-hidden="true" />}
+          {!isPlaying && speed === 1 && <Mic className={`ml-auto w-3.5 h-3.5 ${onColor ? '' : 'text-wa-green dark:text-wa-greenLight'}`} aria-hidden="true" />}
         </div>
       </div>
     </div>

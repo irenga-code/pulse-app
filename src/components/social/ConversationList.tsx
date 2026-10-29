@@ -207,7 +207,7 @@ export default function ConversationList({ onOpen, query = '', selectedId = null
           return (
             <button key={f.id} role="tab" aria-selected={on} onClick={() => setFilter(f.id)}
               className={`flex-shrink-0 rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors duration-200 ${
-                on ? 'bg-wa-green/20 text-wa-green dark:bg-wa-green/25' : 'bg-wa-lightSecondary dark:bg-wa-darkSecondary text-wa-lightTextSecondary dark:text-wa-darkTextSecondary hover:text-wa-green'
+                on ? 'border border-transparent bg-wa-green/20 text-wa-green dark:bg-wa-darkSecondary dark:text-white dark:border-wa-greenLight' : 'border border-transparent dark:border-wa-darkBorder bg-wa-lightSecondary dark:bg-wa-darkPanel text-wa-lightTextSecondary dark:text-wa-darkTextSecondary hover:text-wa-green dark:hover:text-white'
               }`}>
               {f.label}{n > 0 && <span className="ml-1">{n}</span>}
             </button>
@@ -216,13 +216,13 @@ export default function ConversationList({ onOpen, query = '', selectedId = null
         {morePill && (
           <div ref={moreRef} className="relative">
             <button type="button" onClick={() => setMoreOpen((v) => !v)} aria-label="More chat filters" aria-haspopup="menu" aria-expanded={moreOpen}
-              className="flex-shrink-0 rounded-full px-2.5 py-1.5 text-xs font-medium bg-wa-lightSecondary dark:bg-wa-darkSecondary text-wa-lightTextSecondary dark:text-wa-darkTextSecondary hover:text-wa-green">
+              className="flex-shrink-0 rounded-full px-2.5 py-1.5 text-xs font-medium border border-transparent dark:border-wa-darkBorder bg-wa-lightSecondary dark:bg-wa-darkPanel text-wa-lightTextSecondary dark:text-wa-darkTextSecondary hover:text-wa-green">
               <Plus className="w-3.5 h-3.5" />
             </button>
             {moreOpen && (
               <div role="menu" className="absolute left-0 top-full mt-1 z-20 min-w-44 rounded-xl border border-wa-lightBorder dark:border-wa-darkBorder bg-wa-lightPanel dark:bg-wa-darkPanel shadow-xl py-1">
                 <button type="button" role="menuitem" onClick={() => { setFilter('archived'); setMoreOpen(false); }}
-                  className={`w-full flex items-center gap-2.5 px-4 py-2 text-sm text-left hover:bg-wa-lightSecondary dark:hover:bg-wa-darkSecondary ${bodyText}`}>
+                  className={`w-full flex items-center gap-2.5 px-4 py-2 text-sm text-left hover:bg-wa-lightSecondary dark:hover:bg-wa-darkHover ${bodyText}`}>
                   <Archive className="w-4 h-4" />Archived{count('archived') > 0 && <span className={`ml-auto text-xs ${mutedText}`}>{count('archived')}</span>}
                 </button>
               </div>
@@ -257,7 +257,7 @@ export default function ConversationList({ onOpen, query = '', selectedId = null
                   onContextMenu={(e) => { e.preventDefault(); setMenuFor(c.conversation_id); }}
                   onTouchStart={() => { press.current = window.setTimeout(() => setMenuFor(c.conversation_id), LONG_PRESS_MS); }}
                   onTouchEnd={() => window.clearTimeout(press.current)} onTouchMove={() => window.clearTimeout(press.current)}
-                  className={`group relative flex items-center transition-colors ${open ? 'bg-wa-lightSecondary dark:bg-wa-darkSecondary' : 'hover:bg-wa-lightSecondary dark:hover:bg-wa-darkSecondary/60'}`}>
+                  className={`group relative flex items-center transition-colors ${open ? 'bg-wa-lightSecondary dark:bg-wa-darkHover' : 'hover:bg-wa-lightSecondary dark:hover:bg-wa-darkHover'}`}>
                   <button onClick={() => onOpen(c.other_user_id)}
                     // start loading the history the moment the pointer arrives, so the chat is ready by the click
                     onPointerEnter={warm} onPointerDown={warm} onFocus={warm}
