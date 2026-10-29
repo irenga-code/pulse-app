@@ -14,11 +14,12 @@ type Panel = 'phone' | 'email' | 'password' | 'delete' | null;
 
 /** Settings > Account: your number (read-only once confirmed), privacy, password, sign out and delete. */
 export default function AccountSection({ onClose }: { onClose: () => void }) {
-  const { user, profile, changeEmail, setNewPassword, deleteAccount, addPhone, confirmPhone, signOut } = useAuth();
+  const { user, profile, changeEmail, setNewPassword, changePassword, hasPassword, deleteAccount, addPhone, confirmPhone, signOut } = useAuth();
   const { show } = useToast();
   const [panel, setPanel] = useState<Panel>(null);
   const [value, setValue] = useState('');
   const [confirm, setConfirm] = useState('');
+  const [current, setCurrent] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // phone: the number a code was texted to (step 2)
@@ -34,6 +35,7 @@ export default function AccountSection({ onClose }: { onClose: () => void }) {
     setPanel(panel === p ? null : p);
     setValue('');
     setConfirm('');
+    setCurrent('');
     setError(null);
     setCodeFor(null);
   };
@@ -81,9 +83,11 @@ export default function AccountSection({ onClose }: { onClose: () => void }) {
 
   const submitPassword = (e: React.FormEvent) => {
     e.preventDefault();
+    if (hasPassword && !current) return setError('Enter your current password.');
     if (value.length < 8) return setError('Password must be at least 8 characters.');
     if (value !== confirm) return setError('The two passwords do not match.');
-    run(() => setNewPassword(value), 'Password updated');
+    if (hasPassword && value === current) return setError('The new password must be different from the current one.');
+    run(() => (hasPassword ? changePassword(current, value) : setNewPassword(value)), 'Password updated');
   };
 
   const form = 'px-4 pb-4 pt-1 space-y-3';
@@ -148,6 +152,9 @@ export default function AccountSection({ onClose }: { onClose: () => void }) {
         <SettingsRow icon={KeyRound} title="Password" description="Sign in with your phone number and password" onClick={() => open('password')} expanded={panel === 'password'} />
         {panel === 'password' && (
           <form onSubmit={submitPassword} className={form} noValidate>
+            {hasPassword && (
+              <Field label="Current password"><input type="password" value={current} onChange={(e) => setCurrent(e.target.value)} autoComplete="current-password" className={inputClass} /></Field>
+            )}
             <Field label="New password" hint="At least 8 characters."><input type="password" value={value} onChange={(e) => setValue(e.target.value)} autoComplete="new-password" className={inputClass} /></Field>
             <Field label="Confirm new password"><input type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} autoComplete="new-password" className={inputClass} /></Field>
             {error && <ErrorNote message={error} />}

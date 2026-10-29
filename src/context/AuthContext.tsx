@@ -34,6 +34,10 @@ type AuthContextValue = {
   signOut: () => Promise<void>;
   sendPasswordReset: (email: string) => Promise<void>;
   setNewPassword: (password: string) => Promise<void>;
+  /** Password accounts (email, or phone + password): checks the current password, then sets the new one. */
+  changePassword: (current: string, next: string) => Promise<void>;
+  /** True when the account signed up with a password; SMS-code accounts may never have set one. */
+  hasPassword: boolean;
   changeEmail: (email: string) => Promise<void>;
   /** Phone sign-in / sign-up: texts a one-time code (Supabase Auth SMS). A new number creates the account. */
   sendPhoneCode: (phone: string, displayName?: string) => Promise<void>;
@@ -181,6 +185,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (error) throw error;
   }, []);
 
+  const changePassword = useCallback(async (current: string, next: string) => {
+    const email = session?.user.email;
+    const phone = session?.user.phone;
+    if (!email && !phone) throw new Error('This account has no password to change.');
+    // re-signing in with the current password proves it; it is the same account, so the session just refreshes
+    const check = email
+      ? await supabase.auth.signInWithPassword({ email, password: current })
+      : await supabase.auth.signInWithPassword({ phone: `+${phone!.replace(/^\+/, '')}`, password: current });
+    if (check.error) {
+      if (/invalid login credentials/i.test(check.error.message)) throw new Error('Your current password is incorrect.');
+      throw check.error;
+    }
+    const { error } = await supabase.auth.updateUser({ password: next });
+    if (error) throw error;
+  }, [session]);
+
   const changeEmail = useCallback(async (email: string) => {
     const { error } = await supabase.auth.updateUser({ email: email.trim() }, { emailRedirectTo: window.location.origin });
     if (error) throw error;
@@ -266,6 +286,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signOut,
       sendPasswordReset,
       setNewPassword,
+      changePassword,
+      hasPassword: !!user?.identities?.some((i) => i.provider === 'email'),
       changeEmail,
       sendPhoneCode,
       signInWithPhone,
@@ -277,7 +299,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       refreshProfile,
     }),
     [session, user, userId, profile, isAdmin, loading, loadedFor, authUi, openAuth, closeAuth, requireAuth, recovery,
-      signIn, signUp, signOut, sendPasswordReset, setNewPassword, changeEmail, sendPhoneCode, signInWithPhone, signUpWithPhone, verifyPhoneCode, addPhone, confirmPhone,
+      signIn, signUp, signOut, sendPasswordReset, setNewPassword, changePassword, changeEmail, sendPhoneCode, signInWithPhone, signUpWithPhone, verifyPhoneCode, addPhone, confirmPhone,
       deleteAccount, refreshProfile]
   );
 
