@@ -129,10 +129,10 @@ function AppearancePane() {
           <button type="button" role="radio" aria-checked={accent === 'auto'} onClick={() => setAccent('auto')}
             className={`w-full flex items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition-colors ${
               accent === 'auto' ? 'border-wa-green bg-wa-green/10' : 'border-wa-lightBorder dark:border-wa-darkBorder hover:border-wa-green/50'}`}>
-            <span className="w-8 h-8 rounded-full flex-shrink-0 bg-[#10b981]" aria-hidden="true" />
+            <span className="w-8 h-8 rounded-full flex-shrink-0 bg-[#25D366] dark:bg-[#00A884]" aria-hidden="true" />
             <span className="min-w-0 flex-1">
               <span className={`flex items-center gap-1.5 text-sm font-semibold ${bodyText}`}><Sparkles className="w-3.5 h-3.5 text-wa-green" />Pulse green (default)</span>
-              <span className={`block text-[11px] ${mutedText}`}>Emerald Green #10b981 in dark and light mode</span>
+              <span className={`block text-[11px] ${mutedText}`}>WhatsApp Green #25D366 in light mode, #00A884 in dark mode</span>
             </span>
             {accent === 'auto' && <Check className="w-4 h-4 text-wa-green" />}
           </button>

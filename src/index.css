@@ -23,9 +23,9 @@
 }
 
 /* Accent colour (space-separated RGB so Tailwind's /opacity works). ThemeContext sets data-accent:
-   Emerald Green (#10b981) by default in both modes, or the colour picked in Settings > Appearance.
+   WhatsApp green by default (#25D366 in light mode, #00A884 in dark mode), or the colour picked in Settings > Appearance.
    Navy and the pinks are lifted in dark mode, Yellow and Soft Pink deepened in light mode, so accent text stays readable. */
-:root, :root[data-accent='emerald'] { --wa-green: 16 185 129; --wa-green-dark: 5 150 105; --wa-green-light: 52 211 153; }
+:root, :root[data-accent='emerald'] { --wa-green: 37 211 102; --wa-green-dark: 29 170 97; --wa-green-light: 74 222 128; }
 /* Dark mode default: WhatsApp Web's own greens (#00a884 buttons, #25d366 highlights) so actions pop on #161717 */
 :root.dark, :root.dark[data-accent='emerald'] { --wa-green: 0 168 132; --wa-green-dark: 0 128 105; --wa-green-light: 37 211 102; }
 :root[data-accent='blue'] { --wa-green: 37 99 235; --wa-green-dark: 29 78 216; --wa-green-light: 59 130 246; }
