@@ -24,11 +24,11 @@
 
 /* Accent colour (space-separated RGB so Tailwind's /opacity works). ThemeContext sets data-accent:
    Emerald Green (#10b981) by default in both modes, or the colour picked in Settings > Appearance.
-   WhatsApp Green is #25D366 in light mode and WhatsApp Web's #00A884 in dark mode.
+   Vibrant Green is #25D366 in light mode and #00A884 in dark mode.
    Navy and the pinks are lifted in dark mode, Yellow and Soft Pink deepened in light mode, so accent text stays readable. */
 :root, :root[data-accent='emerald'] { --wa-green: 16 185 129; --wa-green-dark: 5 150 105; --wa-green-light: 52 211 153; }
-:root[data-accent='whatsapp'] { --wa-green: 37 211 102; --wa-green-dark: 29 170 97; --wa-green-light: 74 222 128; }
-:root.dark[data-accent='whatsapp'] { --wa-green: 0 168 132; --wa-green-dark: 0 128 105; --wa-green-light: 37 211 102; }
+:root[data-accent='vibrant'] { --wa-green: 37 211 102; --wa-green-dark: 29 170 97; --wa-green-light: 74 222 128; }
+:root.dark[data-accent='vibrant'] { --wa-green: 0 168 132; --wa-green-dark: 0 128 105; --wa-green-light: 37 211 102; }
 :root[data-accent='blue'] { --wa-green: 37 99 235; --wa-green-dark: 29 78 216; --wa-green-light: 59 130 246; }
 :root[data-accent='navy'] { --wa-green: 67 56 202; --wa-green-dark: 55 48 163; --wa-green-light: 99 102 241; }
 :root.dark[data-accent='navy'] { --wa-green: 99 102 241; --wa-green-dark: 67 56 202; --wa-green-light: 129 140 248; }
@@ -101,8 +101,8 @@
    tint of it. Every accent has its own pair, chosen for readable text (light: dark text on a ~20% tint, at least
    12:1 contrast; dark: light text on a deep muted shade, at least 6:1). Quoted replies inside are a shade darker. */
 :root, :root[data-accent='emerald'] { --bubble-bg-light: #cff1e6; --bubble-quote-light: #c3e3d8; --bubble-bg-dark: #005c4b; --bubble-quote-dark: #025144; }
-/* WhatsApp Green: WhatsApp's own sent bubbles (#d9fdd3 light, #005c4b dark) */
-:root[data-accent='whatsapp'] { --bubble-bg-light: #d9fdd3; --bubble-quote-light: #cbeec5; --bubble-bg-dark: #005c4b; --bubble-quote-dark: #025144; }
+/* Vibrant Green: sent bubbles #d9fdd3 in light mode, #005c4b in dark mode */
+:root[data-accent='vibrant'] { --bubble-bg-light: #d9fdd3; --bubble-quote-light: #cbeec5; --bubble-bg-dark: #005c4b; --bubble-quote-dark: #025144; }
 :root[data-accent='blue'] { --bubble-bg-light: #d3e0fb; --bubble-quote-light: #c6d3ec; --bubble-bg-dark: #143065; --bubble-quote-dark: #10254f; }
 :root[data-accent='navy'] { --bubble-bg-light: #d9d7f4; --bubble-quote-light: #cccae5; --bubble-bg-dark: #1f2159; --bubble-quote-dark: #181a45; }
 :root[data-accent='violet'] { --bubble-bg-light: #e8defd; --bubble-quote-light: #dad1ee; --bubble-bg-dark: #392e69; --bubble-quote-dark: #2c2452; }

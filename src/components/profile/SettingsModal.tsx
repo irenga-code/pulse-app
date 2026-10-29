@@ -145,7 +145,7 @@ function AppearancePane() {
                     on ? 'border-wa-green bg-wa-green/10' : 'border-wa-lightBorder dark:border-wa-darkBorder hover:border-wa-green/50'}`}>
                   <span className="w-9 h-9 rounded-full flex items-center justify-center ring-2 ring-offset-2 ring-offset-white dark:ring-offset-wa-darkPanel"
                     style={{ backgroundColor: a.swatch, ['--tw-ring-color' as string]: on ? a.swatch : 'transparent' }} aria-hidden="true">
-                    {on && <Check className={`w-4 h-4 ${a.id === 'yellow' || a.id === 'softpink' || a.id === 'whatsapp' ? 'text-slate-900' : 'text-white'}`} strokeWidth={3} />}
+                    {on && <Check className={`w-4 h-4 ${a.id === 'yellow' || a.id === 'softpink' || a.id === 'vibrant' ? 'text-slate-900' : 'text-white'}`} strokeWidth={3} />}
                   </span>
                   <span className={`text-xs font-medium ${bodyText}`}>{a.label}</span>
                 </button>

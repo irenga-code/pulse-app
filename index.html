@@ -23,7 +23,7 @@
           : mode === 'dark';
         d.classList.toggle('dark', dark);
         d.style.colorScheme = dark ? 'dark' : 'light';
-        d.dataset.accent = /^(emerald|whatsapp|blue|navy|violet|amber|yellow|orange|hotpink|softpink)$/.test(accent || '') ? accent : 'emerald';
+        d.dataset.accent = /^(emerald|vibrant|blue|navy|violet|amber|yellow|orange|hotpink|softpink)$/.test(accent || '') ? accent : 'emerald';
       })();
     </script>
     <!-- Page background before the stylesheet arrives (Vite injects CSS from JS in dev); matches wa.light / wa.dark -->

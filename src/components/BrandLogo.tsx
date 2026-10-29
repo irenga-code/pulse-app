@@ -11,7 +11,7 @@ const BRAND: Record<Exclude<Accent, 'auto'>, Brand> = {
     icon: 'text-emerald-600 dark:text-emerald-400',
     text: 'from-emerald-600 via-teal-500 to-cyan-500 dark:from-emerald-400 dark:via-teal-300 dark:to-cyan-400',
   },
-  whatsapp: {
+  vibrant: {
     tile: 'bg-[#25D366]/10 ring-[#25D366]/30 shadow-[0_0_16px_rgba(37,211,102,0.35)]',
     icon: 'text-[#1DAA61] dark:text-[#25D366]',
     text: 'from-[#1DAA61] via-[#25D366] to-[#00A884] dark:from-[#25D366] dark:via-[#4ADE80] dark:to-[#00A884]',
