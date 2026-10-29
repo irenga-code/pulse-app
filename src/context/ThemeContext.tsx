@@ -3,10 +3,11 @@ import { stableContext } from '@/lib/stableContext';
 
 type Theme = 'light' | 'dark';
 export type ThemePreference = Theme | 'system';
-/** 'auto' = the Pulse green: WhatsApp's #25D366 in light mode, #00A884 in dark mode (index.css). */
-export type Accent = 'auto' | 'emerald' | 'blue' | 'navy' | 'violet' | 'amber' | 'yellow' | 'orange' | 'hotpink' | 'softpink';
+/** 'auto' = the Pulse green (Emerald, #10b981) in both modes. */
+export type Accent = 'auto' | 'emerald' | 'whatsapp' | 'blue' | 'navy' | 'violet' | 'amber' | 'yellow' | 'orange' | 'hotpink' | 'softpink';
 export const ACCENTS: { id: Exclude<Accent, 'auto'>; label: string; swatch: string }[] = [
-  { id: 'emerald', label: 'WhatsApp Green', swatch: '#25D366' },
+  { id: 'emerald', label: 'Emerald Green', swatch: '#10b981' },
+  { id: 'whatsapp', label: 'WhatsApp Green', swatch: '#25D366' },
   { id: 'blue', label: 'Electric Blue', swatch: '#3b82f6' },
   { id: 'navy', label: 'Navy Blue', swatch: '#4338ca' },
   { id: 'violet', label: 'Violet', swatch: '#8b5cf6' },
