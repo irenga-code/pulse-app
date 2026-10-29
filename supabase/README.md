@@ -27,6 +27,9 @@ For an existing project, `supabase/upgrade_live_database.sql` is all of them in 
 | 18 | `20261030100000_hide_private_profile_columns.sql` | column-level read access on `profiles`: hand-added `phone`, `phone_number`, `full_name` columns are no longer public (nothing deleted) | Yes (after 15) |
 | 19 | `20261031100000_message_actions.sql` | chat message actions: `message_reactions`, `messages.reply_to_id` / `is_forwarded`, private `message_stars` and `message_hidden` (delete for me), `conversations.pinned_message_id` + `set_pinned_message()`, 'message' report target shown in `admin_report_queue` | Yes (after 16) |
 | 20 | `20261101100000_chat_list_actions.sql` | chat list actions: `conversation_participants.is_pinned` / `pinned_at` (max 3) / `marked_unread`, `user_blocks` (no messages either way while blocked) | Yes (after 15) |
+| 21 | `20261102100000_business_profiles.sql` | business profiles: `business_profiles` (cover photo, "What's happening?" note, description, address, hours, category, websites, contact), readable by anyone, written only by the owner | Yes |
+| 22 | `20261103100000_promotions.sql` | free native promotions: `promotions` (description, photo / video, placements feed / status / directory, audience, 1, 3 or 7 days or continuous; the server stamps the dates), running ones readable by anyone, owners pause / resume / delete | Yes |
+| 23 | `20261104100000_calls.sql` | 1-on-1 voice / video calls: `calls` (server-stamped caller, status), `can_call()` (shared chat, no block), private Realtime broadcast inboxes `call:<user id>` for WebRTC signalling (only you read yours; only people who may call you post to it) | Yes (after 20) |
 
 Also still required from earlier work: `20261003130000_fix_venue_locations.sql` (venue names/neighborhoods incl. Taboo - Bugolobi) and `20261003131000_profile_saved_venues_notifications.sql`.
 

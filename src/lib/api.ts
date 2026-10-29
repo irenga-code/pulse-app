@@ -10,7 +10,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type {
   Post, Comment, ReactionKind, ReactionCounts, ReactionType, NewPostInput, Profile, PublicProfile, Preferences,
   AppNotification, ReportTarget, ReportReason, ReportRow, VerificationRequest, ModerationLogRow, AccountStatus, AccountType,
-  ProfileStats, Status, NewStatusInput, ChatMessage, ConversationSummary, MessageRef, MessageMedia, ConversationPrefs, Channel, ChannelMessage, BusinessProfile, BusinessProfilePatch, Promotion, NewPromotion, VerificationRole, MessageReaction,
+  ProfileStats, Status, NewStatusInput, ChatMessage, ConversationSummary, MessageRef, MessageMedia, ConversationPrefs, Channel, ChannelMessage, CallKind, CallRow, CallStatus, BusinessProfile, BusinessProfilePatch, Promotion, NewPromotion, VerificationRole, MessageReaction,
 } from './types';
 
 export class ApiError extends Error {
@@ -680,6 +680,23 @@ export function createApi(c: SupabaseClient) {
         : await c.from('user_blocks').delete().eq('blocker_id', userId).eq('blocked_id', otherId);
       if (res.error && isMissingSchema(res.error)) throw new ApiError('Blocking needs the latest database update (migration 20).', res.error.code);
       if (res.error && res.error.code !== '23505') unwrap(res);
+    },
+    // --------------------------------------------------------- calls (migration 23)
+    /** Place a call: the server stamps you as the caller and refuses people you can not call (no shared chat, blocked). */
+    async createCall(calleeId: string, kind: CallKind) {
+      const res = await c.from('calls').insert({ callee_id: calleeId, kind }).select('id').single();
+      if (res.error && isMissingSchema(res.error)) throw new ApiError('Calls need the latest database update (migration 23).', res.error.code);
+      if (res.error?.code === '42501') throw new ApiError('You can only call people you chat with who have not blocked you.', res.error.code);
+      return (unwrap(res) as { id: string }).id;
+    },
+    /** A call you are part of, or null. Used to check an incoming invite before ringing. */
+    async getCall(id: string) {
+      return unwrap(await c.from('calls').select('id, caller_id, callee_id, kind, status, created_at, answered_at, ended_at').eq('id', id).maybeSingle()) as CallRow | null;
+    },
+    async setCallStatus(id: string, status: CallStatus) {
+      const now = new Date().toISOString();
+      const patch = status === 'accepted' ? { status, answered_at: now } : status === 'ringing' ? { status } : { status, ended_at: now };
+      unwrap(await c.from('calls').update(patch).eq('id', id));
     },
     /** Start a chat by phone number (exact match, any formatting). Returns the profile id or null; never the number. */
     async findUserByPhone(phone: string) {

@@ -9,6 +9,8 @@ import { SocialProvider, useSocial } from '@/context/SocialContext';
 import { QuickSnapProvider, useQuickSnap } from '@/camera/QuickSnapContext';
 import AuthModals from '@/components/auth/AuthModals';
 import NotificationSounds from '@/components/NotificationSounds';
+import { CallProvider } from '@/context/CallContext';
+import CallModal from '@/components/social/chat/CallModal';
 import AdminDashboard from '@/admin/AdminDashboard';
 import { useHashRoute, isAdminRoute } from '@/hooks/useHashRoute';
 import { useIsDesktop } from '@/hooks/useMediaQuery';
@@ -132,7 +134,10 @@ function App() {
           <SettingsProvider>
             <QuickSnapProvider>
               <SocialProvider>
-                <Router />
+                <CallProvider>
+                  <Router />
+                  <CallModal />
+                </CallProvider>
               </SocialProvider>
             </QuickSnapProvider>
             <NotificationSounds />

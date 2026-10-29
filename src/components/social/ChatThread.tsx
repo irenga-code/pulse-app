@@ -20,6 +20,8 @@ import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/context/ToastContext';
 import { useSocial } from '@/context/SocialContext';
 import { useQuickSnap } from '@/camera/QuickSnapContext';
+import { useCall } from '@/context/CallContext';
+import type { CallKind } from '@/lib/types';
 import { useVoiceComposer } from '@/components/social/VoiceComposer';
 import type { VoiceRecording } from '@/hooks/useVoiceRecorder';
 import type { ChatMessage, MessageRef, PublicProfile } from '@/lib/types';
@@ -84,6 +86,7 @@ export default function ChatThread({ otherUserId, initialRef, onBack, onClose, e
   const [menuOpen, setMenuOpen] = useState(false);
   const noCalls = () => show(NO_CALLS);
   const { openQuickSnap } = useQuickSnap();
+  const { startCall } = useCall();
   const me = user?.id ?? '';
   // paint at once from what the app already knows (an earlier visit, a prefetch, or the inbox row); the network refreshes it
   const [seed] = useState(() => (me ? seedChat(me, otherUserId) : null));
@@ -487,6 +490,10 @@ export default function ChatThread({ otherUserId, initialRef, onBack, onClose, e
   // your saved name for them, else the number you reached them on, else their Pulse name
   const contacts = useContacts();
   const label = contactLabel(contacts[otherUserId], other?.display_name);
+  const call = (kind: CallKind) => {
+    if (blocked) return show(`Unblock ${label.title} to call them.`, 'error');
+    void startCall(otherUserId, kind, other);
+  };
   const Shell = embedded ? EmbeddedShell : ChatShell;
   return (
     <Shell label={`Chat with ${label.title}`} onClose={onClose} secret={secret}>
@@ -522,8 +529,8 @@ export default function ChatThread({ otherUserId, initialRef, onBack, onClose, e
             </span>
           </span>
         </button>
-        <button onClick={noCalls} aria-label="Video call" title="Video call" className="p-2 rounded-full hover:bg-black/10 dark:hover:bg-white/10"><Video className="w-5 h-5" /></button>
-        <button onClick={noCalls} aria-label="Voice call" title="Voice call" className="p-2 rounded-full hover:bg-black/10 dark:hover:bg-white/10"><Phone className="w-5 h-5" /></button>
+        <button onClick={() => call('video')} aria-label="Video call" title="Video call" className="p-2 rounded-full hover:bg-black/10 dark:hover:bg-white/10"><Video className="w-5 h-5" /></button>
+        <button onClick={() => call('audio')} aria-label="Voice call" title="Voice call" className="p-2 rounded-full hover:bg-black/10 dark:hover:bg-white/10"><Phone className="w-5 h-5" /></button>
         {onSearch && (
           <button onClick={() => onSearch(search === null ? '' : null)} aria-pressed={search !== null} aria-label="Search in this chat" title="Search"
             className={`p-2 rounded-full transition-colors ${search !== null ? 'bg-black/10 dark:bg-white/10' : 'hover:bg-black/10 dark:hover:bg-white/10'}`}>

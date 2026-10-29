@@ -109,3 +109,30 @@ export function playNotificationSound({ force = false }: { force?: boolean } = {
     /* audio blocked or unavailable */
   }
 }
+
+/**
+ * Call tones, looped until the returned stop function is called. 'incoming' is a two-note ring every 2 s (it plays even
+ * with message sounds off, like a phone); 'outgoing' is a soft single ringback every 3 s while the other side rings.
+ */
+export function startRingtone(kind: 'incoming' | 'outgoing'): () => void {
+  const a = audio();
+  if (!a) return () => undefined;
+  if (a.state === 'suspended') a.resume().catch(() => undefined);
+  const ring = () => {
+    try {
+      const t = a.currentTime + 0.01;
+      if (kind === 'incoming') {
+        note(a, 988, t, 0.35, 0.16);
+        note(a, 1319, t + 0.4, 0.35, 0.14);
+        note(a, 988, t + 0.8, 0.35, 0.16);
+      } else {
+        note(a, 440, t, 1.1, 0.06);
+      }
+    } catch {
+      /* audio blocked or unavailable */
+    }
+  };
+  ring();
+  const timer = window.setInterval(ring, kind === 'incoming' ? 2000 : 3000);
+  return () => window.clearInterval(timer);
+}

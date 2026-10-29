@@ -302,3 +302,11 @@ export type ConversationSummary = {
   last_vanish: boolean | null;
   unread_count: number;
 };
+
+/** 1-on-1 calls (migration 23). The server stamps caller_id, so the callee can trust who is calling. */
+export type CallKind = 'audio' | 'video';
+export type CallStatus = 'ringing' | 'accepted' | 'declined' | 'missed' | 'cancelled' | 'busy' | 'ended' | 'failed';
+export type CallRow = {
+  id: string; caller_id: string; callee_id: string; kind: CallKind; status: CallStatus;
+  created_at: string; answered_at: string | null; ended_at: string | null;
+};
